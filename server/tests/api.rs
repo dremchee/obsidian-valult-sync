@@ -24,6 +24,23 @@ async fn health_returns_ok() {
 }
 
 #[tokio::test]
+async fn rejects_protected_routes_without_bearer_token() {
+    let (_tmp_dir, app) = test_app_with_token("secret-token").await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/changes?vault_id=vault-a&since=0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
 async fn upload_file_then_fetch_file_and_changes() {
     let (_tmp_dir, app) = test_app().await;
 
@@ -227,6 +244,10 @@ async fn delete_creates_tombstone_and_change_event() {
 }
 
 async fn test_app() -> (TempDir, axum::Router) {
+    test_app_with_token("").await
+}
+
+async fn test_app_with_token(token: &str) -> (TempDir, axum::Router) {
     let temp_dir = TempDir::new().unwrap();
     let database_url = sqlite_url(temp_dir.path().join("sync.db"));
     let storage_root = temp_dir.path().join("files");
@@ -234,7 +255,12 @@ async fn test_app() -> (TempDir, axum::Router) {
     let pool = db::connect(&database_url).await.unwrap();
     db::migrate(&pool).await.unwrap();
 
-    let state = AppState::new(pool, storage_root);
+    let auth_token = if token.is_empty() {
+        None
+    } else {
+        Some(token.to_string())
+    };
+    let state = AppState::new(pool, storage_root, auth_token);
     (temp_dir, app::build_router(state))
 }
 

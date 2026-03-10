@@ -1,6 +1,7 @@
 export interface SyncSettings {
   serverUrl: string;
   vaultId: string;
+  authToken: string;
   pollIntervalSecs: number;
   autoSync: boolean;
 }

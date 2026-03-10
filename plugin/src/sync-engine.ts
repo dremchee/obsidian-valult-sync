@@ -34,7 +34,10 @@ export class SyncEngine {
     try {
       const settings = this.getSettings();
       const state = structuredClone(this.getState());
-      const api = new SyncApi(settings.serverUrl.replace(/\/+$/, ""));
+      const api = new SyncApi(
+        settings.serverUrl.replace(/\/+$/, ""),
+        settings.authToken,
+      );
       state.vaultId = settings.vaultId;
 
       await api.health();

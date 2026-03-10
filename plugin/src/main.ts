@@ -7,6 +7,7 @@ import type { PluginDataShape, SyncSettings, SyncState } from "./types";
 const DEFAULT_SETTINGS: SyncSettings = {
   serverUrl: "http://127.0.0.1:3000",
   vaultId: "default",
+  authToken: "",
   pollIntervalSecs: 2,
   autoSync: true,
 };

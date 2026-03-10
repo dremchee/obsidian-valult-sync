@@ -9,7 +9,10 @@ import type {
 } from "./types";
 
 export class SyncApi {
-  constructor(private readonly serverUrl: string) {}
+  constructor(
+    private readonly serverUrl: string,
+    private readonly authToken: string,
+  ) {}
 
   async health(): Promise<void> {
     await this.getJson("/health");
@@ -38,6 +41,7 @@ export class SyncApi {
     const response = await requestUrl({
       url: `${this.serverUrl}${path}`,
       method: "GET",
+      headers: this.headers(),
       throw: false,
     });
 
@@ -53,9 +57,7 @@ export class SyncApi {
       url: `${this.serverUrl}${path}`,
       method: "POST",
       body: JSON.stringify(body),
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: this.headers(true),
       throw: false,
     });
 
@@ -64,5 +66,16 @@ export class SyncApi {
     }
 
     return response.json as T;
+  }
+
+  private headers(includeJsonContentType = false): Record<string, string> {
+    const headers: Record<string, string> = {};
+    if (includeJsonContentType) {
+      headers["Content-Type"] = "application/json";
+    }
+    if (this.authToken.trim()) {
+      headers.Authorization = `Bearer ${this.authToken.trim()}`;
+    }
+    return headers;
   }
 }

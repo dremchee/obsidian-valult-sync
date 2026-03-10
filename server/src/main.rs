@@ -13,7 +13,7 @@ async fn main() -> anyhow::Result<()> {
         .await
         .context("failed to run sqlite migrations")?;
 
-    let app_state = state::AppState::new(pool, config.storage_root.clone());
+    let app_state = state::AppState::new(pool, config.storage_root.clone(), config.auth_token.clone());
     let app = app::build_router(app_state);
 
     let listener = tokio::net::TcpListener::bind(("0.0.0.0", config.port))

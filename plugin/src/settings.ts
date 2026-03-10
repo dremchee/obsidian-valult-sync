@@ -44,6 +44,19 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Auth token")
+      .setDesc("Optional bearer token expected by the sync server.")
+      .addText((text) =>
+        text
+          .setPlaceholder("secret-token")
+          .setValue(this.plugin.settings.authToken)
+          .onChange(async (value) => {
+            this.plugin.settings.authToken = value.trim();
+            await this.plugin.persistData();
+          }),
+      );
+
+    new Setting(containerEl)
       .setName("Poll interval")
       .setDesc("How often the plugin polls the server for remote changes.")
       .addText((text) =>

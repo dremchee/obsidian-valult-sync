@@ -15,6 +15,7 @@
 - протокол: `HTTP/JSON`
 - кодировка содержимого файла: `base64`
 - сервер отвечает `application/json`
+- при включённом `AUTH_TOKEN` сервер ожидает `Authorization: Bearer <token>`
 
 ### Идентификация файла
 

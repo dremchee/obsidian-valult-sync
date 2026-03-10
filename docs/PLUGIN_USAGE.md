@@ -60,6 +60,7 @@ npm run build
 
 - `Server URL`
 - `Vault ID`
+- `Auth token`
 - `Poll interval`
 - `Auto sync`
 
@@ -67,6 +68,8 @@ npm run build
 
 - `Server URL = http://127.0.0.1:3000`
 - `Vault ID = общий идентификатор логического vault`
+
+Если на сервере включён `AUTH_TOKEN`, в plugin должен быть указан такой же `Auth token`.
 
 Для двух локальных Obsidian vault, которые должны синхронизироваться между собой, `Vault ID` должен быть одинаковым.
 
