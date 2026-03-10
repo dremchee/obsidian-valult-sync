@@ -17,12 +17,19 @@ export class SyncEngine {
   private readonly textEncoder = new TextEncoder();
   private readonly textDecoder = new TextDecoder();
   private running = false;
+  private readonly maxNetworkAttempts = 4;
+  private readonly retryBaseDelayMs = 500;
 
   constructor(
     private readonly app: App,
     private readonly getSettings: () => SyncSettings,
     private readonly getState: () => SyncState,
     private readonly saveState: (state: SyncState) => Promise<void>,
+    private readonly apiFactory: (serverUrl: string, authToken: string) => SyncApi = (
+      serverUrl,
+      authToken,
+    ) => new SyncApi(serverUrl, authToken),
+    private readonly sleepFn: (ms: number) => Promise<void> = sleep,
   ) {}
 
   async syncOnce(): Promise<void> {
@@ -35,13 +42,13 @@ export class SyncEngine {
       const settings = this.getSettings();
       this.validateSettings(settings);
       const state = structuredClone(this.getState());
-      const api = new SyncApi(
+      const api = this.apiFactory(
         settings.serverUrl.replace(/\/+$/, ""),
         settings.authToken,
       );
       state.vaultId = settings.vaultId;
 
-      await api.health();
+      await this.withRetry(() => api.health(), "health check");
 
       const localFiles = await this.scanVault();
       await this.uploadLocalChanges(api, state, localFiles);
@@ -102,14 +109,17 @@ export class SyncEngine {
         continue;
       }
 
-      const response = await api.upload({
-        vault_id: this.getSettings().vaultId,
-        device_id: this.getSettings().deviceId,
-        path: local.path,
-        content_b64: bytesToBase64(local.data),
-        hash: local.hash,
-        base_version: current?.version ?? 0,
-      });
+      const response = await this.withRetry(
+        () => api.upload({
+          vault_id: this.getSettings().vaultId,
+          device_id: this.getSettings().deviceId,
+          path: local.path,
+          content_b64: bytesToBase64(local.data),
+          hash: local.hash,
+          base_version: current?.version ?? 0,
+        }),
+        `upload ${local.path}`,
+      );
 
       if (response.ok && response.version) {
         state.files[local.path] = {
@@ -137,12 +147,15 @@ export class SyncEngine {
         continue;
       }
 
-      const response = await api.delete({
-        vault_id: this.getSettings().vaultId,
-        device_id: this.getSettings().deviceId,
-        path,
-        base_version: fileState.version,
-      });
+      const response = await this.withRetry(
+        () => api.delete({
+          vault_id: this.getSettings().vaultId,
+          device_id: this.getSettings().deviceId,
+          path,
+          base_version: fileState.version,
+        }),
+        `delete ${path}`,
+      );
 
       if (response.ok && response.version) {
         state.files[path] = {
@@ -161,7 +174,10 @@ export class SyncEngine {
   }
 
   private async downloadRemoteChanges(api: SyncApi, state: SyncState): Promise<void> {
-    const response = await api.getChanges(state.vaultId, state.lastSeq);
+    const response = await this.withRetry(
+      () => api.getChanges(state.vaultId, state.lastSeq),
+      "fetch change feed",
+    );
     const currentDeviceId = this.getSettings().deviceId;
 
     for (const change of response.changes) {
@@ -176,9 +192,9 @@ export class SyncEngine {
       }
 
       if (change.deleted) {
-        await this.applyRemoteDelete(state, change.path, change.version);
+        await this.applyRemoteDelete(state, change.path, change.version, change.device_id);
       } else {
-        await this.downloadAndApplyRemote(api, state, change.path);
+        await this.downloadAndApplyRemote(api, state, change.path, change.device_id);
       }
 
       state.lastSeq = change.seq;
@@ -197,18 +213,29 @@ export class SyncEngine {
       await this.writeConflictCopy(existing, local.data);
     }
 
-    await this.downloadAndApplyRemote(api, state, local.path);
+    await this.downloadAndApplyRemote(api, state, local.path, undefined, true);
   }
 
   private async downloadAndApplyRemote(
     api: SyncApi,
     state: SyncState,
     path: string,
+    sourceDeviceId?: string,
+    conflictCopyAlreadySaved = false,
   ): Promise<void> {
-    const remote = await api.getFile(this.getSettings().vaultId, path);
+    const remote = await this.withRetry(
+      () => api.getFile(this.getSettings().vaultId, path),
+      `download ${path}`,
+    );
 
     if (remote.deleted) {
-      await this.applyRemoteDelete(state, remote.path, remote.version);
+      await this.applyRemoteDelete(
+        state,
+        remote.path,
+        remote.version,
+        sourceDeviceId,
+        conflictCopyAlreadySaved,
+      );
       return;
     }
 
@@ -219,8 +246,9 @@ export class SyncEngine {
     if (existing instanceof TFile) {
       const currentData = await this.readBinary(existing);
       const currentHash = await sha256Hex(currentData);
-      if (localState && !localState.deleted && currentHash !== localState.hash) {
+      if (!conflictCopyAlreadySaved && localState && !localState.deleted && currentHash !== localState.hash) {
         await this.writeConflictCopy(existing, currentData);
+        this.notifyConflictCopy(remote.path, sourceDeviceId);
       }
       await this.writeBinary(existing, data);
     } else {
@@ -241,6 +269,8 @@ export class SyncEngine {
     state: SyncState,
     path: string,
     version: number,
+    sourceDeviceId?: string,
+    conflictCopyAlreadySaved = false,
   ): Promise<void> {
     const existing = this.app.vault.getAbstractFileByPath(path);
     const localState = state.files[path];
@@ -248,10 +278,11 @@ export class SyncEngine {
     if (existing instanceof TFile) {
       const currentData = await this.readBinary(existing);
       const currentHash = await sha256Hex(currentData);
-      if (localState && !localState.deleted && currentHash !== localState.hash) {
+      if (!conflictCopyAlreadySaved && localState && !localState.deleted && currentHash !== localState.hash) {
         await this.writeConflictCopy(existing, currentData);
+        this.notifyConflictCopy(path, sourceDeviceId);
       }
-      await this.app.fileManager.trashFile(existing, false);
+      await this.app.fileManager.trashFile(existing);
     }
 
     state.files[path] = {
@@ -266,6 +297,11 @@ export class SyncEngine {
     const conflictPath = buildConflictPath(file.path);
     await this.ensureParentFolder(conflictPath);
     await this.createBinary(conflictPath, data);
+  }
+
+  private notifyConflictCopy(path: string, sourceDeviceId?: string): void {
+    const sourceSuffix = sourceDeviceId ? ` from ${sourceDeviceId}` : "";
+    new Notice(`Saved conflict copy for ${path}${sourceSuffix}`);
   }
 
   private async ensureParentFolder(path: string): Promise<void> {
@@ -289,19 +325,45 @@ export class SyncEngine {
   }
 
   private async writeBinary(file: TFile, data: Uint8Array): Promise<void> {
-    await this.app.vault.modifyBinary(file, data.buffer.slice(0));
+    await this.app.vault.modifyBinary(file, toArrayBuffer(data));
   }
 
   private async createBinary(path: string, data: Uint8Array): Promise<void> {
-    await this.app.vault.createBinary(path, data.buffer.slice(0));
+    await this.app.vault.createBinary(path, toArrayBuffer(data));
+  }
+
+  private async withRetry<T>(operation: () => Promise<T>, label: string): Promise<T> {
+    let attempt = 0;
+
+    while (true) {
+      attempt += 1;
+      try {
+        return await operation();
+      } catch (error) {
+        if (!isRetryableError(error) || attempt >= this.maxNetworkAttempts) {
+          throw error;
+        }
+
+        const delayMs = this.retryBaseDelayMs * 2 ** (attempt - 1);
+        console.warn(`obsidian-sync: retrying ${label} in ${delayMs}ms`, error);
+        await this.sleepFn(delayMs);
+      }
+    }
   }
 }
 
 async function sha256Hex(data: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", data);
+  const digest = await crypto.subtle.digest("SHA-256", toArrayBuffer(data));
   return Array.from(new Uint8Array(digest))
     .map((value) => value.toString(16).padStart(2, "0"))
     .join("");
+}
+
+function toArrayBuffer(data: Uint8Array): ArrayBuffer {
+  return data.buffer.slice(
+    data.byteOffset,
+    data.byteOffset + data.byteLength,
+  ) as ArrayBuffer;
 }
 
 function bytesToBase64(data: Uint8Array): string {
@@ -357,4 +419,18 @@ function formatError(error: unknown): string {
     return error.message;
   }
   return String(error);
+}
+
+function isRetryableError(error: unknown): boolean {
+  if (error instanceof ApiError) {
+    return error.status === 408
+      || error.status === 429
+      || error.status >= 500;
+  }
+
+  return error instanceof Error;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
