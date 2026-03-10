@@ -36,6 +36,17 @@ export async function deriveContentKey(
   );
 }
 
+export async function buildPassphraseFingerprint(
+  vaultId: string,
+  passphrase: string,
+): Promise<string> {
+  const input = new TextEncoder().encode(`obsidian-sync:e2ee-fingerprint:v1:${vaultId}\n${passphrase}`);
+  const digest = await crypto.subtle.digest("SHA-256", toArrayBuffer(input));
+  return Array.from(new Uint8Array(digest))
+    .map((value) => value.toString(16).padStart(2, "0"))
+    .join("");
+}
+
 export async function encryptBytes(
   plaintext: Uint8Array,
   passphrase: string,

@@ -61,6 +61,11 @@
 Passphrase вводится пользователем на клиенте. Из неё локально выводится content key.
 В текущей реализации passphrase хранится только в памяти текущей Obsidian session и не
 пишется в persisted plugin data.
+Для каждого `vault_id` клиент может хранить только fingerprint passphrase, чтобы:
+
+- не сохранять сам секрет
+- уметь явно отличать `missing passphrase` от `wrong passphrase`
+- быстрее валидировать, что пользователь ввёл тот же ключ, что и раньше
 
 ---
 

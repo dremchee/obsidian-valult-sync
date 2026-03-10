@@ -35,6 +35,7 @@ export interface PluginDataShape {
   settings: SyncSettings;
   statesByVaultId: Record<string, SyncState>;
   vaultScopesById: Record<string, VaultScopeConfig>;
+  e2eeFingerprintsByVaultId: Record<string, string>;
 }
 
 export interface LegacyPluginDataShape {
@@ -42,6 +43,7 @@ export interface LegacyPluginDataShape {
   state?: Partial<SyncState>;
   statesByVaultId?: Record<string, Partial<SyncState>>;
   vaultScopesById?: Record<string, Partial<VaultScopeConfig>>;
+  e2eeFingerprintsByVaultId?: Record<string, string>;
 }
 
 export interface UploadRequest {

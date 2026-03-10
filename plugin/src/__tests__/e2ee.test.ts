@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildPassphraseFingerprint,
   decryptEnvelope,
   encryptBytes,
   isE2eeEnvelope,
@@ -47,5 +48,14 @@ describe("E2EE helpers", () => {
 
     expect(isE2eeEnvelope(data)).toBe(false);
     expect(() => parseEnvelope(data)).toThrow("Invalid E2EE envelope");
+  });
+
+  it("builds stable vault-scoped passphrase fingerprints", async () => {
+    const first = await buildPassphraseFingerprint("vault-a", "correct horse battery staple");
+    const second = await buildPassphraseFingerprint("vault-a", "correct horse battery staple");
+    const third = await buildPassphraseFingerprint("vault-b", "correct horse battery staple");
+
+    expect(first).toBe(second);
+    expect(first).not.toBe(third);
   });
 });

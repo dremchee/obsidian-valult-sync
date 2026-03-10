@@ -27,6 +27,7 @@ export class SyncEngine {
     private readonly app: App,
     private readonly getSettings: () => SyncSettings,
     private readonly getE2eePassphrase: () => string,
+    private readonly rememberValidatedE2eePassphrase: () => Promise<void>,
     private readonly getState: () => SyncState,
     private readonly saveState: (state: SyncState) => Promise<void>,
     private readonly apiFactory: (serverUrl: string, authToken: string) => SyncApi = (
@@ -368,6 +369,7 @@ export class SyncEngine {
       };
     }
 
+    await this.rememberValidatedE2eePassphrase();
     const envelope = await encryptBytes(local.data, passphrase);
     const serializedEnvelope = serializeEnvelope(envelope);
     return {
@@ -390,6 +392,7 @@ export class SyncEngine {
       throw new Error("E2EE passphrase is required to decrypt synced content");
     }
 
+    await this.rememberValidatedE2eePassphrase();
     return decryptEnvelope(parseEnvelope(payload), passphrase);
   }
 

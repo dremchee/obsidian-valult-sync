@@ -55,6 +55,7 @@ describe("SyncEngine", () => {
       app as never,
       () => DEFAULT_SETTINGS,
       () => "",
+      async () => {},
       () => createState(),
       async (state) => {
         persistedState = state;
@@ -114,6 +115,7 @@ describe("SyncEngine", () => {
       app as never,
       () => DEFAULT_SETTINGS,
       () => "",
+      async () => {},
       () => createState({
         files: {
           "notes/test.md": {
@@ -180,6 +182,7 @@ describe("SyncEngine", () => {
       app as never,
       () => DEFAULT_SETTINGS,
       () => "",
+      async () => {},
       () => persistedState,
       async (state) => {
         persistedState = state;
@@ -205,6 +208,7 @@ describe("SyncEngine", () => {
       app as never,
       () => DEFAULT_SETTINGS,
       () => "",
+      async () => {},
       () => persistedState,
       async (state) => {
         persistedState = state;
@@ -252,6 +256,7 @@ describe("SyncEngine", () => {
       app as never,
       () => DEFAULT_SETTINGS,
       () => "",
+      async () => {},
       () => createState({
         files: {
           "notes/test.md": {
@@ -311,6 +316,7 @@ describe("SyncEngine", () => {
         ignorePatterns: ["Templates/"],
       }),
       () => "",
+      async () => {},
       () => createState({
         files: {
           "Templates/Old.md": {
@@ -381,6 +387,7 @@ describe("SyncEngine", () => {
         ignorePatterns: ["Templates/"],
       }),
       () => "",
+      async () => {},
       () => createState({
         lastSeq: 1,
       }),
@@ -421,6 +428,7 @@ describe("SyncEngine", () => {
         includePatterns: ["Notes/"],
       }),
       () => "",
+      async () => {},
       () => createState(),
       async () => {},
       () => api,
@@ -454,6 +462,7 @@ describe("SyncEngine", () => {
       app as never,
       () => DEFAULT_SETTINGS,
       () => "correct horse battery staple",
+      async () => {},
       () => createState(),
       async () => {},
       () => api,
@@ -504,6 +513,7 @@ describe("SyncEngine", () => {
         includePatterns: ["Notes/"],
       }),
       () => "",
+      async () => {},
       () => persistedState,
       async (state) => {
         persistedState = state;
@@ -554,6 +564,7 @@ describe("SyncEngine", () => {
       app as never,
       () => DEFAULT_SETTINGS,
       () => "correct horse battery staple",
+      async () => {},
       () => createState({
         lastSeq: 1,
       }),
@@ -577,6 +588,54 @@ describe("SyncEngine", () => {
         },
       },
     });
+  });
+
+  it("fails clearly when encrypted remote content arrives without a session passphrase", async () => {
+    const plaintext = toBytes("decrypted secret");
+    const envelope = await encryptBytes(plaintext, "correct horse battery staple");
+    const app = createMemoryApp({});
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      upload: vi.fn(),
+      delete: vi.fn(),
+      getFile: vi.fn().mockResolvedValue({
+        path: "Notes/secret.md",
+        hash: await sha256Hex(plaintext),
+        version: 2,
+        deleted: false,
+        content_b64: bytesToBase64(serializeEnvelope(envelope)),
+        content_format: "e2ee-envelope-v1",
+      }),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [
+          {
+            seq: 2,
+            device_id: "device-remote",
+            path: "Notes/secret.md",
+            version: 2,
+            deleted: false,
+          },
+        ],
+        latest_seq: 2,
+      }),
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => DEFAULT_SETTINGS,
+      () => "",
+      async () => {},
+      () => createState({
+        lastSeq: 1,
+      }),
+      async () => {},
+      () => api,
+      async () => {},
+    );
+
+    await expect(engine.syncOnce()).rejects.toThrow(
+      "E2EE passphrase is required to decrypt synced content",
+    );
   });
 });
 

@@ -232,6 +232,35 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
+    const e2eeStatus = containerEl.createDiv({
+      text: buildE2eeStatusText(
+        this.plugin.getE2eeFingerprint(),
+        this.plugin.getE2eePassphrase(),
+      ),
+    });
+    new Setting(containerEl)
+      .setName("Validate E2EE passphrase")
+      .setDesc("Check the session passphrase against the stored fingerprint for this vault.")
+      .addButton((button) =>
+        button.setButtonText("Validate").onClick(async () => {
+          try {
+            const message = await this.plugin.validateCurrentE2eePassphrase();
+            e2eeStatus.setText(`E2EE status: ${message}`);
+          } catch (error) {
+            e2eeStatus.setText(`E2EE status: ${formatDeviceError(error)}`);
+          }
+        }),
+      )
+      .addButton((button) =>
+        button.setButtonText("Forget fingerprint").onClick(async () => {
+          await this.plugin.clearCurrentE2eeFingerprint();
+          e2eeStatus.setText(buildE2eeStatusText(
+            this.plugin.getE2eeFingerprint(),
+            this.plugin.getE2eePassphrase(),
+          ));
+        }),
+      );
+
     const connectionStatus = containerEl.createDiv({
       text: "Connection status: not checked yet.",
     });
@@ -350,6 +379,20 @@ function formatLastSyncAt(value: number | null): string {
   }
 
   return parsed.toLocaleString();
+}
+
+function buildE2eeStatusText(fingerprint: string | null, passphrase: string): string {
+  if (!fingerprint) {
+    return passphrase.trim()
+      ? "E2EE status: session passphrase loaded. Fingerprint will be recorded on first encrypted sync."
+      : "E2EE status: disabled for this vault.";
+  }
+
+  if (!passphrase.trim()) {
+    return `E2EE status: fingerprint ${fingerprint.slice(0, 12)} is stored, but no session passphrase is loaded.`;
+  }
+
+  return `E2EE status: fingerprint ${fingerprint.slice(0, 12)} is stored and a session passphrase is loaded.`;
 }
 
 function formatDeviceError(error: unknown): string {
