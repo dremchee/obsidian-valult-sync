@@ -395,9 +395,204 @@ async fn isolates_same_path_across_vaults() {
     );
 }
 
+#[tokio::test]
+async fn sync_flow_across_two_devices_surfaces_conflict_and_tombstone() {
+    let (_tmp_dir, app) = test_app().await;
+
+    let first_upload = upload_file(
+        &app,
+        "vault-a",
+        "device-a",
+        "notes/shared.md",
+        "aGVsbG8K",
+        "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+        0,
+    )
+    .await;
+    assert_eq!(first_upload.status(), StatusCode::OK);
+    assert_eq!(read_json(first_upload).await, json!({ "ok": true, "version": 1 }));
+
+    let device_b_changes = get_changes(&app, "vault-a", 0).await;
+    assert_eq!(device_b_changes.status(), StatusCode::OK);
+    assert_eq!(
+        read_json(device_b_changes).await,
+        json!({
+            "changes": [
+                {
+                    "seq": 1,
+                    "device_id": "device-a",
+                    "path": "notes/shared.md",
+                    "version": 1,
+                    "deleted": false
+                }
+            ],
+            "latest_seq": 1
+        })
+    );
+
+    let stale_upload = upload_file(
+        &app,
+        "vault-a",
+        "device-b",
+        "notes/shared.md",
+        "d29ybGQK",
+        "e258d248fda94c63753607f7c4494ee0fcbe92f1a76bfdac795c9d84101eb317",
+        0,
+    )
+    .await;
+    assert_eq!(stale_upload.status(), StatusCode::OK);
+    assert_eq!(
+        read_json(stale_upload).await,
+        json!({
+            "ok": false,
+            "conflict": true,
+            "server_version": 1
+        })
+    );
+
+    let remote_file = get_file(&app, "vault-a", "notes/shared.md").await;
+    assert_eq!(remote_file.status(), StatusCode::OK);
+    assert_eq!(
+        read_json(remote_file).await,
+        json!({
+            "path": "notes/shared.md",
+            "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+            "version": 1,
+            "deleted": false,
+            "content_b64": "aGVsbG8K"
+        })
+    );
+
+    let delete_response = delete_file(&app, "vault-a", "device-a", "notes/shared.md", 1).await;
+    assert_eq!(delete_response.status(), StatusCode::OK);
+    assert_eq!(read_json(delete_response).await, json!({ "ok": true, "version": 2 }));
+
+    let tombstone_changes = get_changes(&app, "vault-a", 1).await;
+    assert_eq!(tombstone_changes.status(), StatusCode::OK);
+    assert_eq!(
+        read_json(tombstone_changes).await,
+        json!({
+            "changes": [
+                {
+                    "seq": 2,
+                    "device_id": "device-a",
+                    "path": "notes/shared.md",
+                    "version": 2,
+                    "deleted": true
+                }
+            ],
+            "latest_seq": 2
+        })
+    );
+
+    let tombstone_file = get_file(&app, "vault-a", "notes/shared.md").await;
+    assert_eq!(tombstone_file.status(), StatusCode::OK);
+    assert_eq!(
+        read_json(tombstone_file).await,
+        json!({
+            "path": "notes/shared.md",
+            "hash": "",
+            "version": 2,
+            "deleted": true,
+            "content_b64": null
+        })
+    );
+}
+
 async fn read_json(response: axum::response::Response) -> Value {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     serde_json::from_slice(&body).unwrap()
+}
+
+async fn upload_file(
+    app: &axum::Router,
+    vault_id: &str,
+    device_id: &str,
+    path: &str,
+    content_b64: &str,
+    hash: &str,
+    base_version: i64,
+) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/upload")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "vault_id": vault_id,
+                        "device_id": device_id,
+                        "path": path,
+                        "content_b64": content_b64,
+                        "hash": hash,
+                        "base_version": base_version
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+async fn delete_file(
+    app: &axum::Router,
+    vault_id: &str,
+    device_id: &str,
+    path: &str,
+    base_version: i64,
+) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/delete")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "vault_id": vault_id,
+                        "device_id": device_id,
+                        "path": path,
+                        "base_version": base_version
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+async fn get_changes(app: &axum::Router, vault_id: &str, since: i64) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/changes?vault_id={vault_id}&since={since}"))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+async fn get_file(app: &axum::Router, vault_id: &str, path: &str) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/file?vault_id={vault_id}&path={}",
+                    encode_query_value(path)
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+fn encode_query_value(value: &str) -> String {
+    value.replace('/', "%2F")
 }
 
 fn sqlite_url(path: PathBuf) -> String {
