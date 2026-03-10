@@ -149,9 +149,18 @@ function toArrayBuffer(data: Uint8Array): ArrayBuffer {
 }
 
 function bytesToBase64(data: Uint8Array): string {
-  return Buffer.from(data).toString("base64");
+  let text = "";
+  for (const byte of data) {
+    text += String.fromCharCode(byte);
+  }
+  return btoa(text);
 }
 
 function base64ToBytes(value: string): Uint8Array {
-  return new Uint8Array(Buffer.from(value, "base64"));
+  const binary = atob(value);
+  const output = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    output[i] = binary.charCodeAt(i);
+  }
+  return output;
 }
