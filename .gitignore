@@ -1,0 +1,19 @@
+# OS / editor
+.DS_Store
+
+# Local vaults used for manual testing
+vaults/
+.vaults/
+
+# Plugin local environment and build artifacts
+plugin/.env
+plugin/node_modules/
+plugin/dist/
+plugin/main.js
+
+# Server local runtime artifacts
+server/data/
+server/target/
+
+# Accidental nested repositories created by tooling
+server/.git/

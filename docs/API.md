@@ -1,0 +1,344 @@
+# API
+
+## Назначение
+
+Этот документ фиксирует контракт MVP sync-сервера. Он должен быть единственным источником истины для клиента и сервера, пока протокол не изменён отдельным решением.
+
+Все примеры ниже относятся к первой версии API.
+
+---
+
+## Общие правила
+
+### Transport
+
+- протокол: `HTTP/JSON`
+- кодировка содержимого файла: `base64`
+- сервер отвечает `application/json`
+
+### Идентификация файла
+
+- файл идентифицируется по `path`
+- `path` это относительный путь внутри vault
+- путь должен использовать `/`
+- путь не должен позволять выход за пределы storage root
+
+Пример корректного пути:
+
+```text
+notes/daily/2026-03-10.md
+```
+
+Пример некорректного пути:
+
+```text
+../../etc/passwd
+```
+
+### Versioning
+
+- сервер хранит монотонно растущую `version` для каждого файла
+- клиент отправляет `base_version`
+- если `base_version` не совпадает с текущей серверной версией, запись отклоняется как conflict
+
+### Deletions
+
+- удаление считается отдельным событием
+- удаление повышает `version`
+- удаление отражается в `changes`
+
+---
+
+## Error model
+
+### Общие HTTP коды
+
+- `200 OK` для успешных `GET`
+- `201 Created` не используем, достаточно `200 OK`
+- `400 Bad Request` для невалидного payload или path
+- `404 Not Found` если файла не существует
+- `409 Conflict` не используем как основной transport для stale write
+
+Для конфликтов в MVP сервер возвращает `200 OK` и JSON с `conflict: true`, чтобы упростить клиентскую обработку.
+
+### Общий формат ошибки
+
+```json
+{
+  "error": "invalid_path",
+  "message": "path is invalid"
+}
+```
+
+Рекомендуемые значения `error`:
+
+- `invalid_path`
+- `invalid_base64`
+- `hash_mismatch`
+- `not_found`
+- `internal_error`
+
+---
+
+## GET /health
+
+### Назначение
+
+Проверка, что сервер запущен.
+
+### Response
+
+```json
+{
+  "ok": true
+}
+```
+
+---
+
+## POST /upload
+
+### Назначение
+
+Создать новую версию файла или загрузить новый файл.
+
+### Request
+
+```json
+{
+  "path": "notes/test.md",
+  "content_b64": "IyBIZWxsbyB3b3JsZAo=",
+  "hash": "f2d2b0e86e...",
+  "base_version": 3
+}
+```
+
+### Поля
+
+- `path: string`
+- `content_b64: string`
+- `hash: string`
+- `base_version: integer`
+
+### Успешный response
+
+```json
+{
+  "ok": true,
+  "version": 4
+}
+```
+
+### Conflict response
+
+```json
+{
+  "ok": false,
+  "conflict": true,
+  "server_version": 5
+}
+```
+
+### Ошибки
+
+`400 Bad Request`
+
+```json
+{
+  "error": "hash_mismatch",
+  "message": "provided hash does not match content"
+}
+```
+
+---
+
+## GET /file
+
+### Назначение
+
+Вернуть актуальную серверную версию файла.
+
+### Query parameters
+
+```text
+path=notes/test.md
+```
+
+### Успешный response
+
+```json
+{
+  "path": "notes/test.md",
+  "hash": "f2d2b0e86e...",
+  "version": 5,
+  "deleted": false,
+  "content_b64": "IyBIZWxsbyB3b3JsZAo="
+}
+```
+
+### Response для tombstone
+
+```json
+{
+  "path": "notes/test.md",
+  "hash": "",
+  "version": 6,
+  "deleted": true,
+  "content_b64": null
+}
+```
+
+### Ошибки
+
+`404 Not Found`
+
+```json
+{
+  "error": "not_found",
+  "message": "file not found"
+}
+```
+
+---
+
+## GET /changes
+
+### Назначение
+
+Вернуть список изменений, произошедших после указанного `seq`.
+
+### Query parameters
+
+```text
+since=42
+```
+
+### Успешный response
+
+```json
+{
+  "changes": [
+    {
+      "seq": 43,
+      "path": "notes/test.md",
+      "version": 5,
+      "deleted": false
+    },
+    {
+      "seq": 44,
+      "path": "notes/old.md",
+      "version": 3,
+      "deleted": true
+    }
+  ],
+  "latest_seq": 44
+}
+```
+
+### Поля `changes[]`
+
+- `seq: integer`
+- `path: string`
+- `version: integer`
+- `deleted: boolean`
+
+### Поведение
+
+- сервер возвращает события в порядке возрастания `seq`
+- если новых изменений нет, `changes` возвращается пустым массивом
+- `latest_seq` должен возвращаться всегда
+
+Пример без новых изменений:
+
+```json
+{
+  "changes": [],
+  "latest_seq": 44
+}
+```
+
+---
+
+## POST /delete
+
+### Назначение
+
+Удалить файл через tombstone и повысить его версию.
+
+### Request
+
+```json
+{
+  "path": "notes/test.md",
+  "base_version": 5
+}
+```
+
+### Успешный response
+
+```json
+{
+  "ok": true,
+  "version": 6
+}
+```
+
+### Conflict response
+
+```json
+{
+  "ok": false,
+  "conflict": true,
+  "server_version": 7
+}
+```
+
+### Ошибки
+
+`404 Not Found`
+
+```json
+{
+  "error": "not_found",
+  "message": "file not found"
+}
+```
+
+---
+
+## Ожидаемое поведение клиента
+
+### Upload flow
+
+1. клиент считает `hash`
+2. клиент берёт локальный `version`
+3. клиент отправляет `POST /upload`
+4. при `ok: true` сохраняет новую версию
+5. при `conflict: true` запускает conflict handling
+
+### Download flow
+
+1. клиент читает `last_seq`
+2. делает `GET /changes`
+3. по каждому изменению сравнивает локальную и удалённую версию
+4. если `deleted = true`, применяет удаление
+5. иначе скачивает `/file`
+6. после успешного применения обновляет `last_seq`
+
+### Conflict flow
+
+1. клиент получает `conflict: true`
+2. запрашивает актуальную серверную версию через `GET /file`
+3. сохраняет локальную копию как conflict file
+4. серверную версию записывает как основную
+
+---
+
+## Версионирование API
+
+В MVP отдельный version prefix не вводим.
+
+Если протокол начнёт ломать обратную совместимость, следующий шаг:
+
+- либо `/v1/...`
+- либо явная миграция клиента и сервера в одном релизном цикле
