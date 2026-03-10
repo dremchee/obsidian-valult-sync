@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS: SyncSettings = {
   serverUrl: "http://127.0.0.1:3000",
   vaultId: "vault-a",
   knownVaultIds: ["vault-a"],
+  includePatterns: [],
   ignorePatterns: [],
   deviceId: "device-local",
   authToken: "",
@@ -400,6 +401,93 @@ describe("SyncEngine", () => {
     expect(api.getFile).not.toHaveBeenCalled();
     expect(app.listPaths()).toEqual([]);
     expect(persistedState.lastSeq).toBe(2);
+  });
+
+  it("uploads only paths allowed by include patterns", async () => {
+    const app = createMemoryApp({
+      "Notes/keep.md": "keep",
+      "Templates/skip.md": "skip",
+    });
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      upload: vi.fn().mockResolvedValue({ ok: true, version: 1 }),
+      delete: vi.fn(),
+      getFile: vi.fn(),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [],
+        latest_seq: 0,
+      }),
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => ({
+        ...DEFAULT_SETTINGS,
+        includePatterns: ["Notes/"],
+      }),
+      () => ({
+        vaultId: DEFAULT_SETTINGS.vaultId,
+        files: {},
+        lastSeq: 0,
+      }),
+      async () => {},
+      () => api,
+      async () => {},
+    );
+
+    await engine.syncOnce();
+
+    expect(api.upload).toHaveBeenCalledTimes(1);
+    expect(api.upload).toHaveBeenCalledWith(expect.objectContaining({
+      path: "Notes/keep.md",
+    }));
+  });
+
+  it("skips remote changes outside include patterns", async () => {
+    const app = createMemoryApp({});
+    let persistedState: SyncState = {
+      vaultId: DEFAULT_SETTINGS.vaultId,
+      files: {},
+      lastSeq: 3,
+    };
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      upload: vi.fn(),
+      delete: vi.fn(),
+      getFile: vi.fn(),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [
+          {
+            seq: 4,
+            device_id: "device-remote",
+            path: "Templates/skip.md",
+            version: 1,
+            deleted: false,
+          },
+        ],
+        latest_seq: 4,
+      }),
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => ({
+        ...DEFAULT_SETTINGS,
+        includePatterns: ["Notes/"],
+      }),
+      () => persistedState,
+      async (state) => {
+        persistedState = state;
+      },
+      () => api,
+      async () => {},
+    );
+
+    await engine.syncOnce();
+
+    expect(api.getFile).not.toHaveBeenCalled();
+    expect(app.listPaths()).toEqual([]);
+    expect(persistedState.lastSeq).toBe(4);
   });
 });
 

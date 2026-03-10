@@ -2,6 +2,7 @@ export interface SyncSettings {
   serverUrl: string;
   vaultId: string;
   knownVaultIds: string[];
+  includePatterns: string[];
   ignorePatterns: string[];
   deviceId: string;
   authToken: string;

@@ -69,7 +69,7 @@ export class SyncEngine {
     const files = new Map<string, LocalFileSnapshot>();
 
     for (const file of this.app.vault.getFiles()) {
-      if (this.isIgnoredPath(file.path)) {
+      if (!this.shouldSyncPath(file.path)) {
         continue;
       }
 
@@ -147,7 +147,7 @@ export class SyncEngine {
     localFiles: Map<string, LocalFileSnapshot>,
   ): Promise<void> {
     for (const [path, fileState] of Object.entries(state.files)) {
-      if (fileState.deleted || localFiles.has(path) || this.isIgnoredPath(path)) {
+      if (fileState.deleted || localFiles.has(path) || !this.shouldSyncPath(path)) {
         continue;
       }
 
@@ -190,7 +190,7 @@ export class SyncEngine {
         continue;
       }
 
-      if (this.isIgnoredPath(change.path)) {
+      if (!this.shouldSyncPath(change.path)) {
         state.lastSeq = change.seq;
         continue;
       }
@@ -341,9 +341,24 @@ export class SyncEngine {
     await this.app.vault.createBinary(path, toArrayBuffer(data));
   }
 
+  private shouldSyncPath(path: string): boolean {
+    return this.matchesIncludePath(path) && !this.isIgnoredPath(path);
+  }
+
+  private matchesIncludePath(path: string): boolean {
+    const normalizedPath = normalizePath(path);
+    const { includePatterns } = this.getSettings();
+
+    if (includePatterns.length === 0) {
+      return true;
+    }
+
+    return includePatterns.some((pattern) => matchesSyncPattern(normalizedPath, pattern));
+  }
+
   private isIgnoredPath(path: string): boolean {
     const normalizedPath = normalizePath(path);
-    return this.getSettings().ignorePatterns.some((pattern) => matchesIgnorePattern(normalizedPath, pattern));
+    return this.getSettings().ignorePatterns.some((pattern) => matchesSyncPattern(normalizedPath, pattern));
   }
 
   private async withRetry<T>(operation: () => Promise<T>, label: string): Promise<T> {
@@ -449,7 +464,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
-function matchesIgnorePattern(path: string, pattern: string): boolean {
+function matchesSyncPattern(path: string, pattern: string): boolean {
   const normalizedPattern = normalizePath(pattern.trim());
   if (!normalizedPattern) {
     return false;

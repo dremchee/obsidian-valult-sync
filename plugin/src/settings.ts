@@ -68,6 +68,22 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Include patterns")
+      .setDesc("Optional allow-list. If set, only matching paths are synced. Same pattern syntax as ignore rules.")
+      .addTextArea((text) =>
+        text
+          .setPlaceholder("Notes/\n*.md")
+          .setValue(this.plugin.settings.includePatterns.join("\n"))
+          .onChange(async (value) => {
+            this.plugin.settings.includePatterns = value
+              .split("\n")
+              .map((pattern) => pattern.trim())
+              .filter((pattern) => pattern.length > 0);
+            await this.plugin.persistData();
+          }),
+      );
+
+    new Setting(containerEl)
       .setName("Ignore patterns")
       .setDesc("One pattern per line. Supports '*', '?', and folder prefixes ending with '/'.")
       .addTextArea((text) =>
