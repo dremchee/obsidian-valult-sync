@@ -497,6 +497,15 @@ async fn sync_flow_across_two_devices_surfaces_conflict_and_tombstone() {
             "content_b64": null
         })
     );
+
+    let devices_response = get_devices(&app, "vault-a").await;
+    assert_eq!(devices_response.status(), StatusCode::OK);
+    let devices_json = read_json(devices_response).await;
+    assert_eq!(devices_json["devices"].as_array().unwrap().len(), 2);
+    assert_eq!(devices_json["devices"][0]["device_id"], json!("device-a"));
+    assert_eq!(devices_json["devices"][1]["device_id"], json!("device-b"));
+    assert!(devices_json["devices"][0]["first_seen_at"].as_str().is_some());
+    assert!(devices_json["devices"][0]["last_seen_at"].as_str().is_some());
 }
 
 async fn read_json(response: axum::response::Response) -> Value {
@@ -584,6 +593,18 @@ async fn get_file(app: &axum::Router, vault_id: &str, path: &str) -> axum::respo
                     "/file?vault_id={vault_id}&path={}",
                     encode_query_value(path)
                 ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+async fn get_devices(app: &axum::Router, vault_id: &str) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("/devices?vault_id={vault_id}"))
                 .body(Body::empty())
                 .unwrap(),
         )

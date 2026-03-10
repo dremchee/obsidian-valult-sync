@@ -16,3 +16,10 @@ pub struct ChangeRecord {
     pub version: i64,
     pub deleted: bool,
 }
+
+#[derive(Debug, Clone)]
+pub struct DeviceRecord {
+    pub device_id: String,
+    pub first_seen_at: String,
+    pub last_seen_at: String,
+}

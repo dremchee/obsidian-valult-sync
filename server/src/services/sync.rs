@@ -4,9 +4,12 @@ use sha2::{Digest, Sha256};
 use sqlx::{Row, SqlitePool};
 
 use crate::{
-    dto::{ChangeItem, ChangesResponse, DeleteRequest, FileResponse, MutationResponse, UploadRequest},
+    dto::{
+        ChangeItem, ChangesResponse, DeleteRequest, DeviceItem, DevicesResponse, FileResponse,
+        MutationResponse, UploadRequest,
+    },
     error::AppError,
-    models::{ChangeRecord, FileRecord},
+    models::{ChangeRecord, DeviceRecord, FileRecord},
     state::AppState,
     storage,
 };
@@ -24,6 +27,8 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
     let vault_id = storage::validate_vault_id(&request.vault_id)?;
     let device_id = storage::validate_device_id(&request.device_id)?;
     let safe_path = storage::validate_relative_path(&request.path)?;
+    let now = Utc::now().to_rfc3339();
+    touch_device(state.pool(), &vault_id, &device_id, &now).await?;
     let current = get_file_record(state.pool(), &vault_id, &safe_path).await?;
     let current_version = current.as_ref().map(|record| record.version).unwrap_or(0);
 
@@ -41,7 +46,6 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
         .map_err(AppError::internal)?;
 
     let new_version = current_version + 1;
-    let now = Utc::now().to_rfc3339();
 
     sqlx::query(
         r#"
@@ -95,6 +99,8 @@ pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<Mutation
     let vault_id = storage::validate_vault_id(&request.vault_id)?;
     let device_id = storage::validate_device_id(&request.device_id)?;
     let safe_path = storage::validate_relative_path(&request.path)?;
+    let now = Utc::now().to_rfc3339();
+    touch_device(state.pool(), &vault_id, &device_id, &now).await?;
     let current = get_file_record(state.pool(), &vault_id, &safe_path)
         .await?
         .ok_or(AppError::NotFound)?;
@@ -109,7 +115,6 @@ pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<Mutation
     }
 
     let new_version = current.version + 1;
-    let now = Utc::now().to_rfc3339();
 
     storage::delete_file(state.storage_root(), &vault_id, &safe_path)
         .await
@@ -229,6 +234,33 @@ pub async fn get_changes(state: &AppState, vault_id: String, since: i64) -> Resu
     Ok(ChangesResponse { changes, latest_seq })
 }
 
+pub async fn get_devices(state: &AppState, vault_id: String) -> Result<DevicesResponse, AppError> {
+    let vault_id = storage::validate_vault_id(&vault_id)?;
+    let rows = sqlx::query(
+        "SELECT vault_id, device_id, first_seen_at, last_seen_at FROM devices WHERE vault_id = ?1 ORDER BY last_seen_at DESC, device_id ASC",
+    )
+    .bind(&vault_id)
+    .fetch_all(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+
+    let devices = rows
+        .into_iter()
+        .map(|row| DeviceRecord {
+            device_id: row.get("device_id"),
+            first_seen_at: row.get("first_seen_at"),
+            last_seen_at: row.get("last_seen_at"),
+        })
+        .map(|record| DeviceItem {
+            device_id: record.device_id,
+            first_seen_at: record.first_seen_at,
+            last_seen_at: record.last_seen_at,
+        })
+        .collect();
+
+    Ok(DevicesResponse { devices })
+}
+
 async fn get_file_record(pool: &SqlitePool, vault_id: &str, path: &str) -> Result<Option<FileRecord>, AppError> {
     let row = sqlx::query(
         "SELECT vault_id, path, hash, version, deleted FROM files WHERE vault_id = ?1 AND path = ?2",
@@ -252,4 +284,28 @@ fn sha256_hex(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
     format!("{:x}", hasher.finalize())
+}
+
+async fn touch_device(
+    pool: &SqlitePool,
+    vault_id: &str,
+    device_id: &str,
+    now: &str,
+) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        INSERT INTO devices (vault_id, device_id, first_seen_at, last_seen_at)
+        VALUES (?1, ?2, ?3, ?3)
+        ON CONFLICT(vault_id, device_id) DO UPDATE SET
+          last_seen_at = excluded.last_seen_at
+        "#,
+    )
+    .bind(vault_id)
+    .bind(device_id)
+    .bind(now)
+    .execute(pool)
+    .await
+    .map_err(AppError::internal)?;
+
+    Ok(())
 }

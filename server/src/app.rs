@@ -8,6 +8,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(routes::upload::router())
         .merge(routes::file::router())
         .merge(routes::changes::router())
+        .merge(routes::devices::router())
         .merge(routes::delete::router())
         .route_layer(middleware::from_fn_with_state(
             state.clone(),

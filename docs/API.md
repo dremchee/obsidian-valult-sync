@@ -268,6 +268,42 @@ vault_id=default&since=42
 
 ---
 
+## GET /devices
+
+### Назначение
+
+Вернуть список устройств, которые уже отправляли изменения в указанный `vault_id`.
+
+Это минимальная device model для последующего UI и управления устройствами.
+
+### Query parameters
+
+```text
+vault_id=default
+```
+
+### Успешный response
+
+```json
+{
+  "devices": [
+    {
+      "device_id": "device_local_desktop",
+      "first_seen_at": "2026-03-10T12:00:00+00:00",
+      "last_seen_at": "2026-03-10T12:05:00+00:00"
+    }
+  ]
+}
+```
+
+### Поля `devices[]`
+
+- `device_id: string`
+- `first_seen_at: string`
+- `last_seen_at: string`
+
+---
+
 ## POST /delete
 
 ### Назначение

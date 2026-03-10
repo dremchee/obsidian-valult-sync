@@ -52,3 +52,15 @@ pub struct ChangesResponse {
     pub changes: Vec<ChangeItem>,
     pub latest_seq: i64,
 }
+
+#[derive(Debug, Serialize)]
+pub struct DeviceItem {
+    pub device_id: String,
+    pub first_seen_at: String,
+    pub last_seen_at: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct DevicesResponse {
+    pub devices: Vec<DeviceItem>,
+}
