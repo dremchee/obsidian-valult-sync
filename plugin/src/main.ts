@@ -2,7 +2,12 @@ import { Notice, Plugin } from "obsidian";
 
 import { SyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync-engine";
-import type { PluginDataShape, SyncSettings, SyncState } from "./types";
+import type {
+  LegacyPluginDataShape,
+  PluginDataShape,
+  SyncSettings,
+  SyncState,
+} from "./types";
 
 const DEFAULT_SETTINGS: SyncSettings = {
   serverUrl: "http://127.0.0.1:3000",
@@ -22,6 +27,7 @@ const DEFAULT_STATE: SyncState = {
 export default class ObsidianSyncPlugin extends Plugin {
   settings: SyncSettings = structuredClone(DEFAULT_SETTINGS);
   state: SyncState = structuredClone(DEFAULT_STATE);
+  statesByVaultId: Record<string, SyncState> = {};
 
   private engine!: SyncEngine;
   private intervalId: number | null = null;
@@ -85,11 +91,19 @@ export default class ObsidianSyncPlugin extends Plugin {
 
   async persistData(): Promise<void> {
     this.state.vaultId = this.settings.vaultId;
+    this.statesByVaultId[this.settings.vaultId] = structuredClone(this.state);
     const data: PluginDataShape = {
       settings: this.settings,
-      state: this.state,
+      statesByVaultId: this.statesByVaultId,
     };
     await this.saveData(data);
+  }
+
+  async activateVault(vaultId: string): Promise<void> {
+    this.settings.vaultId = vaultId;
+    this.state = this.getStateForVaultId(vaultId);
+    this.dirty = true;
+    await this.persistData();
   }
 
   restartAutoSync(): void {
@@ -132,7 +146,7 @@ export default class ObsidianSyncPlugin extends Plugin {
   }
 
   private async loadPluginData(): Promise<void> {
-    const raw = (await this.loadData()) as Partial<PluginDataShape> | null;
+    const raw = (await this.loadData()) as LegacyPluginDataShape | null;
     this.settings = {
       ...DEFAULT_SETTINGS,
       ...raw?.settings,
@@ -140,25 +154,65 @@ export default class ObsidianSyncPlugin extends Plugin {
     if (!this.settings.deviceId) {
       this.settings.deviceId = this.generateDeviceId();
     }
-    this.state = {
-      ...DEFAULT_STATE,
-      ...raw?.state,
-      files: {
-        ...DEFAULT_STATE.files,
-        ...raw?.state?.files,
-      },
-    };
-
-    if (this.state.vaultId !== this.settings.vaultId) {
-      this.state = {
-        vaultId: this.settings.vaultId,
-        files: {},
-        lastSeq: 0,
-      };
-    }
+    this.statesByVaultId = this.normalizePersistedStates(raw);
+    this.state = this.getStateForVaultId(this.settings.vaultId);
   }
 
   private generateDeviceId(): string {
     return `device_${crypto.randomUUID().replace(/-/g, "_")}`;
+  }
+
+  private getStateForVaultId(vaultId: string): SyncState {
+    const existing = this.statesByVaultId[vaultId];
+    if (existing) {
+      return {
+        ...DEFAULT_STATE,
+        ...existing,
+        vaultId,
+        files: {
+          ...DEFAULT_STATE.files,
+          ...existing.files,
+        },
+      };
+    }
+
+    const freshState: SyncState = {
+      vaultId,
+      files: {},
+      lastSeq: 0,
+    };
+    this.statesByVaultId[vaultId] = structuredClone(freshState);
+    return freshState;
+  }
+
+  private normalizePersistedStates(raw: LegacyPluginDataShape | null): Record<string, SyncState> {
+    const statesByVaultId: Record<string, SyncState> = {};
+
+    for (const [vaultId, state] of Object.entries(raw?.statesByVaultId ?? {})) {
+      statesByVaultId[vaultId] = {
+        ...DEFAULT_STATE,
+        ...state,
+        vaultId,
+        files: {
+          ...DEFAULT_STATE.files,
+          ...state.files,
+        },
+      };
+    }
+
+    const legacyVaultId = raw?.state?.vaultId || this.settings.vaultId;
+    if (raw?.state && !statesByVaultId[legacyVaultId]) {
+      statesByVaultId[legacyVaultId] = {
+        ...DEFAULT_STATE,
+        ...raw.state,
+        vaultId: legacyVaultId,
+        files: {
+          ...DEFAULT_STATE.files,
+          ...raw.state.files,
+        },
+      };
+    }
+
+    return statesByVaultId;
   }
 }

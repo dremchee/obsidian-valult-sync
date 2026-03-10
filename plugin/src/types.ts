@@ -22,7 +22,13 @@ export interface SyncState {
 
 export interface PluginDataShape {
   settings: SyncSettings;
-  state: SyncState;
+  statesByVaultId: Record<string, SyncState>;
+}
+
+export interface LegacyPluginDataShape {
+  settings?: Partial<SyncSettings>;
+  state?: Partial<SyncState>;
+  statesByVaultId?: Record<string, Partial<SyncState>>;
 }
 
 export interface UploadRequest {

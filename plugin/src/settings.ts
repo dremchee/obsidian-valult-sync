@@ -33,13 +33,7 @@ export class SyncSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.vaultId)
           .onChange(async (value) => {
             const nextVaultId = value.trim() || "default";
-            this.plugin.settings.vaultId = nextVaultId;
-            this.plugin.state = {
-              vaultId: nextVaultId,
-              files: {},
-              lastSeq: 0,
-            };
-            await this.plugin.persistData();
+            await this.plugin.activateVault(nextVaultId);
           }),
       );
 
