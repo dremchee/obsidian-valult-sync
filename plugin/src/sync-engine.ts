@@ -5,7 +5,7 @@ import {
   type App,
 } from "obsidian";
 
-import { SyncApi } from "./api";
+import { ApiError, SyncApi } from "./api";
 import type {
   FileState,
   LocalFileSnapshot,
@@ -33,6 +33,7 @@ export class SyncEngine {
     this.running = true;
     try {
       const settings = this.getSettings();
+      this.validateSettings(settings);
       const state = structuredClone(this.getState());
       const api = new SyncApi(
         settings.serverUrl.replace(/\/+$/, ""),
@@ -74,6 +75,20 @@ export class SyncEngine {
     }
 
     return files;
+  }
+
+  private validateSettings(settings: SyncSettings): void {
+    if (!settings.serverUrl.trim()) {
+      throw new Error("Server URL is not configured");
+    }
+
+    if (!settings.vaultId.trim()) {
+      throw new Error("Vault ID is not configured");
+    }
+
+    if (!settings.deviceId.trim()) {
+      throw new Error("Device ID is not configured");
+    }
   }
 
   private async uploadLocalChanges(
@@ -322,6 +337,22 @@ function buildConflictPath(path: string): string {
 }
 
 function formatError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.status === 401) {
+      return "Unauthorized. Check Auth token in plugin settings.";
+    }
+
+    if (error.code === "invalid_vault_id") {
+      return "Vault ID is invalid. Use only letters, digits, '-' or '_'.";
+    }
+
+    if (error.code === "invalid_device_id") {
+      return "Device ID is invalid. Use only letters, digits, '-' or '_'.";
+    }
+
+    return error.message;
+  }
+
   if (error instanceof Error) {
     return error.message;
   }

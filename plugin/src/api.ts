@@ -8,6 +8,17 @@ import type {
   UploadRequest,
 } from "./types";
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export class SyncApi {
   constructor(
     private readonly serverUrl: string,
@@ -46,7 +57,7 @@ export class SyncApi {
     });
 
     if (response.status >= 400) {
-      throw new Error(`Request failed with status ${response.status}: ${response.text}`);
+      throw apiErrorFromResponse(response.status, response.text, response.json);
     }
 
     return response.json as T;
@@ -62,7 +73,7 @@ export class SyncApi {
     });
 
     if (response.status >= 400) {
-      throw new Error(`Request failed with status ${response.status}: ${response.text}`);
+      throw apiErrorFromResponse(response.status, response.text, response.json);
     }
 
     return response.json as T;
@@ -78,4 +89,13 @@ export class SyncApi {
     }
     return headers;
   }
+}
+
+function apiErrorFromResponse(status: number, text: string, json: unknown): ApiError {
+  const body = json as { error?: string; message?: string } | null;
+  return new ApiError(
+    body?.message || text || `Request failed with status ${status}`,
+    status,
+    body?.error,
+  );
 }
