@@ -1,5 +1,6 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 
+import { ApiError } from "./api";
 import type ObsidianSyncPlugin from "./main";
 
 export class SyncSettingTab extends PluginSettingTab {
@@ -66,6 +67,23 @@ export class SyncSettingTab extends PluginSettingTab {
         }),
       );
 
+    const devicesSection = containerEl.createDiv();
+    devicesSection.createEl("h3", { text: "Registered devices" });
+    const devicesStatus = devicesSection.createDiv({
+      text: "Loading devices...",
+    });
+
+    new Setting(devicesSection)
+      .setName("Refresh devices")
+      .setDesc("Fetch the current device registry for this vault from the server.")
+      .addButton((button) =>
+        button.setButtonText("Refresh").onClick(async () => {
+          await this.renderDevices(devicesStatus);
+        }),
+      );
+
+    void this.renderDevices(devicesStatus);
+
     new Setting(containerEl)
       .setName("Device ID")
       .setDesc("Stable identifier for this Obsidian installation.")
@@ -122,4 +140,51 @@ export class SyncSettingTab extends PluginSettingTab {
         }),
       );
   }
+
+  private async renderDevices(container: HTMLElement): Promise<void> {
+    container.empty();
+    container.setText("Loading devices...");
+
+    try {
+      const devices = await this.plugin.getRegisteredDevices();
+      container.empty();
+
+      if (devices.length === 0) {
+        container.setText("No devices registered for this vault yet.");
+        return;
+      }
+
+      const list = container.createEl("ul");
+      for (const device of devices) {
+        const item = list.createEl("li");
+        const lastSeen = formatTimestamp(device.last_seen_at);
+        const firstSeen = formatTimestamp(device.first_seen_at);
+        item.setText(`${device.device_id} — last seen ${lastSeen}, first seen ${firstSeen}`);
+      }
+    } catch (error) {
+      container.empty();
+      container.setText(`Failed to load devices: ${formatDeviceError(error)}`);
+    }
+  }
+}
+
+function formatTimestamp(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleString();
+}
+
+function formatDeviceError(error: unknown): string {
+  if (error instanceof ApiError) {
+    return error.message;
+  }
+
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
 }

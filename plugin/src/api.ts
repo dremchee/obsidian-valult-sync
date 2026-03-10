@@ -3,6 +3,7 @@ import { requestUrl } from "obsidian";
 import type {
   ChangesResponse,
   DeleteRequest,
+  DevicesResponse,
   FileResponse,
   MutationResponse,
   UploadRequest,
@@ -46,6 +47,11 @@ export class SyncApi {
   getChanges(vaultId: string, since: number): Promise<ChangesResponse> {
     const encodedVaultId = encodeURIComponent(vaultId);
     return this.getJson(`/changes?vault_id=${encodedVaultId}&since=${since}`);
+  }
+
+  getDevices(vaultId: string): Promise<DevicesResponse> {
+    const encodedVaultId = encodeURIComponent(vaultId);
+    return this.getJson(`/devices?vault_id=${encodedVaultId}`);
   }
 
   private async getJson<T>(path: string): Promise<T> {

@@ -1,8 +1,10 @@
 import { Notice, Plugin } from "obsidian";
 
+import { SyncApi } from "./api";
 import { SyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync-engine";
 import type {
+  DeviceItem,
   LegacyPluginDataShape,
   PluginDataShape,
   SyncSettings,
@@ -135,6 +137,15 @@ export default class ObsidianSyncPlugin extends Plugin {
 
   getKnownVaultIds(): string[] {
     return [...this.settings.knownVaultIds];
+  }
+
+  async getRegisteredDevices(vaultId = this.settings.vaultId): Promise<DeviceItem[]> {
+    const api = new SyncApi(
+      this.settings.serverUrl.replace(/\/+$/, ""),
+      this.settings.authToken,
+    );
+    const response = await api.getDevices(vaultId);
+    return response.devices;
   }
 
   restartAutoSync(): void {

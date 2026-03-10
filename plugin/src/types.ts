@@ -76,6 +76,16 @@ export interface ChangesResponse {
   latest_seq: number;
 }
 
+export interface DeviceItem {
+  device_id: string;
+  first_seen_at: string;
+  last_seen_at: string;
+}
+
+export interface DevicesResponse {
+  devices: DeviceItem[];
+}
+
 export interface LocalFileSnapshot {
   path: string;
   hash: string;
