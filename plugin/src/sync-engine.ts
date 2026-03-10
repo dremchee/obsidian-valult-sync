@@ -6,6 +6,7 @@ import {
 } from "obsidian";
 
 import { ApiError, SyncApi } from "./api";
+import { shouldSyncPath } from "./sync-scope";
 import type {
   FileState,
   LocalFileSnapshot,
@@ -342,23 +343,8 @@ export class SyncEngine {
   }
 
   private shouldSyncPath(path: string): boolean {
-    return this.matchesIncludePath(path) && !this.isIgnoredPath(path);
-  }
-
-  private matchesIncludePath(path: string): boolean {
-    const normalizedPath = normalizePath(path);
-    const { includePatterns } = this.getSettings();
-
-    if (includePatterns.length === 0) {
-      return true;
-    }
-
-    return includePatterns.some((pattern) => matchesSyncPattern(normalizedPath, pattern));
-  }
-
-  private isIgnoredPath(path: string): boolean {
-    const normalizedPath = normalizePath(path);
-    return this.getSettings().ignorePatterns.some((pattern) => matchesSyncPattern(normalizedPath, pattern));
+    const settings = this.getSettings();
+    return shouldSyncPath(path, settings.includePatterns, settings.ignorePatterns);
   }
 
   private async withRetry<T>(operation: () => Promise<T>, label: string): Promise<T> {
@@ -462,39 +448,4 @@ function isRetryableError(error: unknown): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
-}
-
-function matchesSyncPattern(path: string, pattern: string): boolean {
-  const normalizedPattern = normalizePath(pattern.trim());
-  if (!normalizedPattern) {
-    return false;
-  }
-
-  if (normalizedPattern.endsWith("/")) {
-    return path.startsWith(normalizedPattern);
-  }
-
-  const regex = globPatternToRegExp(normalizedPattern);
-  return regex.test(path);
-}
-
-function globPatternToRegExp(pattern: string): RegExp {
-  let source = "^";
-
-  for (const char of pattern) {
-    if (char === "*") {
-      source += ".*";
-    } else if (char === "?") {
-      source += ".";
-    } else {
-      source += escapeRegExp(char);
-    }
-  }
-
-  source += "$";
-  return new RegExp(source);
-}
-
-function escapeRegExp(char: string): string {
-  return /[\\^$.*+?()[\]{}|/]/.test(char) ? `\\${char}` : char;
 }

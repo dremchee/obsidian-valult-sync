@@ -1,6 +1,7 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 
 import { ApiError } from "./api";
+import { describeSyncScope, normalizePatternList } from "./sync-scope";
 import type ObsidianSyncPlugin from "./main";
 
 export class SyncSettingTab extends PluginSettingTab {
@@ -75,11 +76,9 @@ export class SyncSettingTab extends PluginSettingTab {
           .setPlaceholder("Notes/\n*.md")
           .setValue(this.plugin.settings.includePatterns.join("\n"))
           .onChange(async (value) => {
-            this.plugin.settings.includePatterns = value
-              .split("\n")
-              .map((pattern) => pattern.trim())
-              .filter((pattern) => pattern.length > 0);
+            this.plugin.settings.includePatterns = normalizePatternList(value);
             await this.plugin.persistData();
+            this.display();
           }),
       );
 
@@ -91,13 +90,21 @@ export class SyncSettingTab extends PluginSettingTab {
           .setPlaceholder(".obsidian/\nTemplates/\n*.canvas")
           .setValue(this.plugin.settings.ignorePatterns.join("\n"))
           .onChange(async (value) => {
-            this.plugin.settings.ignorePatterns = value
-              .split("\n")
-              .map((pattern) => pattern.trim())
-              .filter((pattern) => pattern.length > 0);
+            this.plugin.settings.ignorePatterns = normalizePatternList(value);
             await this.plugin.persistData();
+            this.display();
           }),
       );
+
+    const scopeSection = containerEl.createDiv();
+    scopeSection.createEl("h3", { text: "Current sync scope" });
+    const scopeList = scopeSection.createEl("ul");
+    for (const line of describeSyncScope(
+      this.plugin.settings.includePatterns,
+      this.plugin.settings.ignorePatterns,
+    )) {
+      scopeList.createEl("li", { text: line });
+    }
 
     const devicesSection = containerEl.createDiv();
     devicesSection.createEl("h3", { text: "Registered devices" });
