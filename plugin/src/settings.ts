@@ -54,7 +54,7 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     const connectionStatus = connectionSection.createDiv({
-      text: "Connection status: not checked yet.",
+      text: "Connection: not checked yet.",
       cls: "obsidian-sync-settings-note",
     });
     new Setting(connectionSection)
@@ -62,13 +62,13 @@ export class SyncSettingTab extends PluginSettingTab {
       .setDesc("Verify the current server URL, auth token, and vault ID against the server.")
       .addButton((button) =>
         button.setButtonText("Check").onClick(async () => {
-          connectionStatus.setText("Connection status: checking...");
+          connectionStatus.setText("Connection: checking...");
 
           try {
             const message = await this.controller.checkConnection();
-            connectionStatus.setText(`Connection status: ${message}`);
+            connectionStatus.setText(`Connection: ${message}`);
           } catch (error) {
-            connectionStatus.setText(`Connection status: ${formatDeviceError(error)}`);
+            connectionStatus.setText(`Connection: ${formatDeviceError(error)}`);
           }
         }),
       );
@@ -248,14 +248,14 @@ export class SyncSettingTab extends PluginSettingTab {
     syncHealthSection.createEl("h4", { text: "Sync health" });
     const syncHealthList = syncHealthSection.createEl("ul");
     syncHealthList.createEl("li", { text: `Vault: ${currentVaultId}` });
-    syncHealthList.createEl("li", { text: `Last synced sequence: ${this.plugin.state.lastSeq}` });
-    syncHealthList.createEl("li", { text: `Tracked files: ${trackedFilesCount}` });
-    syncHealthList.createEl("li", { text: `Tracked tombstones: ${deletedFilesCount}` });
+    syncHealthList.createEl("li", { text: `Change cursor: ${this.plugin.state.lastSeq}` });
+    syncHealthList.createEl("li", { text: `Files tracked: ${trackedFilesCount}` });
+    syncHealthList.createEl("li", { text: `Deletes tracked: ${deletedFilesCount}` });
     syncHealthList.createEl("li", {
       text: `Last successful sync: ${formatLastSyncAt(this.plugin.state.lastSyncAt)}`,
     });
     syncHealthList.createEl("li", {
-      text: `Last sync error: ${formatSyncErrorState(this.plugin.state.lastSyncError)}`,
+      text: `Last issue: ${formatSyncErrorState(this.plugin.state.lastSyncError)}`,
     });
 
     const currentScopeSection = scopeSection.createDiv();
@@ -274,7 +274,7 @@ export class SyncSettingTab extends PluginSettingTab {
       this.plugin.settings.ignorePatterns,
     );
     currentScopeSection.createEl("p", {
-      text: `Preview: ${preview.syncedCount} synced, ${preview.skippedCount} skipped`,
+      text: `Preview: ${preview.syncedCount} included, ${preview.skippedCount} skipped`,
     });
     if (preview.sampleLines.length > 0) {
       const previewList = currentScopeSection.createEl("ul");
@@ -331,9 +331,9 @@ export class SyncSettingTab extends PluginSettingTab {
         button.setButtonText("Validate").onClick(async () => {
           try {
             const message = await this.controller.validateCurrentE2eePassphrase();
-            e2eeStatus.setText(`E2EE status: ${message}`);
+            e2eeStatus.setText(`E2EE: ${message}`);
           } catch (error) {
-            e2eeStatus.setText(`E2EE status: ${formatDeviceError(error)}`);
+            e2eeStatus.setText(`E2EE: ${formatDeviceError(error)}`);
           }
         }),
       )
@@ -466,19 +466,22 @@ function formatLastSyncAt(value: number | null): string {
 function buildE2eeStatusText(fingerprint: string | null, passphrase: string): string {
   if (!fingerprint) {
     return passphrase.trim()
-      ? "E2EE status: session passphrase loaded. Fingerprint will be recorded on first encrypted sync."
-      : "E2EE status: disabled for this vault.";
+      ? "E2EE: passphrase loaded. A fingerprint will be saved after the first encrypted sync."
+      : "E2EE: off for this vault.";
   }
 
   if (!passphrase.trim()) {
-    return `E2EE status: fingerprint ${fingerprint.slice(0, 12)} is stored, but no session passphrase is loaded.`;
+    return `E2EE: fingerprint ${fingerprint.slice(0, 12)} is saved, but no passphrase is loaded in this session.`;
   }
 
-  return `E2EE status: fingerprint ${fingerprint.slice(0, 12)} is stored and a session passphrase is loaded.`;
+  return `E2EE: fingerprint ${fingerprint.slice(0, 12)} is saved and the session passphrase is loaded.`;
 }
 
 function formatDeviceError(error: unknown): string {
   if (error instanceof ApiError) {
+    if (error.status === 401) {
+      return "auth failed";
+    }
     return error.message;
   }
 

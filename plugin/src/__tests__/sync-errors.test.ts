@@ -26,7 +26,7 @@ describe("sync-errors", () => {
     expect(formatSyncErrorState({
       code: "fingerprint_mismatch",
       message: "Fingerprint mismatch",
-    })).toBe("fingerprint_mismatch: Fingerprint mismatch");
-    expect(formatSyncErrorState(null)).toBe("None");
+    })).toBe("E2EE passphrase does not match this vault.");
+    expect(formatSyncErrorState(null)).toBe("No recent errors");
   });
 });

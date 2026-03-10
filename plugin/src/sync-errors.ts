@@ -45,8 +45,27 @@ export function toSyncErrorState(error: unknown): SyncErrorState {
 
 export function formatSyncErrorState(state: SyncErrorState | null): string {
   if (!state) {
-    return "None";
+    return "No recent errors";
   }
 
-  return `${state.code}: ${state.message}`;
+  switch (state.code) {
+    case "network_error":
+      return `Network error: ${state.message}`;
+    case "unauthorized":
+      return "Auth failed. Check the token in plugin settings.";
+    case "missing_passphrase":
+      return "E2EE passphrase is missing.";
+    case "fingerprint_mismatch":
+      return "E2EE passphrase does not match this vault.";
+    case "decrypt_failed":
+      return "Could not decrypt synced content.";
+    case "invalid_e2ee_envelope":
+      return "Encrypted file format is invalid.";
+    case "invalid_settings":
+      return state.message;
+    case "unknown_error":
+      return state.message;
+    default:
+      return state.message;
+  }
 }
