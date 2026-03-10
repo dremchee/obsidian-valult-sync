@@ -19,8 +19,17 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
         .decode(request.content_b64.as_bytes())
         .map_err(|_| AppError::InvalidBase64)?;
 
-    let content_hash = sha256_hex(&data);
-    if content_hash != request.hash {
+    let payload_hash = sha256_hex(&data);
+    let content_format = request.content_format.unwrap_or_else(|| "plain".to_string());
+    if content_format != "plain" && content_format != "e2ee-envelope-v1" {
+        return Err(AppError::InvalidPayload("content_format is invalid".to_string()));
+    }
+
+    let expected_payload_hash = request
+        .payload_hash
+        .clone()
+        .unwrap_or_else(|| request.hash.clone());
+    if payload_hash != expected_payload_hash {
         return Err(AppError::HashMismatch);
     }
 
@@ -49,10 +58,12 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
 
     sqlx::query(
         r#"
-        INSERT INTO files (vault_id, path, hash, version, deleted, updated_at)
-        VALUES (?1, ?2, ?3, ?4, 0, ?5)
+        INSERT INTO files (vault_id, path, hash, payload_hash, content_format, version, deleted, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)
         ON CONFLICT(vault_id, path) DO UPDATE SET
           hash = excluded.hash,
+          payload_hash = excluded.payload_hash,
+          content_format = excluded.content_format,
           version = excluded.version,
           deleted = excluded.deleted,
           updated_at = excluded.updated_at
@@ -61,6 +72,8 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
     .bind(&vault_id)
     .bind(&safe_path)
     .bind(&request.hash)
+    .bind(&expected_payload_hash)
+    .bind(&content_format)
     .bind(new_version)
     .bind(&now)
     .execute(state.pool())
@@ -123,7 +136,7 @@ pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<Mutation
     sqlx::query(
         r#"
         UPDATE files
-        SET hash = '', version = ?2, deleted = 1, updated_at = ?3
+        SET hash = '', payload_hash = '', version = ?2, deleted = 1, updated_at = ?3
         WHERE vault_id = ?1 AND path = ?4
         "#,
     )
@@ -177,6 +190,7 @@ pub async fn get_file(state: &AppState, vault_id: String, path: String) -> Resul
             version: record.version,
             deleted: true,
             content_b64: None,
+            content_format: record.content_format,
         });
     }
 
@@ -190,6 +204,7 @@ pub async fn get_file(state: &AppState, vault_id: String, path: String) -> Resul
         version: record.version,
         deleted: false,
         content_b64: Some(STANDARD.encode(data)),
+        content_format: record.content_format,
     })
 }
 
@@ -263,7 +278,7 @@ pub async fn get_devices(state: &AppState, vault_id: String) -> Result<DevicesRe
 
 async fn get_file_record(pool: &SqlitePool, vault_id: &str, path: &str) -> Result<Option<FileRecord>, AppError> {
     let row = sqlx::query(
-        "SELECT vault_id, path, hash, version, deleted FROM files WHERE vault_id = ?1 AND path = ?2",
+        "SELECT vault_id, path, hash, payload_hash, content_format, version, deleted FROM files WHERE vault_id = ?1 AND path = ?2",
     )
         .bind(vault_id)
         .bind(path)
@@ -275,6 +290,8 @@ async fn get_file_record(pool: &SqlitePool, vault_id: &str, path: &str) -> Resul
         vault_id: row.get("vault_id"),
         path: row.get("path"),
         hash: row.get("hash"),
+        payload_hash: row.get("payload_hash"),
+        content_format: row.get("content_format"),
         version: row.get("version"),
         deleted: row.get::<i64, _>("deleted") != 0,
     }))

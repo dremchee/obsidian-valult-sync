@@ -121,7 +121,8 @@ async fn upload_file_then_fetch_file_and_changes() {
             "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
             "version": 1,
             "deleted": false,
-            "content_b64": "aGVsbG8K"
+            "content_b64": "aGVsbG8K",
+            "content_format": "plain"
         })
     );
 
@@ -193,6 +194,63 @@ async fn stale_upload_returns_conflict() {
 }
 
 #[tokio::test]
+async fn upload_e2ee_payload_then_fetch_file_metadata() {
+    let (_tmp_dir, app) = test_app().await;
+
+    let upload_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/upload")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "vault_id": "vault-a",
+                        "device_id": "device_a",
+                        "path": "notes/secret.md",
+                        "content_b64": "ZW5jcnlwdGVk",
+                        "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+                        "payload_hash": "954d1bb83d80bb6f6e746b28f0de3ec4c4ed980cfe67ed23a9159cd464ff339a",
+                        "content_format": "e2ee-envelope-v1",
+                        "base_version": 0
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(upload_response.status(), StatusCode::OK);
+    assert_eq!(read_json(upload_response).await, json!({ "ok": true, "version": 1 }));
+
+    let file_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/file?vault_id=vault-a&path=notes%2Fsecret.md")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(file_response.status(), StatusCode::OK);
+    assert_eq!(
+        read_json(file_response).await,
+        json!({
+            "path": "notes/secret.md",
+            "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+            "version": 1,
+            "deleted": false,
+            "content_b64": "ZW5jcnlwdGVk",
+            "content_format": "e2ee-envelope-v1"
+        })
+    );
+}
+
+#[tokio::test]
 async fn delete_creates_tombstone_and_change_event() {
     let (_tmp_dir, app) = test_app().await;
 
@@ -241,7 +299,8 @@ async fn delete_creates_tombstone_and_change_event() {
             "hash": "",
             "version": 2,
             "deleted": true,
-            "content_b64": null
+            "content_b64": null,
+            "content_format": "plain"
         })
     );
 
@@ -402,7 +461,8 @@ async fn isolates_same_path_across_vaults() {
             "hash": "b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41",
             "version": 1,
             "deleted": false,
-            "content_b64": "Zmlyc3QK"
+            "content_b64": "Zmlyc3QK",
+            "content_format": "plain"
         })
     );
 
@@ -496,7 +556,8 @@ async fn sync_flow_across_two_devices_surfaces_conflict_and_tombstone() {
             "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
             "version": 1,
             "deleted": false,
-            "content_b64": "aGVsbG8K"
+            "content_b64": "aGVsbG8K",
+            "content_format": "plain"
         })
     );
 
@@ -531,7 +592,8 @@ async fn sync_flow_across_two_devices_surfaces_conflict_and_tombstone() {
             "hash": "",
             "version": 2,
             "deleted": true,
-            "content_b64": null
+            "content_b64": null,
+            "content_format": "plain"
         })
     );
 

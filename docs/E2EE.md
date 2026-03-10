@@ -75,6 +75,8 @@ Passphrase вводится пользователем на клиенте. Из
 - добавить plugin setting для E2EE passphrase
 - при upload шифровать содержимое перед `content_b64`
 - при download распознавать envelope и расшифровывать локально
+- расширить API полями `content_format` и `payload_hash`, чтобы сервер мог
+  валидировать ciphertext, а клиент продолжал жить на plaintext hash
 
 ### Шаг 3
 

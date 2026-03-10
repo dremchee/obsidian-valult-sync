@@ -7,6 +7,8 @@ pub struct UploadRequest {
     pub path: String,
     pub content_b64: String,
     pub hash: String,
+    pub payload_hash: Option<String>,
+    pub content_format: Option<String>,
     pub base_version: i64,
 }
 
@@ -36,6 +38,7 @@ pub struct FileResponse {
     pub version: i64,
     pub deleted: bool,
     pub content_b64: Option<String>,
+    pub content_format: String,
 }
 
 #[derive(Debug, Serialize)]

@@ -6,6 +6,7 @@ import {
 } from "obsidian";
 
 import { ApiError, SyncApi } from "./api";
+import { decryptEnvelope, encryptBytes, parseEnvelope, serializeEnvelope } from "./e2ee";
 import { shouldSyncPath } from "./sync-scope";
 import type {
   FileState,
@@ -116,14 +117,19 @@ export class SyncEngine {
       }
 
       const response = await this.withRetry(
-        () => api.upload({
-          vault_id: this.getSettings().vaultId,
-          device_id: this.getSettings().deviceId,
-          path: local.path,
-          content_b64: bytesToBase64(local.data),
-          hash: local.hash,
-          base_version: current?.version ?? 0,
-        }),
+        async () => {
+          const payload = await this.buildUploadPayload(local);
+          return api.upload({
+            vault_id: this.getSettings().vaultId,
+            device_id: this.getSettings().deviceId,
+            path: local.path,
+            content_b64: payload.contentBase64,
+            hash: local.hash,
+            payload_hash: payload.payloadHash,
+            content_format: payload.contentFormat,
+            base_version: current?.version ?? 0,
+          });
+        },
         `upload ${local.path}`,
       );
 
@@ -250,7 +256,10 @@ export class SyncEngine {
       return;
     }
 
-    const data = base64ToBytes(remote.content_b64 ?? "");
+    const data = await this.decodeRemoteContent(
+      base64ToBytes(remote.content_b64 ?? ""),
+      remote.content_format ?? "plain",
+    );
     const existing = this.app.vault.getAbstractFileByPath(remote.path);
     const localState = state.files[remote.path];
 
@@ -341,6 +350,44 @@ export class SyncEngine {
 
   private async createBinary(path: string, data: Uint8Array): Promise<void> {
     await this.app.vault.createBinary(path, toArrayBuffer(data));
+  }
+
+  private async buildUploadPayload(local: LocalFileSnapshot): Promise<{
+    contentBase64: string;
+    payloadHash?: string;
+    contentFormat: "plain" | "e2ee-envelope-v1";
+  }> {
+    const passphrase = this.getSettings().e2eePassphrase.trim();
+    if (!passphrase) {
+      return {
+        contentBase64: bytesToBase64(local.data),
+        contentFormat: "plain",
+      };
+    }
+
+    const envelope = await encryptBytes(local.data, passphrase);
+    const serializedEnvelope = serializeEnvelope(envelope);
+    return {
+      contentBase64: bytesToBase64(serializedEnvelope),
+      payloadHash: await sha256Hex(serializedEnvelope),
+      contentFormat: "e2ee-envelope-v1",
+    };
+  }
+
+  private async decodeRemoteContent(
+    payload: Uint8Array,
+    contentFormat: "plain" | "e2ee-envelope-v1",
+  ): Promise<Uint8Array> {
+    if (contentFormat === "plain") {
+      return payload;
+    }
+
+    const passphrase = this.getSettings().e2eePassphrase.trim();
+    if (!passphrase) {
+      throw new Error("E2EE passphrase is required to decrypt synced content");
+    }
+
+    return decryptEnvelope(parseEnvelope(payload), passphrase);
   }
 
   private shouldSyncPath(path: string): boolean {

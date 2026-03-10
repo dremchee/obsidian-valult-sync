@@ -220,6 +220,19 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
+    new Setting(containerEl)
+      .setName("E2EE passphrase")
+      .setDesc("Optional passphrase for encrypting file contents locally before upload. Stored in plugin data on this device.")
+      .addText((text) =>
+        text
+          .setPlaceholder("correct horse battery staple")
+          .setValue(this.plugin.settings.e2eePassphrase)
+          .onChange(async (value) => {
+            this.plugin.settings.e2eePassphrase = value;
+            await this.plugin.persistData();
+          }),
+      );
+
     const connectionStatus = containerEl.createDiv({
       text: "Connection status: not checked yet.",
     });

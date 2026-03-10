@@ -6,6 +6,7 @@ export interface SyncSettings {
   ignorePatterns: string[];
   deviceId: string;
   authToken: string;
+  e2eePassphrase: string;
   pollIntervalSecs: number;
   autoSync: boolean;
 }
@@ -48,6 +49,8 @@ export interface UploadRequest {
   path: string;
   content_b64: string;
   hash: string;
+  payload_hash?: string;
+  content_format?: "plain" | "e2ee-envelope-v1";
   base_version: number;
 }
 
@@ -71,6 +74,7 @@ export interface FileResponse {
   version: number;
   deleted: boolean;
   content_b64: string | null;
+  content_format?: "plain" | "e2ee-envelope-v1";
 }
 
 export interface ChangeItem {

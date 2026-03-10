@@ -20,6 +20,7 @@ const DEFAULT_SETTINGS: SyncSettings = {
   ignorePatterns: [],
   deviceId: "",
   authToken: "",
+  e2eePassphrase: "",
   pollIntervalSecs: 2,
   autoSync: true,
 };

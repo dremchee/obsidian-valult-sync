@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TFile, notices } from "../../test/mocks/obsidian";
 
 import { ApiError, type SyncApi } from "../api";
+import { encryptBytes, serializeEnvelope } from "../e2ee";
 import { SyncEngine } from "../sync-engine";
 import type { SyncSettings, SyncState } from "../types";
 
@@ -14,6 +15,7 @@ const DEFAULT_SETTINGS: SyncSettings = {
   ignorePatterns: [],
   deviceId: "device-local",
   authToken: "",
+  e2eePassphrase: "",
   pollIntervalSecs: 2,
   autoSync: true,
 };
@@ -424,6 +426,46 @@ describe("SyncEngine", () => {
     }));
   });
 
+  it("encrypts uploads when E2EE passphrase is configured", async () => {
+    const app = createMemoryApp({
+      "Notes/secret.md": "secret body",
+    });
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      upload: vi.fn().mockResolvedValue({ ok: true, version: 1 }),
+      delete: vi.fn(),
+      getFile: vi.fn(),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [],
+        latest_seq: 0,
+      }),
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => ({
+        ...DEFAULT_SETTINGS,
+        e2eePassphrase: "correct horse battery staple",
+      }),
+      () => createState(),
+      async () => {},
+      () => api,
+      async () => {},
+    );
+
+    await engine.syncOnce();
+
+    expect(api.upload).toHaveBeenCalledTimes(1);
+    expect(api.upload).toHaveBeenCalledWith(expect.objectContaining({
+      path: "Notes/secret.md",
+      content_format: "e2ee-envelope-v1",
+      payload_hash: expect.any(String),
+    }));
+    expect(api.upload).not.toHaveBeenCalledWith(expect.objectContaining({
+      content_b64: bytesToBase64(toBytes("secret body")),
+    }));
+  });
+
   it("skips remote changes outside include patterns", async () => {
     const app = createMemoryApp({});
     let persistedState: SyncState = createState({
@@ -467,6 +509,68 @@ describe("SyncEngine", () => {
     expect(api.getFile).not.toHaveBeenCalled();
     expect(app.listPaths()).toEqual([]);
     expect(persistedState.lastSeq).toBe(4);
+  });
+
+  it("decrypts encrypted remote content before applying it locally", async () => {
+    const plaintext = toBytes("decrypted secret");
+    const envelope = await encryptBytes(plaintext, "correct horse battery staple");
+    const app = createMemoryApp({});
+    let persistedState: SyncState | null = null;
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      upload: vi.fn(),
+      delete: vi.fn(),
+      getFile: vi.fn().mockResolvedValue({
+        path: "Notes/secret.md",
+        hash: await sha256Hex(plaintext),
+        version: 2,
+        deleted: false,
+        content_b64: bytesToBase64(serializeEnvelope(envelope)),
+        content_format: "e2ee-envelope-v1",
+      }),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [
+          {
+            seq: 2,
+            device_id: "device-remote",
+            path: "Notes/secret.md",
+            version: 2,
+            deleted: false,
+          },
+        ],
+        latest_seq: 2,
+      }),
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => ({
+        ...DEFAULT_SETTINGS,
+        e2eePassphrase: "correct horse battery staple",
+      }),
+      () => createState({
+        lastSeq: 1,
+      }),
+      async (state) => {
+        persistedState = state;
+      },
+      () => api,
+      async () => {},
+    );
+
+    await engine.syncOnce();
+
+    expect(app.readText("Notes/secret.md")).toBe("decrypted secret");
+    expect(persistedState).toMatchObject({
+      lastSeq: 2,
+      files: {
+        "Notes/secret.md": {
+          hash: await sha256Hex(plaintext),
+          version: 2,
+          deleted: false,
+        },
+      },
+    });
   });
 });
 

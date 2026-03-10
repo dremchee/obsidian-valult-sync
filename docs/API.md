@@ -116,6 +116,8 @@ notes/daily/2026-03-10.md
   "path": "notes/test.md",
   "content_b64": "IyBIZWxsbyB3b3JsZAo=",
   "hash": "f2d2b0e86e...",
+  "payload_hash": "f2d2b0e86e...",
+  "content_format": "plain",
   "base_version": 3
 }
 ```
@@ -127,7 +129,18 @@ notes/daily/2026-03-10.md
 - `device_id: string`
 - `content_b64: string`
 - `hash: string`
+- `payload_hash?: string`
+- `content_format?: "plain" | "e2ee-envelope-v1"`
 - `base_version: integer`
+
+Для legacy plaintext upload `payload_hash` можно не передавать. Тогда сервер ожидает, что
+`hash == sha256(decoded content_b64)`.
+
+Для E2EE upload:
+
+- `hash` это hash plaintext содержимого
+- `payload_hash` это hash фактически загружаемого payload
+- `content_format` должен быть `e2ee-envelope-v1`
 
 ### Успешный response
 
@@ -181,7 +194,8 @@ vault_id=default&path=notes/test.md
   "hash": "f2d2b0e86e...",
   "version": 5,
   "deleted": false,
-  "content_b64": "IyBIZWxsbyB3b3JsZAo="
+  "content_b64": "IyBIZWxsbyB3b3JsZAo=",
+  "content_format": "plain"
 }
 ```
 
@@ -193,7 +207,8 @@ vault_id=default&path=notes/test.md
   "hash": "",
   "version": 6,
   "deleted": true,
-  "content_b64": null
+  "content_b64": null,
+  "content_format": "plain"
 }
 ```
 

@@ -3,6 +3,8 @@ pub struct FileRecord {
     pub vault_id: String,
     pub path: String,
     pub hash: String,
+    pub payload_hash: String,
+    pub content_format: String,
     pub version: i64,
     pub deleted: bool,
 }
