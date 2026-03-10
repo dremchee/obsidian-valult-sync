@@ -22,6 +22,7 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
     }
 
     let vault_id = storage::validate_vault_id(&request.vault_id)?;
+    let device_id = storage::validate_device_id(&request.device_id)?;
     let safe_path = storage::validate_relative_path(&request.path)?;
     let current = get_file_record(state.pool(), &vault_id, &safe_path).await?;
     let current_version = current.as_ref().map(|record| record.version).unwrap_or(0);
@@ -62,6 +63,14 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
     .await
     .map_err(AppError::internal)?;
 
+    tracing::info!(
+        vault_id = %vault_id,
+        device_id = %device_id,
+        path = %safe_path,
+        version = new_version,
+        "uploaded file"
+    );
+
     sqlx::query(
         "INSERT INTO changes (vault_id, path, version, deleted, updated_at) VALUES (?1, ?2, ?3, 0, ?4)",
     )
@@ -83,6 +92,7 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
 
 pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<MutationResponse, AppError> {
     let vault_id = storage::validate_vault_id(&request.vault_id)?;
+    let device_id = storage::validate_device_id(&request.device_id)?;
     let safe_path = storage::validate_relative_path(&request.path)?;
     let current = get_file_record(state.pool(), &vault_id, &safe_path)
         .await?
@@ -118,6 +128,14 @@ pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<Mutation
     .execute(state.pool())
     .await
     .map_err(AppError::internal)?;
+
+    tracing::info!(
+        vault_id = %vault_id,
+        device_id = %device_id,
+        path = %safe_path,
+        version = new_version,
+        "deleted file"
+    );
 
     sqlx::query(
         "INSERT INTO changes (vault_id, path, version, deleted, updated_at) VALUES (?1, ?2, ?3, 1, ?4)",

@@ -49,6 +49,22 @@ pub fn validate_vault_id(vault_id: &str) -> Result<String, AppError> {
     }
 }
 
+pub fn validate_device_id(device_id: &str) -> Result<String, AppError> {
+    let trimmed = device_id.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidDeviceId);
+    }
+
+    if trimmed
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    {
+        Ok(trimmed.to_string())
+    } else {
+        Err(AppError::InvalidDeviceId)
+    }
+}
+
 pub async fn write_file(storage_root: &Path, vault_id: &str, relative_path: &str, data: &[u8]) -> Result<()> {
     let target = resolve_path(storage_root, vault_id, relative_path)?;
     if let Some(parent) = target.parent() {

@@ -12,6 +12,8 @@ pub enum AppError {
     InvalidPath,
     #[error("vault_id is invalid")]
     InvalidVaultId,
+    #[error("device_id is invalid")]
+    InvalidDeviceId,
     #[error("request body contains invalid base64")]
     InvalidBase64,
     #[error("provided hash does not match content")]
@@ -40,6 +42,7 @@ impl AppError {
         match self {
             Self::InvalidPath => "invalid_path",
             Self::InvalidVaultId => "invalid_vault_id",
+            Self::InvalidDeviceId => "invalid_device_id",
             Self::InvalidBase64 => "invalid_base64",
             Self::HashMismatch => "hash_mismatch",
             Self::NotFound => "not_found",
@@ -49,7 +52,11 @@ impl AppError {
 
     fn status(&self) -> StatusCode {
         match self {
-            Self::InvalidPath | Self::InvalidVaultId | Self::InvalidBase64 | Self::HashMismatch => {
+            Self::InvalidPath
+            | Self::InvalidVaultId
+            | Self::InvalidDeviceId
+            | Self::InvalidBase64
+            | Self::HashMismatch => {
                 StatusCode::BAD_REQUEST
             }
             Self::NotFound => StatusCode::NOT_FOUND,

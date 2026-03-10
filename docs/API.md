@@ -110,6 +110,7 @@ notes/daily/2026-03-10.md
 ```json
 {
   "vault_id": "default",
+  "device_id": "device_local_desktop",
   "path": "notes/test.md",
   "content_b64": "IyBIZWxsbyB3b3JsZAo=",
   "hash": "f2d2b0e86e...",
@@ -121,6 +122,7 @@ notes/daily/2026-03-10.md
 
 - `path: string`
 - `vault_id: string`
+- `device_id: string`
 - `content_b64: string`
 - `hash: string`
 - `base_version: integer`
@@ -275,6 +277,7 @@ vault_id=default&since=42
 ```json
 {
   "vault_id": "default",
+  "device_id": "device_local_desktop",
   "path": "notes/test.md",
   "base_version": 5
 }

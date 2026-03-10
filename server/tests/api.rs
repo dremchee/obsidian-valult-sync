@@ -54,6 +54,7 @@ async fn upload_file_then_fetch_file_and_changes() {
                 .body(Body::from(
                     json!({
                         "vault_id": "vault-a",
+                        "device_id": "device_a",
                         "path": "notes/test.md",
                         "content_b64": "aGVsbG8K",
                         "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
@@ -73,7 +74,6 @@ async fn upload_file_then_fetch_file_and_changes() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/file?path=notes%2Ftest.md")
                 .uri("/file?vault_id=vault-a&path=notes%2Ftest.md")
                 .body(Body::empty())
                 .unwrap(),
@@ -135,6 +135,7 @@ async fn stale_upload_returns_conflict() {
                 .body(Body::from(
                     json!({
                         "vault_id": "vault-a",
+                        "device_id": "device_a",
                         "path": "notes/test.md",
                         "content_b64": "d29ybGQK",
                         "hash": "e258d248fda94c63753607f7c4494ee0fcbe92f1a76bfdac795c9d84101eb317",
@@ -174,6 +175,7 @@ async fn delete_creates_tombstone_and_change_event() {
                 .body(Body::from(
                     json!({
                         "vault_id": "vault-a",
+                        "device_id": "device_a",
                         "path": "notes/test.md",
                         "base_version": 1
                     })
@@ -275,6 +277,7 @@ async fn upload_test_file(app: &axum::Router) {
                 .body(Body::from(
                     json!({
                         "vault_id": "vault-a",
+                        "device_id": "device_a",
                         "path": "notes/test.md",
                         "content_b64": "aGVsbG8K",
                         "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
@@ -304,6 +307,7 @@ async fn isolates_same_path_across_vaults() {
                 .body(Body::from(
                     json!({
                         "vault_id": "vault-a",
+                        "device_id": "device_a",
                         "path": "notes/shared.md",
                         "content_b64": "Zmlyc3QK",
                         "hash": "b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41",
@@ -327,6 +331,7 @@ async fn isolates_same_path_across_vaults() {
                 .body(Body::from(
                     json!({
                         "vault_id": "vault-b",
+                        "device_id": "device_b",
                         "path": "notes/shared.md",
                         "content_b64": "c2Vjb25kCg==",
                         "hash": "480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4",
