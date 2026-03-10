@@ -38,9 +38,8 @@ export class SyncSettingTab extends PluginSettingTab {
     });
 
     renderSectionHeader(containerEl, "Connection", "Server, auth, background sync and device identity.");
-    const connectionSection = createSectionBody(containerEl);
 
-    new Setting(connectionSection)
+    new Setting(containerEl)
       .setName("Server URL")
       .setDesc("Base URL of the Rust sync server.")
       .addText((text) =>
@@ -53,16 +52,13 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    const connectionStatus = connectionSection.createDiv({
-      text: "Connection: not checked yet.",
-      cls: "obsidian-sync-settings-note",
-    });
-    new Setting(connectionSection)
+    const connectionStatus = createInlineStatus(containerEl, "Connection", "Not checked");
+    new Setting(containerEl)
       .setName("Connection check")
       .setDesc("Verify the current server URL, auth token, and vault ID against the server.")
       .addButton((button) =>
         button.setButtonText("Check").onClick(async () => {
-          connectionStatus.setText("Connection: checking...");
+          connectionStatus.setText("Connection: Checking...");
 
           try {
             const message = await this.controller.checkConnection();
@@ -73,7 +69,7 @@ export class SyncSettingTab extends PluginSettingTab {
         }),
       );
 
-    new Setting(connectionSection)
+    new Setting(containerEl)
       .setName("Device ID")
       .setDesc("Stable identifier for this Obsidian installation.")
       .addText((text) =>
@@ -86,7 +82,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(connectionSection)
+    new Setting(containerEl)
       .setName("Auth token")
       .setDesc("Optional bearer token expected by the sync server.")
       .addText((text) =>
@@ -99,7 +95,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(connectionSection)
+    new Setting(containerEl)
       .setName("Poll interval")
       .setDesc("How often the plugin polls the server for remote changes.")
       .addText((text) =>
@@ -118,7 +114,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(connectionSection)
+    new Setting(containerEl)
       .setName("Auto sync")
       .setDesc("Run the sync loop in the background.")
       .addToggle((toggle) =>
@@ -130,9 +126,8 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     renderSectionHeader(containerEl, "Vault", "Choose which logical vault this client is syncing.");
-    const vaultSection = createSectionBody(containerEl);
 
-    new Setting(vaultSection)
+    new Setting(containerEl)
       .setName("Vault ID")
       .setDesc("Logical vault identifier used by the sync server.")
       .addText((text) =>
@@ -146,7 +141,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(vaultSection)
+    new Setting(containerEl)
       .setName("Switch vault")
       .setDesc("Load sync state for another known vault ID.")
       .addDropdown((dropdown) => {
@@ -162,7 +157,7 @@ export class SyncSettingTab extends PluginSettingTab {
           });
       });
 
-    new Setting(vaultSection)
+    new Setting(containerEl)
       .setName("Forget current vault")
       .setDesc("Remove persisted sync state for the current vault ID on this device.")
       .addButton((button) =>
@@ -173,9 +168,8 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     renderSectionHeader(containerEl, "Sync Scope", "Control which files are eligible for sync in this vault.");
-    const scopeSection = createSectionBody(containerEl);
 
-    new Setting(scopeSection)
+    new Setting(containerEl)
       .setName("Include patterns")
       .setDesc("Optional allow-list. If set, only matching paths are synced. Same pattern syntax as ignore rules.")
       .addTextArea((text) =>
@@ -192,7 +186,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(scopeSection)
+    new Setting(containerEl)
       .setName("Ignore patterns")
       .setDesc("One pattern per line. Supports '*', '?', and folder prefixes ending with '/'.")
       .addTextArea((text) =>
@@ -210,7 +204,7 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     let presetTargetVaultId = otherVaultIds[0] ?? "";
-    new Setting(scopeSection)
+    new Setting(containerEl)
       .setName("Copy scope preset")
       .setDesc(
         otherVaultIds.length > 0
@@ -244,28 +238,25 @@ export class SyncSettingTab extends PluginSettingTab {
         });
       });
 
-    const syncHealthSection = scopeSection.createDiv();
-    syncHealthSection.createEl("h4", { text: "Sync health" });
-    const syncHealthList = syncHealthSection.createEl("ul");
-    syncHealthList.createEl("li", { text: `Vault: ${currentVaultId}` });
-    syncHealthList.createEl("li", { text: `Change cursor: ${this.plugin.state.lastSeq}` });
-    syncHealthList.createEl("li", { text: `Files tracked: ${trackedFilesCount}` });
-    syncHealthList.createEl("li", { text: `Deletes tracked: ${deletedFilesCount}` });
-    syncHealthList.createEl("li", {
-      text: `Last successful sync: ${formatLastSyncAt(this.plugin.state.lastSyncAt)}`,
-    });
-    syncHealthList.createEl("li", {
-      text: `Last issue: ${formatSyncErrorState(this.plugin.state.lastSyncError)}`,
-    });
+    const syncHealthSection = createPanel(containerEl);
+    syncHealthSection.createEl("div", { text: "Sync health", cls: "obsidian-sync-panel-title" });
+    createKeyValueRow(syncHealthSection, "Vault", currentVaultId);
+    createKeyValueRow(syncHealthSection, "Change cursor", String(this.plugin.state.lastSeq));
+    createKeyValueRow(syncHealthSection, "Files tracked", String(trackedFilesCount));
+    createKeyValueRow(syncHealthSection, "Deletes tracked", String(deletedFilesCount));
+    createKeyValueRow(syncHealthSection, "Last successful sync", formatLastSyncAt(this.plugin.state.lastSyncAt));
+    createKeyValueRow(syncHealthSection, "Last issue", formatSyncErrorState(this.plugin.state.lastSyncError));
 
-    const currentScopeSection = scopeSection.createDiv();
-    currentScopeSection.createEl("h4", { text: "Current sync scope" });
-    const scopeList = currentScopeSection.createEl("ul");
+    const currentScopeSection = createPanel(containerEl);
+    currentScopeSection.createEl("div", { text: "Current sync scope", cls: "obsidian-sync-panel-title" });
+    const scopeList = currentScopeSection.createEl("div");
+    scopeList.style.display = "grid";
+    scopeList.style.gap = "6px";
     for (const line of describeSyncScope(
       this.plugin.settings.includePatterns,
       this.plugin.settings.ignorePatterns,
     )) {
-      scopeList.createEl("li", { text: line });
+      scopeList.createEl("div", { text: line });
     }
 
     const preview = buildScopePreview(
@@ -273,24 +264,25 @@ export class SyncSettingTab extends PluginSettingTab {
       this.plugin.settings.includePatterns,
       this.plugin.settings.ignorePatterns,
     );
-    currentScopeSection.createEl("p", {
-      text: `Preview: ${preview.syncedCount} included, ${preview.skippedCount} skipped`,
-    });
+    createKeyValueRow(
+      currentScopeSection,
+      "Preview",
+      `${preview.syncedCount} included, ${preview.skippedCount} skipped`,
+    );
     if (preview.sampleLines.length > 0) {
-      const previewList = currentScopeSection.createEl("ul");
+      const previewList = currentScopeSection.createEl("div");
+      previewList.style.display = "grid";
+      previewList.style.gap = "6px";
       for (const line of preview.sampleLines) {
-        previewList.createEl("li", { text: line });
+        previewList.createEl("div", { text: line, cls: "setting-item-description" });
       }
     }
 
     renderSectionHeader(containerEl, "Devices", "Inspect the current device registry for this vault.");
-    const devicesSection = createSectionBody(containerEl);
-    const devicesStatus = devicesSection.createDiv({
-      text: "Loading devices...",
-      cls: "obsidian-sync-settings-note",
-    });
+    const devicesStatus = createPanel(containerEl);
+    devicesStatus.createEl("div", { text: "Loading devices...", cls: "obsidian-sync-panel-title" });
 
-    new Setting(devicesSection)
+    new Setting(containerEl)
       .setName("Refresh devices")
       .setDesc("Fetch the current device registry for this vault from the server.")
       .addButton((button) =>
@@ -302,9 +294,8 @@ export class SyncSettingTab extends PluginSettingTab {
     void this.renderDevices(devicesStatus);
 
     renderSectionHeader(containerEl, "E2EE", "Manage the session passphrase and fingerprint for this vault.");
-    const e2eeSection = createSectionBody(containerEl);
 
-    new Setting(e2eeSection)
+    new Setting(containerEl)
       .setName("E2EE passphrase")
       .setDesc("Optional passphrase for encrypting file contents locally before upload. Kept only in memory for the current Obsidian session.")
       .addText((text) =>
@@ -316,15 +307,16 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    const e2eeStatus = e2eeSection.createDiv({
-      text: buildE2eeStatusText(
+    const e2eeStatus = createInlineStatus(
+      containerEl,
+      "E2EE",
+      buildE2eeStatusText(
         this.controller.getE2eeFingerprint(),
         this.controller.getE2eePassphrase(),
       ),
-      cls: "obsidian-sync-settings-note",
-    });
+    );
 
-    new Setting(e2eeSection)
+    new Setting(containerEl)
       .setName("Passphrase validation")
       .setDesc("Check the session passphrase against the stored fingerprint for this vault.")
       .addButton((button) =>
@@ -352,7 +344,8 @@ export class SyncSettingTab extends PluginSettingTab {
 
   private async renderDevices(container: HTMLElement): Promise<void> {
     container.empty();
-    container.setText("Loading devices...");
+    container.createEl("div", { text: "Devices", cls: "obsidian-sync-panel-title" });
+    container.createEl("div", { text: "Loading devices...", cls: "setting-item-description" });
 
     try {
       const currentDeviceId = this.plugin.settings.deviceId.trim();
@@ -367,47 +360,85 @@ export class SyncSettingTab extends PluginSettingTab {
         return left.device_id.localeCompare(right.device_id);
       });
       container.empty();
+      container.createEl("div", { text: "Devices", cls: "obsidian-sync-panel-title" });
 
       if (sortedDevices.length === 0) {
-        container.setText("No devices registered for this vault yet.");
+        container.createEl("div", {
+          text: "No devices registered for this vault yet.",
+          cls: "setting-item-description",
+        });
         return;
       }
 
       const currentDevice = sortedDevices.find((device) => device.device_id === currentDeviceId);
-      container.createEl("p", {
+      container.createEl("div", {
         text: currentDevice
-          ? `Current device is registered. Last seen ${formatTimestamp(currentDevice.last_seen_at)}.`
-          : "Current device has not registered with this vault yet. Run sync to add it to the registry.",
+          ? `This device is registered. Last seen ${formatTimestamp(currentDevice.last_seen_at)}.`
+          : "This device is not registered yet. Run sync to add it to the registry.",
+        cls: "setting-item-description",
       });
 
-      const list = container.createEl("ul");
       for (const device of sortedDevices) {
-        const item = list.createEl("li");
         const lastSeen = formatTimestamp(device.last_seen_at);
         const firstSeen = formatTimestamp(device.first_seen_at);
         const label =
           device.device_id === currentDeviceId
             ? `${device.device_id} (this device)`
             : device.device_id;
-        item.setText(`${label} - last seen ${lastSeen}, first seen ${firstSeen}`);
+        createKeyValueRow(container, label, `Last seen ${lastSeen}. First seen ${firstSeen}.`);
       }
     } catch (error) {
       container.empty();
-      container.setText(`Failed to load devices: ${formatDeviceError(error)}`);
+      container.createEl("div", { text: "Devices", cls: "obsidian-sync-panel-title" });
+      container.createEl("div", {
+        text: `Failed to load devices: ${formatDeviceError(error)}`,
+        cls: "setting-item-description",
+      });
     }
   }
 }
 
-function createSectionBody(container: HTMLElement): HTMLElement {
-  const section = container.createDiv();
-  section.addClass("obsidian-sync-section-body");
-  return section;
+function renderSectionHeader(container: HTMLElement, title: string, description: string): void {
+  container.createEl("h3", { text: title });
+  container.createEl("p", { text: description, cls: "setting-item-description" });
 }
 
-function renderSectionHeader(container: HTMLElement, title: string, description: string): void {
-  const section = container.createDiv({ cls: "obsidian-sync-section-header" });
-  section.createEl("h3", { text: title });
-  section.createEl("p", { text: description });
+function createPanel(container: HTMLElement): HTMLElement {
+  const panel = container.createDiv();
+  panel.style.border = "1px solid var(--background-modifier-border)";
+  panel.style.borderRadius = "10px";
+  panel.style.padding = "14px";
+  panel.style.background = "var(--background-secondary)";
+  panel.style.display = "grid";
+  panel.style.gap = "10px";
+  panel.style.marginBottom = "16px";
+  return panel;
+}
+
+function createInlineStatus(container: HTMLElement, label: string, value: string): HTMLElement {
+  const statusEl = container.createDiv({
+    text: `${label}: ${value}`,
+    cls: "setting-item-description",
+  });
+  statusEl.style.marginTop = "-8px";
+  statusEl.style.marginBottom = "12px";
+  return statusEl;
+}
+
+function createKeyValueRow(container: HTMLElement, label: string, value: string): void {
+  const row = container.createDiv();
+  row.style.display = "grid";
+  row.style.gridTemplateColumns = "160px 1fr";
+  row.style.gap = "12px";
+  row.style.alignItems = "start";
+  row.style.fontSize = "13px";
+
+  const labelEl = row.createSpan({ text: label });
+  labelEl.style.color = "var(--text-muted)";
+  labelEl.style.fontWeight = "600";
+
+  const valueEl = row.createSpan({ text: value });
+  valueEl.style.wordBreak = "break-word";
 }
 
 function renderStatusHeader(
@@ -423,22 +454,86 @@ function renderStatusHeader(
     hasSessionPassphrase: boolean;
   },
 ): void {
-  const summary = container.createDiv({ cls: "obsidian-sync-status-header" });
-  summary.createEl("h2", { text: "Sync status" });
-  const chips = summary.createEl("ul");
-  chips.createEl("li", { text: `Vault ${status.vaultId}` });
-  chips.createEl("li", { text: status.serverUrl || "Server not configured" });
-  chips.createEl("li", { text: `${status.trackedFilesCount} tracked` });
-  chips.createEl("li", { text: `${status.deletedFilesCount} tombstones` });
-  chips.createEl("li", { text: `Last sync ${formatLastSyncAt(status.lastSyncAt)}` });
-  chips.createEl("li", { text: `Error ${status.lastSyncError}` });
-  chips.createEl("li", {
-    text: status.e2eeFingerprint
-      ? `E2EE ${status.e2eeFingerprint.slice(0, 12)}${status.hasSessionPassphrase ? " loaded" : " locked"}`
-      : status.hasSessionPassphrase
-        ? "E2EE pending"
-        : "E2EE off",
+  const panel = createPanel(container);
+  const topRow = panel.createDiv();
+  topRow.style.display = "flex";
+  topRow.style.justifyContent = "space-between";
+  topRow.style.alignItems = "flex-start";
+  topRow.style.gap = "12px";
+  topRow.style.flexWrap = "wrap";
+
+  const copy = topRow.createDiv();
+  copy.style.display = "grid";
+  copy.style.gap = "6px";
+  copy.style.flex = "1 1 280px";
+  copy.createEl("div", { text: "Sync status", cls: "obsidian-sync-panel-title" });
+  copy.createEl("div", {
+    text: buildOverviewSummary(status),
+    cls: "setting-item-description",
   });
+
+  const badges = topRow.createDiv();
+  badges.style.display = "flex";
+  badges.style.gap = "8px";
+  badges.style.flexWrap = "wrap";
+  createBadge(
+    badges,
+    status.lastSyncError === "No recent errors" ? "Healthy" : "Needs attention",
+    status.lastSyncError === "No recent errors" ? "ok" : "error",
+  );
+  createBadge(
+    badges,
+    status.e2eeFingerprint
+      ? status.hasSessionPassphrase ? "E2EE loaded" : "E2EE locked"
+      : status.hasSessionPassphrase ? "E2EE pending" : "E2EE off",
+    status.e2eeFingerprint
+      ? status.hasSessionPassphrase ? "ok" : "warn"
+      : status.hasSessionPassphrase ? "warn" : "muted",
+  );
+
+  createKeyValueRow(panel, "Vault", status.vaultId);
+  createKeyValueRow(panel, "Server", status.serverUrl || "Not configured");
+  createKeyValueRow(panel, "Files tracked", String(status.trackedFilesCount));
+  createKeyValueRow(panel, "Deletes tracked", String(status.deletedFilesCount));
+  createKeyValueRow(panel, "Last sync", formatLastSyncAt(status.lastSyncAt));
+  createKeyValueRow(panel, "Last issue", status.lastSyncError);
+}
+
+function createBadge(
+  container: HTMLElement,
+  text: string,
+  tone: "ok" | "warn" | "error" | "muted",
+): void {
+  const badge = container.createSpan({ text });
+  badge.style.display = "inline-flex";
+  badge.style.alignItems = "center";
+  badge.style.padding = "4px 10px";
+  badge.style.borderRadius = "999px";
+  badge.style.fontSize = "12px";
+  badge.style.fontWeight = "600";
+  badge.style.border = "1px solid var(--background-modifier-border)";
+
+  if (tone === "ok") {
+    badge.style.background = "color-mix(in srgb, var(--background-secondary) 78%, var(--color-green) 22%)";
+  } else if (tone === "warn") {
+    badge.style.background = "color-mix(in srgb, var(--background-secondary) 78%, var(--color-orange) 22%)";
+  } else if (tone === "error") {
+    badge.style.background = "color-mix(in srgb, var(--background-secondary) 74%, var(--color-red) 26%)";
+  } else {
+    badge.style.background = "var(--background-primary-alt)";
+  }
+}
+
+function buildOverviewSummary(status: {
+  trackedFilesCount: number;
+  lastSyncAt: number | null;
+  lastSyncError: string;
+}): string {
+  if (status.lastSyncError !== "No recent errors") {
+    return `Attention required. ${status.lastSyncError}`;
+  }
+
+  return `Tracking ${status.trackedFilesCount} file(s). Last successful sync: ${formatLastSyncAt(status.lastSyncAt)}.`;
 }
 
 function formatTimestamp(value: string): string {
