@@ -656,6 +656,7 @@ function createState(overrides: Partial<SyncState> = {}): SyncState {
     files: {},
     lastSeq: 0,
     lastSyncAt: null,
+    lastSyncError: null,
     ...overrides,
   };
 }

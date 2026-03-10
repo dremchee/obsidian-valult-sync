@@ -29,6 +29,7 @@ export interface SyncState {
   files: Record<string, FileState>;
   lastSeq: number;
   lastSyncAt: number | null;
+  lastSyncError: string | null;
 }
 
 export interface PluginDataShape {

@@ -151,6 +151,9 @@ export class SyncSettingTab extends PluginSettingTab {
     syncHealthList.createEl("li", {
       text: `Last successful sync: ${formatLastSyncAt(this.plugin.state.lastSyncAt)}`,
     });
+    syncHealthList.createEl("li", {
+      text: `Last sync error: ${this.plugin.state.lastSyncError ?? "None"}`,
+    });
 
     const scopeSection = containerEl.createDiv();
     scopeSection.createEl("h3", { text: "Current sync scope" });

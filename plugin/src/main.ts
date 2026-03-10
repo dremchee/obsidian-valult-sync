@@ -30,6 +30,7 @@ const DEFAULT_STATE: SyncState = {
   files: {},
   lastSeq: 0,
   lastSyncAt: null,
+  lastSyncError: null,
 };
 
 export default class ObsidianSyncPlugin extends Plugin {
@@ -286,8 +287,12 @@ export default class ObsidianSyncPlugin extends Plugin {
   private async runManualSync(): Promise<void> {
     try {
       await this.engine.syncOnce();
+      this.state.lastSyncError = null;
+      await this.persistData();
       new Notice("Sync completed", 3000);
-    } catch {
+    } catch (error) {
+      this.state.lastSyncError = formatSyncFailure(error);
+      await this.persistData();
       // Notice is shown inside SyncEngine
     }
   }
@@ -295,7 +300,11 @@ export default class ObsidianSyncPlugin extends Plugin {
   private async safeSync(): Promise<void> {
     try {
       await this.engine.syncOnce();
-    } catch {
+      this.state.lastSyncError = null;
+      await this.persistData();
+    } catch (error) {
+      this.state.lastSyncError = formatSyncFailure(error);
+      await this.persistData();
       // Notice is shown inside SyncEngine
     }
   }
@@ -344,6 +353,7 @@ export default class ObsidianSyncPlugin extends Plugin {
       files: {},
       lastSeq: 0,
       lastSyncAt: null,
+      lastSyncError: null,
     };
     this.statesByVaultId[vaultId] = structuredClone(freshState);
     return freshState;
@@ -446,4 +456,12 @@ function stripLegacySecrets(settings: Partial<SyncSettings> & { e2eePassphrase?:
 
 function shortFingerprint(value: string): string {
   return value.slice(0, 12);
+}
+
+function formatSyncFailure(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+
+  return String(error);
 }
