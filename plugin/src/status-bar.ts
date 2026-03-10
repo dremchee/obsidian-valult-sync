@@ -65,11 +65,6 @@ export class PluginStatusBar {
     const iconEl = this.statusBarEl.createSpan({ cls: "obsidian-sync-status-icon" });
     setIcon(iconEl, iconForState(snapshot.state));
 
-    this.statusBarEl.createSpan({
-      text: formatStatusBarTime(snapshot.lastSyncAt),
-      cls: "obsidian-sync-status-time",
-    });
-
     const titleLines = [
       `Status: ${snapshot.statusText}`,
       `Vault: ${snapshot.vaultId}`,
@@ -110,22 +105,6 @@ function formatLastSync(value: number | null): string {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return String(value);
-  }
-
-  return date.toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function formatStatusBarTime(value: number | null): string {
-  if (value === null) {
-    return "--:--";
-  }
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return "--:--";
   }
 
   return date.toLocaleTimeString([], {
