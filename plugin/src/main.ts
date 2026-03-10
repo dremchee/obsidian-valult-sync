@@ -7,6 +7,7 @@ import type { PluginDataShape, SyncSettings, SyncState } from "./types";
 const DEFAULT_SETTINGS: SyncSettings = {
   serverUrl: "http://127.0.0.1:3000",
   vaultId: "default",
+  deviceId: "",
   authToken: "",
   pollIntervalSecs: 2,
   autoSync: true,
@@ -136,6 +137,9 @@ export default class ObsidianSyncPlugin extends Plugin {
       ...DEFAULT_SETTINGS,
       ...raw?.settings,
     };
+    if (!this.settings.deviceId) {
+      this.settings.deviceId = this.generateDeviceId();
+    }
     this.state = {
       ...DEFAULT_STATE,
       ...raw?.state,
@@ -152,5 +156,9 @@ export default class ObsidianSyncPlugin extends Plugin {
         lastSeq: 0,
       };
     }
+  }
+
+  private generateDeviceId(): string {
+    return `device_${crypto.randomUUID().replace(/-/g, "_")}`;
   }
 }

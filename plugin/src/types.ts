@@ -1,6 +1,7 @@
 export interface SyncSettings {
   serverUrl: string;
   vaultId: string;
+  deviceId: string;
   authToken: string;
   pollIntervalSecs: number;
   autoSync: boolean;
@@ -26,6 +27,7 @@ export interface PluginDataShape {
 
 export interface UploadRequest {
   vault_id: string;
+  device_id: string;
   path: string;
   content_b64: string;
   hash: string;
@@ -34,6 +36,7 @@ export interface UploadRequest {
 
 export interface DeleteRequest {
   vault_id: string;
+  device_id: string;
   path: string;
   base_version: number;
 }

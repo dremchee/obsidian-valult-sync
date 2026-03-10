@@ -60,6 +60,7 @@ npm run build
 
 - `Server URL`
 - `Vault ID`
+- `Device ID`
 - `Auth token`
 - `Poll interval`
 - `Auto sync`
@@ -70,6 +71,8 @@ npm run build
 - `Vault ID = общий идентификатор логического vault`
 
 Если на сервере включён `AUTH_TOKEN`, в plugin должен быть указан такой же `Auth token`.
+
+`Device ID` должен быть уникален для каждой установки Obsidian, но оставаться стабильным между перезапусками.
 
 Для двух локальных Obsidian vault, которые должны синхронизироваться между собой, `Vault ID` должен быть одинаковым.
 

@@ -89,6 +89,7 @@ export class SyncEngine {
 
       const response = await api.upload({
         vault_id: this.getSettings().vaultId,
+        device_id: this.getSettings().deviceId,
         path: local.path,
         content_b64: bytesToBase64(local.data),
         hash: local.hash,
@@ -123,6 +124,7 @@ export class SyncEngine {
 
       const response = await api.delete({
         vault_id: this.getSettings().vaultId,
+        device_id: this.getSettings().deviceId,
         path,
         base_version: fileState.version,
       });

@@ -44,6 +44,19 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Device ID")
+      .setDesc("Stable identifier for this Obsidian installation.")
+      .addText((text) =>
+        text
+          .setPlaceholder("device_local_desktop")
+          .setValue(this.plugin.settings.deviceId)
+          .onChange(async (value) => {
+            this.plugin.settings.deviceId = value.trim();
+            await this.plugin.persistData();
+          }),
+      );
+
+    new Setting(containerEl)
       .setName("Auth token")
       .setDesc("Optional bearer token expected by the sync server.")
       .addText((text) =>
