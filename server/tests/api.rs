@@ -110,6 +110,7 @@ async fn upload_file_then_fetch_file_and_changes() {
             "changes": [
                 {
                     "seq": 1,
+                    "device_id": "device_a",
                     "path": "notes/test.md",
                     "version": 1,
                     "deleted": false
@@ -229,12 +230,14 @@ async fn delete_creates_tombstone_and_change_event() {
             "changes": [
                 {
                     "seq": 1,
+                    "device_id": "device_a",
                     "path": "notes/test.md",
                     "version": 1,
                     "deleted": false
                 },
                 {
                     "seq": 2,
+                    "device_id": "device_a",
                     "path": "notes/test.md",
                     "version": 2,
                     "deleted": true
@@ -381,6 +384,7 @@ async fn isolates_same_path_across_vaults() {
             "changes": [
                 {
                     "seq": 2,
+                    "device_id": "device_b",
                     "path": "notes/shared.md",
                     "version": 1,
                     "deleted": false

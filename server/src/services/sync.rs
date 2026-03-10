@@ -72,9 +72,10 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
     );
 
     sqlx::query(
-        "INSERT INTO changes (vault_id, path, version, deleted, updated_at) VALUES (?1, ?2, ?3, 0, ?4)",
+        "INSERT INTO changes (vault_id, device_id, path, version, deleted, updated_at) VALUES (?1, ?2, ?3, ?4, 0, ?5)",
     )
     .bind(&vault_id)
+    .bind(&device_id)
     .bind(&safe_path)
     .bind(new_version)
     .bind(now)
@@ -138,9 +139,10 @@ pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<Mutation
     );
 
     sqlx::query(
-        "INSERT INTO changes (vault_id, path, version, deleted, updated_at) VALUES (?1, ?2, ?3, 1, ?4)",
+        "INSERT INTO changes (vault_id, device_id, path, version, deleted, updated_at) VALUES (?1, ?2, ?3, ?4, 1, ?5)",
     )
     .bind(&vault_id)
+    .bind(&device_id)
     .bind(&safe_path)
     .bind(new_version)
     .bind(now)
@@ -189,7 +191,7 @@ pub async fn get_file(state: &AppState, vault_id: String, path: String) -> Resul
 pub async fn get_changes(state: &AppState, vault_id: String, since: i64) -> Result<ChangesResponse, AppError> {
     let vault_id = storage::validate_vault_id(&vault_id)?;
     let rows = sqlx::query(
-        "SELECT seq, vault_id, path, version, deleted FROM changes WHERE vault_id = ?1 AND seq > ?2 ORDER BY seq ASC",
+        "SELECT seq, vault_id, device_id, path, version, deleted FROM changes WHERE vault_id = ?1 AND seq > ?2 ORDER BY seq ASC",
     )
     .bind(&vault_id)
     .bind(since)
@@ -202,12 +204,14 @@ pub async fn get_changes(state: &AppState, vault_id: String, since: i64) -> Resu
         .map(|row| ChangeRecord {
             seq: row.get("seq"),
             vault_id: row.get("vault_id"),
+            device_id: row.get("device_id"),
             path: row.get("path"),
             version: row.get("version"),
             deleted: row.get::<i64, _>("deleted") != 0,
         })
         .map(|record| ChangeItem {
             seq: record.seq,
+            device_id: record.device_id,
             path: record.path,
             version: record.version,
             deleted: record.deleted,

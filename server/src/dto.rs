@@ -41,6 +41,7 @@ pub struct FileResponse {
 #[derive(Debug, Serialize)]
 pub struct ChangeItem {
     pub seq: i64,
+    pub device_id: String,
     pub path: String,
     pub version: i64,
     pub deleted: bool,

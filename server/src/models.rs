@@ -11,6 +11,7 @@ pub struct FileRecord {
 pub struct ChangeRecord {
     pub seq: i64,
     pub vault_id: String,
+    pub device_id: String,
     pub path: String,
     pub version: i64,
     pub deleted: bool,
