@@ -9,6 +9,7 @@ import type {
   PluginDataShape,
   SyncSettings,
   SyncState,
+  VaultScopeConfig,
 } from "./types";
 
 const DEFAULT_SETTINGS: SyncSettings = {
@@ -33,6 +34,7 @@ export default class ObsidianSyncPlugin extends Plugin {
   settings: SyncSettings = structuredClone(DEFAULT_SETTINGS);
   state: SyncState = structuredClone(DEFAULT_STATE);
   statesByVaultId: Record<string, SyncState> = {};
+  vaultScopesById: Record<string, VaultScopeConfig> = {};
 
   private engine!: SyncEngine;
   private intervalId: number | null = null;
@@ -97,6 +99,7 @@ export default class ObsidianSyncPlugin extends Plugin {
   async persistData(): Promise<void> {
     this.state.vaultId = this.settings.vaultId;
     this.statesByVaultId[this.settings.vaultId] = structuredClone(this.state);
+    this.vaultScopesById[this.settings.vaultId] = this.getCurrentVaultScope();
     this.settings.knownVaultIds = this.normalizeKnownVaultIds(
       this.settings.knownVaultIds,
       this.settings.vaultId,
@@ -104,16 +107,19 @@ export default class ObsidianSyncPlugin extends Plugin {
     const data: PluginDataShape = {
       settings: this.settings,
       statesByVaultId: this.statesByVaultId,
+      vaultScopesById: this.vaultScopesById,
     };
     await this.saveData(data);
   }
 
   async activateVault(vaultId: string): Promise<void> {
+    this.vaultScopesById[this.settings.vaultId] = this.getCurrentVaultScope();
     this.settings.vaultId = vaultId;
     this.settings.knownVaultIds = this.normalizeKnownVaultIds(
       this.settings.knownVaultIds,
       vaultId,
     );
+    this.applyVaultScope(vaultId);
     this.state = this.getStateForVaultId(vaultId);
     this.dirty = true;
     await this.persistData();
@@ -122,10 +128,12 @@ export default class ObsidianSyncPlugin extends Plugin {
   async forgetVault(vaultId: string): Promise<void> {
     const nextKnownVaultIds = this.settings.knownVaultIds.filter((current) => current !== vaultId);
     delete this.statesByVaultId[vaultId];
+    delete this.vaultScopesById[vaultId];
 
     if (this.settings.vaultId === vaultId) {
       const fallbackVaultId = nextKnownVaultIds[0] ?? DEFAULT_SETTINGS.vaultId;
       this.settings.vaultId = fallbackVaultId;
+      this.applyVaultScope(fallbackVaultId);
       this.state = this.getStateForVaultId(fallbackVaultId);
       this.dirty = true;
     }
@@ -139,6 +147,12 @@ export default class ObsidianSyncPlugin extends Plugin {
 
   getKnownVaultIds(): string[] {
     return [...this.settings.knownVaultIds];
+  }
+
+  updateCurrentVaultScope(scope: VaultScopeConfig): void {
+    this.settings.includePatterns = [...scope.includePatterns];
+    this.settings.ignorePatterns = [...scope.ignorePatterns];
+    this.vaultScopesById[this.settings.vaultId] = this.getCurrentVaultScope();
   }
 
   async getRegisteredDevices(vaultId = this.settings.vaultId): Promise<DeviceItem[]> {
@@ -203,6 +217,8 @@ export default class ObsidianSyncPlugin extends Plugin {
       this.settings.deviceId = this.generateDeviceId();
     }
     this.statesByVaultId = this.normalizePersistedStates(raw);
+    this.vaultScopesById = this.normalizePersistedVaultScopes(raw);
+    this.applyVaultScope(this.settings.vaultId);
     this.state = this.getStateForVaultId(this.settings.vaultId);
   }
 
@@ -279,5 +295,46 @@ export default class ObsidianSyncPlugin extends Plugin {
 
     uniqueVaultIds.add(activeVaultId);
     return Array.from(uniqueVaultIds);
+  }
+
+  private getCurrentVaultScope(): VaultScopeConfig {
+    return {
+      includePatterns: [...this.settings.includePatterns],
+      ignorePatterns: [...this.settings.ignorePatterns],
+    };
+  }
+
+  private applyVaultScope(vaultId: string): void {
+    const scope = this.vaultScopesById[vaultId] ?? {
+      includePatterns: [],
+      ignorePatterns: [],
+    };
+    this.settings.includePatterns = [...scope.includePatterns];
+    this.settings.ignorePatterns = [...scope.ignorePatterns];
+    this.vaultScopesById[vaultId] = {
+      includePatterns: [...scope.includePatterns],
+      ignorePatterns: [...scope.ignorePatterns],
+    };
+  }
+
+  private normalizePersistedVaultScopes(raw: LegacyPluginDataShape | null): Record<string, VaultScopeConfig> {
+    const vaultScopesById: Record<string, VaultScopeConfig> = {};
+
+    for (const [vaultId, scope] of Object.entries(raw?.vaultScopesById ?? {})) {
+      vaultScopesById[vaultId] = {
+        includePatterns: [...(scope.includePatterns ?? [])],
+        ignorePatterns: [...(scope.ignorePatterns ?? [])],
+      };
+    }
+
+    const legacyVaultId = raw?.settings?.vaultId || DEFAULT_SETTINGS.vaultId;
+    if (!vaultScopesById[legacyVaultId]) {
+      vaultScopesById[legacyVaultId] = {
+        includePatterns: [...(raw?.settings?.includePatterns ?? [])],
+        ignorePatterns: [...(raw?.settings?.ignorePatterns ?? [])],
+      };
+    }
+
+    return vaultScopesById;
   }
 }

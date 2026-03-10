@@ -76,7 +76,10 @@ export class SyncSettingTab extends PluginSettingTab {
           .setPlaceholder("Notes/\n*.md")
           .setValue(this.plugin.settings.includePatterns.join("\n"))
           .onChange(async (value) => {
-            this.plugin.settings.includePatterns = normalizePatternList(value);
+            this.plugin.updateCurrentVaultScope({
+              includePatterns: normalizePatternList(value),
+              ignorePatterns: this.plugin.settings.ignorePatterns,
+            });
             await this.plugin.persistData();
             this.display();
           }),
@@ -90,7 +93,10 @@ export class SyncSettingTab extends PluginSettingTab {
           .setPlaceholder(".obsidian/\nTemplates/\n*.canvas")
           .setValue(this.plugin.settings.ignorePatterns.join("\n"))
           .onChange(async (value) => {
-            this.plugin.settings.ignorePatterns = normalizePatternList(value);
+            this.plugin.updateCurrentVaultScope({
+              includePatterns: this.plugin.settings.includePatterns,
+              ignorePatterns: normalizePatternList(value),
+            });
             await this.plugin.persistData();
             this.display();
           }),

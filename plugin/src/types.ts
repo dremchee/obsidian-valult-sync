@@ -10,6 +10,11 @@ export interface SyncSettings {
   autoSync: boolean;
 }
 
+export interface VaultScopeConfig {
+  includePatterns: string[];
+  ignorePatterns: string[];
+}
+
 export interface FileState {
   hash: string;
   version: number;
@@ -26,12 +31,14 @@ export interface SyncState {
 export interface PluginDataShape {
   settings: SyncSettings;
   statesByVaultId: Record<string, SyncState>;
+  vaultScopesById: Record<string, VaultScopeConfig>;
 }
 
 export interface LegacyPluginDataShape {
   settings?: Partial<SyncSettings>;
   state?: Partial<SyncState>;
   statesByVaultId?: Record<string, Partial<SyncState>>;
+  vaultScopesById?: Record<string, Partial<VaultScopeConfig>>;
 }
 
 export interface UploadRequest {
