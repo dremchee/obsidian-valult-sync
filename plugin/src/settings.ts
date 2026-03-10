@@ -3,17 +3,22 @@ import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 import { ApiError } from "./api";
 import { formatSyncErrorState } from "./sync-errors";
 import { describeSyncScope, normalizePatternList, shouldSyncPath } from "./sync-scope";
+import { SettingsController } from "./settings-controller";
 import type ObsidianSyncPlugin from "./main";
 
 export class SyncSettingTab extends PluginSettingTab {
-  constructor(app: App, private readonly plugin: ObsidianSyncPlugin) {
+  constructor(
+    app: App,
+    private readonly plugin: ObsidianSyncPlugin,
+    private readonly controller: SettingsController,
+  ) {
     super(app, plugin);
   }
 
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
-    const knownVaultIds = this.plugin.getKnownVaultIds();
+    const knownVaultIds = this.controller.getKnownVaultIds();
     const currentVaultId = this.plugin.settings.vaultId;
     const otherVaultIds = knownVaultIds.filter((vaultId) => vaultId !== currentVaultId);
 
@@ -39,7 +44,7 @@ export class SyncSettingTab extends PluginSettingTab {
           .setValue(this.plugin.settings.vaultId)
           .onChange(async (value) => {
             const nextVaultId = value.trim() || "default";
-            await this.plugin.activateVault(nextVaultId);
+            await this.controller.activateVault(nextVaultId);
             this.display();
           }),
       );
@@ -55,7 +60,7 @@ export class SyncSettingTab extends PluginSettingTab {
         dropdown
           .setValue(this.plugin.settings.vaultId)
           .onChange(async (value) => {
-            await this.plugin.activateVault(value);
+            await this.controller.activateVault(value);
             this.display();
           });
       });
@@ -66,7 +71,7 @@ export class SyncSettingTab extends PluginSettingTab {
       .addButton((button) =>
         button.setButtonText("Forget").onClick(async () => {
           const currentVaultId = this.plugin.settings.vaultId;
-          await this.plugin.forgetVault(currentVaultId);
+          await this.controller.forgetVault("default", currentVaultId);
           this.display();
         }),
       );
@@ -79,7 +84,7 @@ export class SyncSettingTab extends PluginSettingTab {
           .setPlaceholder("Notes/\n*.md")
           .setValue(this.plugin.settings.includePatterns.join("\n"))
           .onChange(async (value) => {
-            this.plugin.updateCurrentVaultScope({
+            this.controller.updateCurrentVaultScope({
               includePatterns: normalizePatternList(value),
               ignorePatterns: this.plugin.settings.ignorePatterns,
             });
@@ -96,7 +101,7 @@ export class SyncSettingTab extends PluginSettingTab {
           .setPlaceholder(".obsidian/\nTemplates/\n*.canvas")
           .setValue(this.plugin.settings.ignorePatterns.join("\n"))
           .onChange(async (value) => {
-            this.plugin.updateCurrentVaultScope({
+            this.controller.updateCurrentVaultScope({
               includePatterns: this.plugin.settings.includePatterns,
               ignorePatterns: normalizePatternList(value),
             });
@@ -135,7 +140,7 @@ export class SyncSettingTab extends PluginSettingTab {
         }
 
         button.setButtonText("Copy").onClick(async () => {
-          await this.plugin.copyCurrentVaultScopeToVault(presetTargetVaultId);
+          await this.controller.copyCurrentVaultScopeToVault(presetTargetVaultId);
           new Notice(`Copied sync scope preset to ${presetTargetVaultId}`, 3000);
         });
       });
@@ -230,16 +235,16 @@ export class SyncSettingTab extends PluginSettingTab {
       .addText((text) =>
         text
           .setPlaceholder("correct horse battery staple")
-          .setValue(this.plugin.getE2eePassphrase())
+          .setValue(this.controller.getE2eePassphrase())
           .onChange((value) => {
-            this.plugin.setE2eePassphrase(value);
+            this.controller.setE2eePassphrase(value);
           }),
       );
 
     const e2eeStatus = containerEl.createDiv({
       text: buildE2eeStatusText(
-        this.plugin.getE2eeFingerprint(),
-        this.plugin.getE2eePassphrase(),
+        this.controller.getE2eeFingerprint(),
+        this.controller.getE2eePassphrase(),
       ),
     });
     new Setting(containerEl)
@@ -248,7 +253,7 @@ export class SyncSettingTab extends PluginSettingTab {
       .addButton((button) =>
         button.setButtonText("Validate").onClick(async () => {
           try {
-            const message = await this.plugin.validateCurrentE2eePassphrase();
+            const message = await this.controller.validateCurrentE2eePassphrase();
             e2eeStatus.setText(`E2EE status: ${message}`);
           } catch (error) {
             e2eeStatus.setText(`E2EE status: ${formatDeviceError(error)}`);
@@ -257,10 +262,10 @@ export class SyncSettingTab extends PluginSettingTab {
       )
       .addButton((button) =>
         button.setButtonText("Forget fingerprint").onClick(async () => {
-          await this.plugin.clearCurrentE2eeFingerprint();
+          await this.controller.clearCurrentE2eeFingerprint();
           e2eeStatus.setText(buildE2eeStatusText(
-            this.plugin.getE2eeFingerprint(),
-            this.plugin.getE2eePassphrase(),
+            this.controller.getE2eeFingerprint(),
+            this.controller.getE2eePassphrase(),
           ));
         }),
       );
@@ -276,7 +281,7 @@ export class SyncSettingTab extends PluginSettingTab {
           connectionStatus.setText("Connection status: checking...");
 
           try {
-            const message = await this.plugin.checkConnection();
+            const message = await this.controller.checkConnection();
             connectionStatus.setText(`Connection status: ${message}`);
           } catch (error) {
             connectionStatus.setText(`Connection status: ${formatDeviceError(error)}`);
@@ -299,7 +304,7 @@ export class SyncSettingTab extends PluginSettingTab {
 
             this.plugin.settings.pollIntervalSecs = parsed;
             await this.plugin.persistData();
-            this.plugin.restartAutoSync();
+            this.controller.restartAutoSync();
           }),
       );
 
@@ -310,7 +315,7 @@ export class SyncSettingTab extends PluginSettingTab {
         toggle.setValue(this.plugin.settings.autoSync).onChange(async (value) => {
           this.plugin.settings.autoSync = value;
           await this.plugin.persistData();
-          this.plugin.restartAutoSync();
+          this.controller.restartAutoSync();
         }),
       );
   }
@@ -321,7 +326,7 @@ export class SyncSettingTab extends PluginSettingTab {
 
     try {
       const currentDeviceId = this.plugin.settings.deviceId.trim();
-      const devices = await this.plugin.getRegisteredDevices();
+      const devices = await this.controller.getRegisteredDevices();
       const sortedDevices = [...devices].sort((left, right) => {
         if (left.device_id === currentDeviceId && right.device_id !== currentDeviceId) {
           return -1;
