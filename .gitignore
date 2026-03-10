@@ -12,7 +12,7 @@ plugin/dist/
 plugin/main.js
 
 # Server local runtime artifacts
-server/data/
+data/
 server/target/
 
 # Accidental nested repositories created by tooling

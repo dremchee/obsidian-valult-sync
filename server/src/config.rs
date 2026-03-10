@@ -19,9 +19,10 @@ impl Config {
             .unwrap_or(3000);
 
         let database_url =
-            env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://data/sync.db".to_string());
-        let storage_root =
-            env::var("STORAGE_ROOT").map(PathBuf::from).unwrap_or_else(|_| PathBuf::from("data/files"));
+            env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite://../data/sync.db".to_string());
+        let storage_root = env::var("STORAGE_ROOT")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("../data/files"));
 
         Ok(Self {
             port,
