@@ -155,6 +155,20 @@ export default class ObsidianSyncPlugin extends Plugin {
     this.vaultScopesById[this.settings.vaultId] = this.getCurrentVaultScope();
   }
 
+  async copyCurrentVaultScopeToVault(vaultId: string): Promise<void> {
+    const nextVaultId = vaultId.trim();
+    if (!nextVaultId) {
+      return;
+    }
+
+    this.vaultScopesById[nextVaultId] = this.getCurrentVaultScope();
+    this.settings.knownVaultIds = this.normalizeKnownVaultIds(
+      this.settings.knownVaultIds,
+      nextVaultId,
+    );
+    await this.persistData();
+  }
+
   async getRegisteredDevices(vaultId = this.settings.vaultId): Promise<DeviceItem[]> {
     const api = new SyncApi(
       this.settings.serverUrl.replace(/\/+$/, ""),

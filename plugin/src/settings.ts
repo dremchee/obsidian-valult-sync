@@ -1,4 +1,4 @@
-import { App, PluginSettingTab, Setting } from "obsidian";
+import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 
 import { ApiError } from "./api";
 import { describeSyncScope, normalizePatternList, shouldSyncPath } from "./sync-scope";
@@ -13,6 +13,8 @@ export class SyncSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
     const knownVaultIds = this.plugin.getKnownVaultIds();
+    const currentVaultId = this.plugin.settings.vaultId;
+    const otherVaultIds = knownVaultIds.filter((vaultId) => vaultId !== currentVaultId);
 
     new Setting(containerEl)
       .setName("Server URL")
@@ -101,6 +103,41 @@ export class SyncSettingTab extends PluginSettingTab {
             this.display();
           }),
       );
+
+    let presetTargetVaultId = otherVaultIds[0] ?? "";
+    new Setting(containerEl)
+      .setName("Copy scope preset")
+      .setDesc(
+        otherVaultIds.length > 0
+          ? "Copy the current include/ignore rules into another known vault preset."
+          : "No other known vaults yet. Add or switch to another vault ID first.",
+      )
+      .addDropdown((dropdown) => {
+        if (otherVaultIds.length === 0) {
+          dropdown.addOption("", "No target vault");
+          dropdown.setValue("");
+          return;
+        }
+
+        for (const vaultId of otherVaultIds) {
+          dropdown.addOption(vaultId, vaultId);
+        }
+
+        dropdown.setValue(presetTargetVaultId).onChange((value) => {
+          presetTargetVaultId = value;
+        });
+      })
+      .addButton((button) => {
+        if (otherVaultIds.length === 0) {
+          button.setButtonText("Copy").setDisabled(true);
+          return;
+        }
+
+        button.setButtonText("Copy").onClick(async () => {
+          await this.plugin.copyCurrentVaultScopeToVault(presetTargetVaultId);
+          new Notice(`Copied sync scope preset to ${presetTargetVaultId}`, 3000);
+        });
+      });
 
     const scopeSection = containerEl.createDiv();
     scopeSection.createEl("h3", { text: "Current sync scope" });
