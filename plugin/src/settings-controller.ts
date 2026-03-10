@@ -111,6 +111,10 @@ export class SettingsController {
     return `Connected to ${settings.vaultId}. ${response.devices.length} device(s) registered.`;
   }
 
+  runManualSync(): Promise<void> {
+    return this.coordinator.runManualSync();
+  }
+
   restartAutoSync(): void {
     this.coordinator.restartAutoSync();
   }

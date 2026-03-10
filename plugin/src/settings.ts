@@ -36,6 +36,48 @@ export class SyncSettingTab extends PluginSettingTab {
       e2eeFingerprint: this.controller.getE2eeFingerprint(),
       hasSessionPassphrase: this.controller.getE2eePassphrase().trim().length > 0,
     });
+    const quickActionsStatus = createInlineStatus(containerEl, "Quick actions", "Ready");
+    renderQuickActions(containerEl, [
+      {
+        label: "Sync now",
+        cta: true,
+        onClick: async () => {
+          quickActionsStatus.setText("Quick actions: Running sync...");
+          try {
+            await this.controller.runManualSync();
+            quickActionsStatus.setText("Quick actions: Sync completed.");
+          } catch (error) {
+            quickActionsStatus.setText(`Quick actions: ${formatDeviceError(error)}`);
+          }
+          this.display();
+        },
+      },
+      {
+        label: "Check connection",
+        onClick: async () => {
+          quickActionsStatus.setText("Quick actions: Checking connection...");
+          try {
+            const message = await this.controller.checkConnection();
+            quickActionsStatus.setText(`Quick actions: ${message}`);
+          } catch (error) {
+            quickActionsStatus.setText(`Quick actions: ${formatDeviceError(error)}`);
+          }
+        },
+      },
+      {
+        label: "Refresh devices",
+        onClick: async () => {
+          quickActionsStatus.setText("Quick actions: Refreshing devices...");
+          try {
+            const devices = await this.controller.getRegisteredDevices();
+            quickActionsStatus.setText(`Quick actions: ${devices.length} device(s) loaded.`);
+          } catch (error) {
+            quickActionsStatus.setText(`Quick actions: ${formatDeviceError(error)}`);
+          }
+          this.display();
+        },
+      },
+    ]);
 
     renderSectionHeader(containerEl, "Connection", "Server, auth, background sync and device identity.");
 
@@ -466,6 +508,38 @@ function createInlineStatus(container: HTMLElement, label: string, value: string
   statusEl.style.marginTop = "-8px";
   statusEl.style.marginBottom = "12px";
   return statusEl;
+}
+
+function renderQuickActions(
+  container: HTMLElement,
+  actions: Array<{
+    label: string;
+    onClick: () => Promise<void>;
+    cta?: boolean;
+  }>,
+): void {
+  const row = container.createDiv();
+  row.style.display = "flex";
+  row.style.flexWrap = "wrap";
+  row.style.gap = "8px";
+  row.style.marginTop = "-2px";
+  row.style.marginBottom = "14px";
+
+  for (const action of actions) {
+    const button = row.createEl("button", { text: action.label });
+    if (action.cta) {
+      button.addClass("mod-cta");
+    }
+
+    button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await action.onClick();
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
 }
 
 function createKeyValueRow(container: HTMLElement, label: string, value: string): void {
