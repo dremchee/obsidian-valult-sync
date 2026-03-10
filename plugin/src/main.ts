@@ -178,6 +178,15 @@ export default class ObsidianSyncPlugin extends Plugin {
     return response.devices;
   }
 
+  async checkConnection(): Promise<string> {
+    const api = new SyncApi(
+      this.settings.serverUrl.replace(/\/+$/, ""),
+      this.settings.authToken,
+    );
+    const response = await api.getDevices(this.settings.vaultId);
+    return `Connected to ${this.settings.vaultId}. ${response.devices.length} device(s) registered.`;
+  }
+
   restartAutoSync(): void {
     if (this.intervalId !== null) {
       window.clearInterval(this.intervalId);

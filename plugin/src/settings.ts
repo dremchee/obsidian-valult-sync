@@ -207,6 +207,25 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
+    const connectionStatus = containerEl.createDiv({
+      text: "Connection status: not checked yet.",
+    });
+    new Setting(containerEl)
+      .setName("Check connection")
+      .setDesc("Verify the current server URL, auth token, and vault ID against the server.")
+      .addButton((button) =>
+        button.setButtonText("Check").onClick(async () => {
+          connectionStatus.setText("Connection status: checking...");
+
+          try {
+            const message = await this.plugin.checkConnection();
+            connectionStatus.setText(`Connection status: ${message}`);
+          } catch (error) {
+            connectionStatus.setText(`Connection status: ${formatDeviceError(error)}`);
+          }
+        }),
+      );
+
     new Setting(containerEl)
       .setName("Poll interval")
       .setDesc("How often the plugin polls the server for remote changes.")
