@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { TFile } from "obsidian";
-import { notices } from "../../test/mocks/obsidian";
+import { TFile, notices } from "../../test/mocks/obsidian";
 
 import { ApiError, type SyncApi } from "../api";
 import { SyncEngine } from "../sync-engine";
@@ -221,6 +220,71 @@ describe("SyncEngine", () => {
     expect(secondApi.getChanges).toHaveBeenCalledWith(DEFAULT_SETTINGS.vaultId, 1);
     expect(persistedState.lastSeq).toBe(1);
   });
+
+  it("keeps a conflict copy when a remote tombstone deletes a locally modified file", async () => {
+    const app = createMemoryApp({
+      "notes/test.md": "local unsynced edit",
+    });
+    let persistedState: SyncState | null = null;
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      upload: vi.fn().mockResolvedValue({
+        ok: false,
+        conflict: true,
+        server_version: 2,
+      }),
+      delete: vi.fn(),
+      getFile: vi.fn().mockResolvedValue({
+        path: "notes/test.md",
+        hash: "",
+        version: 2,
+        deleted: true,
+        content_b64: null,
+      }),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [],
+        latest_seq: 2,
+      }),
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => DEFAULT_SETTINGS,
+      () => ({
+        vaultId: DEFAULT_SETTINGS.vaultId,
+        files: {
+          "notes/test.md": {
+            hash: "server-hash",
+            version: 1,
+            mtime: 1,
+            deleted: false,
+          },
+        },
+        lastSeq: 1,
+      }),
+      async (state) => {
+        persistedState = state;
+      },
+      () => api,
+      async () => {},
+    );
+
+    await engine.syncOnce();
+
+    expect(app.listPaths()).toEqual(["notes/test (conflict).md"]);
+    expect(app.readText("notes/test (conflict).md")).toBe("local unsynced edit");
+    expect(notices).toEqual([]);
+    expect(persistedState).toMatchObject({
+      lastSeq: 2,
+      files: {
+        "notes/test.md": {
+          hash: "",
+          version: 2,
+          deleted: true,
+        },
+      },
+    });
+  });
 });
 
 function createApiStub(overrides: Partial<SyncApi>): SyncApi {
@@ -332,11 +396,14 @@ function toBytes(value: string): Uint8Array {
 }
 
 function toArrayBuffer(value: Uint8Array): ArrayBuffer {
-  return value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength);
+  return value.buffer.slice(
+    value.byteOffset,
+    value.byteOffset + value.byteLength,
+  ) as ArrayBuffer;
 }
 
 async function sha256Hex(data: Uint8Array): Promise<string> {
-  const digest = await crypto.subtle.digest("SHA-256", data);
+  const digest = await crypto.subtle.digest("SHA-256", toArrayBuffer(data));
   return Array.from(new Uint8Array(digest))
     .map((value) => value.toString(16).padStart(2, "0"))
     .join("");
