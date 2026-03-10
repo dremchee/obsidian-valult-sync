@@ -1,0 +1,68 @@
+export interface SyncSettings {
+  serverUrl: string;
+  pollIntervalSecs: number;
+  autoSync: boolean;
+}
+
+export interface FileState {
+  hash: string;
+  version: number;
+  mtime: number;
+  deleted: boolean;
+}
+
+export interface SyncState {
+  files: Record<string, FileState>;
+  lastSeq: number;
+}
+
+export interface PluginDataShape {
+  settings: SyncSettings;
+  state: SyncState;
+}
+
+export interface UploadRequest {
+  path: string;
+  content_b64: string;
+  hash: string;
+  base_version: number;
+}
+
+export interface DeleteRequest {
+  path: string;
+  base_version: number;
+}
+
+export interface MutationResponse {
+  ok: boolean;
+  version?: number;
+  conflict?: boolean;
+  server_version?: number;
+}
+
+export interface FileResponse {
+  path: string;
+  hash: string;
+  version: number;
+  deleted: boolean;
+  content_b64: string | null;
+}
+
+export interface ChangeItem {
+  seq: number;
+  path: string;
+  version: number;
+  deleted: boolean;
+}
+
+export interface ChangesResponse {
+  changes: ChangeItem[];
+  latest_seq: number;
+}
+
+export interface LocalFileSnapshot {
+  path: string;
+  hash: string;
+  mtime: number;
+  data: Uint8Array;
+}

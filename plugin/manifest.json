@@ -1,0 +1,9 @@
+{
+  "id": "obsidian-sync-plugin",
+  "name": "Obsidian Sync Plugin",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Sync an Obsidian vault with a custom Rust sync server.",
+  "author": "Codex",
+  "isDesktopOnly": false
+}
