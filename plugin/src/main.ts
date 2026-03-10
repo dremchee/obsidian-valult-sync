@@ -28,6 +28,7 @@ const DEFAULT_STATE: SyncState = {
   vaultId: "default",
   files: {},
   lastSeq: 0,
+  lastSyncAt: null,
 };
 
 export default class ObsidianSyncPlugin extends Plugin {
@@ -267,6 +268,7 @@ export default class ObsidianSyncPlugin extends Plugin {
       vaultId,
       files: {},
       lastSeq: 0,
+      lastSyncAt: null,
     };
     this.statesByVaultId[vaultId] = structuredClone(freshState);
     return freshState;

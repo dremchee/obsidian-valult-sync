@@ -139,6 +139,19 @@ export class SyncSettingTab extends PluginSettingTab {
         });
       });
 
+    const trackedFilesCount = Object.values(this.plugin.state.files).filter((file) => !file.deleted).length;
+    const deletedFilesCount = Object.values(this.plugin.state.files).filter((file) => file.deleted).length;
+    const syncHealthSection = containerEl.createDiv();
+    syncHealthSection.createEl("h3", { text: "Sync health" });
+    const syncHealthList = syncHealthSection.createEl("ul");
+    syncHealthList.createEl("li", { text: `Vault: ${this.plugin.settings.vaultId}` });
+    syncHealthList.createEl("li", { text: `Last synced sequence: ${this.plugin.state.lastSeq}` });
+    syncHealthList.createEl("li", { text: `Tracked files: ${trackedFilesCount}` });
+    syncHealthList.createEl("li", { text: `Tracked tombstones: ${deletedFilesCount}` });
+    syncHealthList.createEl("li", {
+      text: `Last successful sync: ${formatLastSyncAt(this.plugin.state.lastSyncAt)}`,
+    });
+
     const scopeSection = containerEl.createDiv();
     scopeSection.createEl("h3", { text: "Current sync scope" });
     const scopeList = scopeSection.createEl("ul");
@@ -309,6 +322,19 @@ function formatTimestamp(value: string): string {
   const parsed = new Date(value);
   if (Number.isNaN(parsed.getTime())) {
     return value;
+  }
+
+  return parsed.toLocaleString();
+}
+
+function formatLastSyncAt(value: number | null): string {
+  if (value === null) {
+    return "Never";
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return String(value);
   }
 
   return parsed.toLocaleString();

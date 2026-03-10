@@ -53,11 +53,7 @@ describe("SyncEngine", () => {
     const engine = new SyncEngine(
       app as never,
       () => DEFAULT_SETTINGS,
-      () => ({
-        vaultId: DEFAULT_SETTINGS.vaultId,
-        files: {},
-        lastSeq: 0,
-      }),
+      () => createState(),
       async (state) => {
         persistedState = state;
       },
@@ -114,8 +110,7 @@ describe("SyncEngine", () => {
     const engine = new SyncEngine(
       app as never,
       () => DEFAULT_SETTINGS,
-      () => ({
-        vaultId: DEFAULT_SETTINGS.vaultId,
+      () => createState({
         files: {
           "notes/test.md": {
             hash: "stale-hash",
@@ -156,11 +151,7 @@ describe("SyncEngine", () => {
     const app = createMemoryApp({
       "notes/test.md": "hello",
     });
-    let persistedState: SyncState = {
-      vaultId: DEFAULT_SETTINGS.vaultId,
-      files: {},
-      lastSeq: 0,
-    };
+    let persistedState: SyncState = createState();
 
     const firstApi = createApiStub({
       health: vi.fn().mockResolvedValue(undefined),
@@ -253,8 +244,7 @@ describe("SyncEngine", () => {
     const engine = new SyncEngine(
       app as never,
       () => DEFAULT_SETTINGS,
-      () => ({
-        vaultId: DEFAULT_SETTINGS.vaultId,
+      () => createState({
         files: {
           "notes/test.md": {
             hash: "server-hash",
@@ -312,8 +302,7 @@ describe("SyncEngine", () => {
         ...DEFAULT_SETTINGS,
         ignorePatterns: ["Templates/"],
       }),
-      () => ({
-        vaultId: DEFAULT_SETTINGS.vaultId,
+      () => createState({
         files: {
           "Templates/Old.md": {
             hash: "old-hash",
@@ -354,11 +343,9 @@ describe("SyncEngine", () => {
 
   it("skips ignored remote changes", async () => {
     const app = createMemoryApp({});
-    let persistedState: SyncState = {
-      vaultId: DEFAULT_SETTINGS.vaultId,
-      files: {},
+    let persistedState: SyncState = createState({
       lastSeq: 1,
-    };
+    });
     const api = createApiStub({
       health: vi.fn().mockResolvedValue(undefined),
       upload: vi.fn(),
@@ -384,9 +371,7 @@ describe("SyncEngine", () => {
         ...DEFAULT_SETTINGS,
         ignorePatterns: ["Templates/"],
       }),
-      () => ({
-        vaultId: DEFAULT_SETTINGS.vaultId,
-        files: {},
+      () => createState({
         lastSeq: 1,
       }),
       async (state) => {
@@ -425,11 +410,7 @@ describe("SyncEngine", () => {
         ...DEFAULT_SETTINGS,
         includePatterns: ["Notes/"],
       }),
-      () => ({
-        vaultId: DEFAULT_SETTINGS.vaultId,
-        files: {},
-        lastSeq: 0,
-      }),
+      () => createState(),
       async () => {},
       () => api,
       async () => {},
@@ -445,11 +426,9 @@ describe("SyncEngine", () => {
 
   it("skips remote changes outside include patterns", async () => {
     const app = createMemoryApp({});
-    let persistedState: SyncState = {
-      vaultId: DEFAULT_SETTINGS.vaultId,
-      files: {},
+    let persistedState: SyncState = createState({
       lastSeq: 3,
-    };
+    });
     const api = createApiStub({
       health: vi.fn().mockResolvedValue(undefined),
       upload: vi.fn(),
@@ -500,6 +479,16 @@ function createApiStub(overrides: Partial<SyncApi>): SyncApi {
     getChanges: vi.fn(),
     ...overrides,
   } as unknown as SyncApi;
+}
+
+function createState(overrides: Partial<SyncState> = {}): SyncState {
+  return {
+    vaultId: DEFAULT_SETTINGS.vaultId,
+    files: {},
+    lastSeq: 0,
+    lastSyncAt: null,
+    ...overrides,
+  };
 }
 
 function createMemoryApp(initialFiles: Record<string, string>) {

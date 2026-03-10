@@ -55,6 +55,7 @@ export class SyncEngine {
       await this.uploadLocalChanges(api, state, localFiles);
       await this.uploadLocalDeletions(api, state, localFiles);
       await this.downloadRemoteChanges(api, state);
+      state.lastSyncAt = Date.now();
 
       await this.saveState(state);
     } catch (error) {

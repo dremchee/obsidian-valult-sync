@@ -26,6 +26,7 @@ export interface SyncState {
   vaultId: string;
   files: Record<string, FileState>;
   lastSeq: number;
+  lastSyncAt: number | null;
 }
 
 export interface PluginDataShape {
