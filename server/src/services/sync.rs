@@ -5,8 +5,8 @@ use sqlx::{Row, SqlitePool};
 
 use crate::{
     dto::{
-        ChangeItem, ChangesResponse, DeleteRequest, DeviceItem, DevicesResponse, FileResponse,
-        MutationResponse, UploadRequest,
+        ChangeItem, ChangesResponse, ContentFormat, DeleteRequest, DeviceItem, DevicesResponse,
+        FileResponse, MutationResponse, UploadRequest,
     },
     error::AppError,
     models::{ChangeRecord, DeviceRecord, FileRecord},
@@ -20,16 +20,7 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
         .map_err(|_| AppError::InvalidBase64)?;
 
     let payload_hash = sha256_hex(&data);
-    let content_format = request.content_format.unwrap_or_else(|| "plain".to_string());
-    if content_format != "plain" && content_format != "e2ee-envelope-v1" {
-        return Err(AppError::InvalidPayload("content_format is invalid".to_string()));
-    }
-
-    let expected_payload_hash = request
-        .payload_hash
-        .clone()
-        .unwrap_or_else(|| request.hash.clone());
-    if payload_hash != expected_payload_hash {
+    if payload_hash != request.payload_hash {
         return Err(AppError::HashMismatch);
     }
 
@@ -72,8 +63,8 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
     .bind(&vault_id)
     .bind(&safe_path)
     .bind(&request.hash)
-    .bind(&expected_payload_hash)
-    .bind(&content_format)
+    .bind(&request.payload_hash)
+    .bind(content_format_to_db(request.content_format))
     .bind(new_version)
     .bind(&now)
     .execute(state.pool())
@@ -190,7 +181,7 @@ pub async fn get_file(state: &AppState, vault_id: String, path: String) -> Resul
             version: record.version,
             deleted: true,
             content_b64: None,
-            content_format: record.content_format,
+            content_format: content_format_from_db(&record.content_format)?,
         });
     }
 
@@ -204,7 +195,7 @@ pub async fn get_file(state: &AppState, vault_id: String, path: String) -> Resul
         version: record.version,
         deleted: false,
         content_b64: Some(STANDARD.encode(data)),
-        content_format: record.content_format,
+        content_format: content_format_from_db(&record.content_format)?,
     })
 }
 
@@ -301,6 +292,21 @@ fn sha256_hex(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
     format!("{:x}", hasher.finalize())
+}
+
+fn content_format_to_db(value: ContentFormat) -> &'static str {
+    match value {
+        ContentFormat::Plain => "plain",
+        ContentFormat::E2eeEnvelopeV1 => "e2ee-envelope-v1",
+    }
+}
+
+fn content_format_from_db(value: &str) -> Result<ContentFormat, AppError> {
+    match value {
+        "plain" => Ok(ContentFormat::Plain),
+        "e2ee-envelope-v1" => Ok(ContentFormat::E2eeEnvelopeV1),
+        _ => Err(AppError::InvalidPayload("content_format is invalid".to_string())),
+    }
 }
 
 async fn touch_device(

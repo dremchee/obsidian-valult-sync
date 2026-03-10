@@ -9,6 +9,7 @@ import { ApiError, SyncApi } from "./api";
 import { decryptEnvelope, encryptBytes, parseEnvelope, serializeEnvelope } from "./e2ee";
 import { shouldSyncPath } from "./sync-scope";
 import type {
+  ContentFormat,
   FileState,
   LocalFileSnapshot,
   SyncSettings,
@@ -25,6 +26,7 @@ export class SyncEngine {
   constructor(
     private readonly app: App,
     private readonly getSettings: () => SyncSettings,
+    private readonly getE2eePassphrase: () => string,
     private readonly getState: () => SyncState,
     private readonly saveState: (state: SyncState) => Promise<void>,
     private readonly apiFactory: (serverUrl: string, authToken: string) => SyncApi = (
@@ -258,7 +260,7 @@ export class SyncEngine {
 
     const data = await this.decodeRemoteContent(
       base64ToBytes(remote.content_b64 ?? ""),
-      remote.content_format ?? "plain",
+      remote.content_format,
     );
     const existing = this.app.vault.getAbstractFileByPath(remote.path);
     const localState = state.files[remote.path];
@@ -354,13 +356,14 @@ export class SyncEngine {
 
   private async buildUploadPayload(local: LocalFileSnapshot): Promise<{
     contentBase64: string;
-    payloadHash?: string;
-    contentFormat: "plain" | "e2ee-envelope-v1";
+    payloadHash: string;
+    contentFormat: ContentFormat;
   }> {
-    const passphrase = this.getSettings().e2eePassphrase.trim();
+    const passphrase = this.getE2eePassphrase().trim();
     if (!passphrase) {
       return {
         contentBase64: bytesToBase64(local.data),
+        payloadHash: local.hash,
         contentFormat: "plain",
       };
     }
@@ -376,13 +379,13 @@ export class SyncEngine {
 
   private async decodeRemoteContent(
     payload: Uint8Array,
-    contentFormat: "plain" | "e2ee-envelope-v1",
+    contentFormat: ContentFormat,
   ): Promise<Uint8Array> {
     if (contentFormat === "plain") {
       return payload;
     }
 
-    const passphrase = this.getSettings().e2eePassphrase.trim();
+    const passphrase = this.getE2eePassphrase().trim();
     if (!passphrase) {
       throw new Error("E2EE passphrase is required to decrypt synced content");
     }

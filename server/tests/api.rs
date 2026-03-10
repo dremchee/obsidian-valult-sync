@@ -90,6 +90,8 @@ async fn upload_file_then_fetch_file_and_changes() {
                         "path": "notes/test.md",
                         "content_b64": "aGVsbG8K",
                         "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+                        "payload_hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+                        "content_format": "plain",
                         "base_version": 0
                     })
                     .to_string(),
@@ -173,6 +175,8 @@ async fn stale_upload_returns_conflict() {
                         "path": "notes/test.md",
                         "content_b64": "d29ybGQK",
                         "hash": "e258d248fda94c63753607f7c4494ee0fcbe92f1a76bfdac795c9d84101eb317",
+                        "payload_hash": "e258d248fda94c63753607f7c4494ee0fcbe92f1a76bfdac795c9d84101eb317",
+                        "content_format": "plain",
                         "base_version": 0
                     })
                     .to_string(),
@@ -380,6 +384,8 @@ async fn upload_test_file(app: &axum::Router) {
                         "path": "notes/test.md",
                         "content_b64": "aGVsbG8K",
                         "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+                        "payload_hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+                        "content_format": "plain",
                         "base_version": 0
                     })
                     .to_string(),
@@ -410,6 +416,8 @@ async fn isolates_same_path_across_vaults() {
                         "path": "notes/shared.md",
                         "content_b64": "Zmlyc3QK",
                         "hash": "b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41",
+                        "payload_hash": "b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41",
+                        "content_format": "plain",
                         "base_version": 0
                     })
                     .to_string(),
@@ -434,6 +442,8 @@ async fn isolates_same_path_across_vaults() {
                         "path": "notes/shared.md",
                         "content_b64": "c2Vjb25kCg==",
                         "hash": "480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4",
+                        "payload_hash": "480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4",
+                        "content_format": "plain",
                         "base_version": 0
                     })
                     .to_string(),
@@ -634,6 +644,8 @@ async fn upload_file(
                         "path": path,
                         "content_b64": content_b64,
                         "hash": hash,
+                        "payload_hash": hash,
+                        "content_format": "plain",
                         "base_version": base_version
                     })
                     .to_string(),

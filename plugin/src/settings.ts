@@ -222,14 +222,13 @@ export class SyncSettingTab extends PluginSettingTab {
 
     new Setting(containerEl)
       .setName("E2EE passphrase")
-      .setDesc("Optional passphrase for encrypting file contents locally before upload. Stored in plugin data on this device.")
+      .setDesc("Optional passphrase for encrypting file contents locally before upload. Kept only in memory for the current Obsidian session.")
       .addText((text) =>
         text
           .setPlaceholder("correct horse battery staple")
-          .setValue(this.plugin.settings.e2eePassphrase)
-          .onChange(async (value) => {
-            this.plugin.settings.e2eePassphrase = value;
-            await this.plugin.persistData();
+          .setValue(this.plugin.getE2eePassphrase())
+          .onChange((value) => {
+            this.plugin.setE2eePassphrase(value);
           }),
       );
 

@@ -1,5 +1,13 @@
 use serde::{Deserialize, Serialize};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum ContentFormat {
+    #[serde(rename = "plain")]
+    Plain,
+    #[serde(rename = "e2ee-envelope-v1")]
+    E2eeEnvelopeV1,
+}
+
 #[derive(Debug, Deserialize)]
 pub struct UploadRequest {
     pub vault_id: String,
@@ -7,8 +15,8 @@ pub struct UploadRequest {
     pub path: String,
     pub content_b64: String,
     pub hash: String,
-    pub payload_hash: Option<String>,
-    pub content_format: Option<String>,
+    pub payload_hash: String,
+    pub content_format: ContentFormat,
     pub base_version: i64,
 }
 
@@ -38,7 +46,7 @@ pub struct FileResponse {
     pub version: i64,
     pub deleted: bool,
     pub content_b64: Option<String>,
-    pub content_format: String,
+    pub content_format: ContentFormat,
 }
 
 #[derive(Debug, Serialize)]

@@ -59,6 +59,8 @@
 - итерации PBKDF2: `600000`
 
 Passphrase вводится пользователем на клиенте. Из неё локально выводится content key.
+В текущей реализации passphrase хранится только в памяти текущей Obsidian session и не
+пишется в persisted plugin data.
 
 ---
 

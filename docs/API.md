@@ -129,18 +129,20 @@ notes/daily/2026-03-10.md
 - `device_id: string`
 - `content_b64: string`
 - `hash: string`
-- `payload_hash?: string`
-- `content_format?: "plain" | "e2ee-envelope-v1"`
+- `payload_hash: string`
+- `content_format: "plain" | "e2ee-envelope-v1"`
 - `base_version: integer`
-
-Для legacy plaintext upload `payload_hash` можно не передавать. Тогда сервер ожидает, что
-`hash == sha256(decoded content_b64)`.
 
 Для E2EE upload:
 
 - `hash` это hash plaintext содержимого
 - `payload_hash` это hash фактически загружаемого payload
 - `content_format` должен быть `e2ee-envelope-v1`
+
+Для plaintext upload:
+
+- `hash == payload_hash`
+- `content_format` должен быть `plain`
 
 ### Успешный response
 

@@ -20,7 +20,6 @@ const DEFAULT_SETTINGS: SyncSettings = {
   ignorePatterns: [],
   deviceId: "",
   authToken: "",
-  e2eePassphrase: "",
   pollIntervalSecs: 2,
   autoSync: true,
 };
@@ -41,6 +40,7 @@ export default class ObsidianSyncPlugin extends Plugin {
   private engine!: SyncEngine;
   private intervalId: number | null = null;
   private dirty = false;
+  private e2eePassphrase = "";
 
   async onload(): Promise<void> {
     await this.loadPluginData();
@@ -49,6 +49,7 @@ export default class ObsidianSyncPlugin extends Plugin {
     this.engine = new SyncEngine(
       this.app,
       () => this.settings,
+      () => this.e2eePassphrase,
       () => this.state,
       async (state) => {
         this.state = state;
@@ -151,6 +152,14 @@ export default class ObsidianSyncPlugin extends Plugin {
     return [...this.settings.knownVaultIds];
   }
 
+  getE2eePassphrase(): string {
+    return this.e2eePassphrase;
+  }
+
+  setE2eePassphrase(passphrase: string): void {
+    this.e2eePassphrase = passphrase;
+  }
+
   updateCurrentVaultScope(scope: VaultScopeConfig): void {
     this.settings.includePatterns = [...scope.includePatterns];
     this.settings.ignorePatterns = [...scope.ignorePatterns];
@@ -230,12 +239,13 @@ export default class ObsidianSyncPlugin extends Plugin {
 
   private async loadPluginData(): Promise<void> {
     const raw = (await this.loadData()) as LegacyPluginDataShape | null;
+    const rawSettings = raw?.settings ? stripLegacySecrets(raw.settings) : undefined;
     this.settings = {
       ...DEFAULT_SETTINGS,
-      ...raw?.settings,
+      ...rawSettings,
       knownVaultIds: this.normalizeKnownVaultIds(
-        raw?.settings?.knownVaultIds,
-        raw?.settings?.vaultId || DEFAULT_SETTINGS.vaultId,
+        rawSettings?.knownVaultIds,
+        rawSettings?.vaultId || DEFAULT_SETTINGS.vaultId,
       ),
     };
     if (!this.settings.deviceId) {
@@ -363,4 +373,9 @@ export default class ObsidianSyncPlugin extends Plugin {
 
     return vaultScopesById;
   }
+}
+
+function stripLegacySecrets(settings: Partial<SyncSettings> & { e2eePassphrase?: string }): Partial<SyncSettings> {
+  const { e2eePassphrase: _ignored, ...safeSettings } = settings;
+  return safeSettings;
 }

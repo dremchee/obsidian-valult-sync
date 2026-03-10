@@ -15,7 +15,6 @@ const DEFAULT_SETTINGS: SyncSettings = {
   ignorePatterns: [],
   deviceId: "device-local",
   authToken: "",
-  e2eePassphrase: "",
   pollIntervalSecs: 2,
   autoSync: true,
 };
@@ -55,6 +54,7 @@ describe("SyncEngine", () => {
     const engine = new SyncEngine(
       app as never,
       () => DEFAULT_SETTINGS,
+      () => "",
       () => createState(),
       async (state) => {
         persistedState = state;
@@ -102,6 +102,7 @@ describe("SyncEngine", () => {
         version: 2,
         deleted: false,
         content_b64: bytesToBase64(toBytes(remoteContent)),
+        content_format: "plain",
       }),
       getChanges: vi.fn().mockResolvedValue({
         changes: [],
@@ -112,6 +113,7 @@ describe("SyncEngine", () => {
     const engine = new SyncEngine(
       app as never,
       () => DEFAULT_SETTINGS,
+      () => "",
       () => createState({
         files: {
           "notes/test.md": {
@@ -177,6 +179,7 @@ describe("SyncEngine", () => {
     const firstEngine = new SyncEngine(
       app as never,
       () => DEFAULT_SETTINGS,
+      () => "",
       () => persistedState,
       async (state) => {
         persistedState = state;
@@ -201,6 +204,7 @@ describe("SyncEngine", () => {
     const secondEngine = new SyncEngine(
       app as never,
       () => DEFAULT_SETTINGS,
+      () => "",
       () => persistedState,
       async (state) => {
         persistedState = state;
@@ -236,6 +240,7 @@ describe("SyncEngine", () => {
         version: 2,
         deleted: true,
         content_b64: null,
+        content_format: "plain",
       }),
       getChanges: vi.fn().mockResolvedValue({
         changes: [],
@@ -246,6 +251,7 @@ describe("SyncEngine", () => {
     const engine = new SyncEngine(
       app as never,
       () => DEFAULT_SETTINGS,
+      () => "",
       () => createState({
         files: {
           "notes/test.md": {
@@ -304,6 +310,7 @@ describe("SyncEngine", () => {
         ...DEFAULT_SETTINGS,
         ignorePatterns: ["Templates/"],
       }),
+      () => "",
       () => createState({
         files: {
           "Templates/Old.md": {
@@ -373,6 +380,7 @@ describe("SyncEngine", () => {
         ...DEFAULT_SETTINGS,
         ignorePatterns: ["Templates/"],
       }),
+      () => "",
       () => createState({
         lastSeq: 1,
       }),
@@ -412,6 +420,7 @@ describe("SyncEngine", () => {
         ...DEFAULT_SETTINGS,
         includePatterns: ["Notes/"],
       }),
+      () => "",
       () => createState(),
       async () => {},
       () => api,
@@ -443,10 +452,8 @@ describe("SyncEngine", () => {
 
     const engine = new SyncEngine(
       app as never,
-      () => ({
-        ...DEFAULT_SETTINGS,
-        e2eePassphrase: "correct horse battery staple",
-      }),
+      () => DEFAULT_SETTINGS,
+      () => "correct horse battery staple",
       () => createState(),
       async () => {},
       () => api,
@@ -496,6 +503,7 @@ describe("SyncEngine", () => {
         ...DEFAULT_SETTINGS,
         includePatterns: ["Notes/"],
       }),
+      () => "",
       () => persistedState,
       async (state) => {
         persistedState = state;
@@ -544,10 +552,8 @@ describe("SyncEngine", () => {
 
     const engine = new SyncEngine(
       app as never,
-      () => ({
-        ...DEFAULT_SETTINGS,
-        e2eePassphrase: "correct horse battery staple",
-      }),
+      () => DEFAULT_SETTINGS,
+      () => "correct horse battery staple",
       () => createState({
         lastSeq: 1,
       }),

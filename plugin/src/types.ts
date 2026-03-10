@@ -6,10 +6,11 @@ export interface SyncSettings {
   ignorePatterns: string[];
   deviceId: string;
   authToken: string;
-  e2eePassphrase: string;
   pollIntervalSecs: number;
   autoSync: boolean;
 }
+
+export type ContentFormat = "plain" | "e2ee-envelope-v1";
 
 export interface VaultScopeConfig {
   includePatterns: string[];
@@ -49,8 +50,8 @@ export interface UploadRequest {
   path: string;
   content_b64: string;
   hash: string;
-  payload_hash?: string;
-  content_format?: "plain" | "e2ee-envelope-v1";
+  payload_hash: string;
+  content_format: ContentFormat;
   base_version: number;
 }
 
@@ -74,7 +75,7 @@ export interface FileResponse {
   version: number;
   deleted: boolean;
   content_b64: string | null;
-  content_format?: "plain" | "e2ee-envelope-v1";
+  content_format: ContentFormat;
 }
 
 export interface ChangeItem {
