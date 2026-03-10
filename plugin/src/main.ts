@@ -4,6 +4,7 @@ import { SyncApi } from "./api";
 import { E2eeState } from "./e2ee-state";
 import { PluginStateStore } from "./plugin-state-store";
 import { SettingsController } from "./settings-controller";
+import { PluginStatusBar } from "./status-bar";
 import { SyncCoordinator } from "./sync-coordinator";
 import { SyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync-engine";
@@ -41,6 +42,7 @@ export default class ObsidianSyncPlugin extends Plugin {
   private engine!: SyncEngine;
   private coordinator!: SyncCoordinator;
   private settingsController!: SettingsController;
+  private statusBar!: PluginStatusBar;
   private readonly e2eeState = new E2eeState();
   private readonly stateStore = new PluginStateStore();
 
@@ -84,6 +86,12 @@ export default class ObsidianSyncPlugin extends Plugin {
     );
 
     this.addSettingTab(new SyncSettingTab(this.app, this, this.settingsController));
+    this.statusBar = new PluginStatusBar(
+      this.addStatusBarItem(),
+      () => this.getStatusBarSnapshot(),
+      () => this.openSettingsTab(),
+    );
+    this.statusBar.start();
 
     this.addCommand({
       id: "sync-now",
@@ -119,6 +127,7 @@ export default class ObsidianSyncPlugin extends Plugin {
   }
 
   onunload(): void {
+    this.statusBar?.stop();
     this.coordinator?.stop();
   }
 
@@ -169,6 +178,61 @@ export default class ObsidianSyncPlugin extends Plugin {
 
   private generateDeviceId(): string {
     return `device_${crypto.randomUUID().replace(/-/g, "_")}`;
+  }
+
+  private getStatusBarSnapshot(): {
+    state: "ok" | "pending" | "syncing" | "error" | "disabled";
+    statusText: string;
+    lastSyncAt: number | null;
+  } {
+    if (!this.settings.autoSync) {
+      return {
+        state: "disabled",
+        statusText: "Auto sync off",
+        lastSyncAt: this.state.lastSyncAt,
+      };
+    }
+
+    if (this.coordinator.isSyncing()) {
+      return {
+        state: "syncing",
+        statusText: "Syncing",
+        lastSyncAt: this.state.lastSyncAt,
+      };
+    }
+
+    if (this.state.lastSyncError) {
+      return {
+        state: "error",
+        statusText: "Needs attention",
+        lastSyncAt: this.state.lastSyncAt,
+      };
+    }
+
+    if (this.coordinator.hasPendingWork()) {
+      return {
+        state: "pending",
+        statusText: "Pending changes",
+        lastSyncAt: this.state.lastSyncAt,
+      };
+    }
+
+    return {
+      state: "ok",
+      statusText: "Up to date",
+      lastSyncAt: this.state.lastSyncAt,
+    };
+  }
+
+  private openSettingsTab(): void {
+    const appWithSettings = this.app as typeof this.app & {
+      setting?: {
+        open: () => void;
+        openTabById?: (id: string) => void;
+      };
+    };
+    appWithSettings.setting?.open();
+    appWithSettings.setting?.openTabById?.(this.manifest.id);
   }
 
 }

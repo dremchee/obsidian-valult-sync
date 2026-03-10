@@ -6,6 +6,7 @@ import type { SyncSettings, SyncState } from "./types";
 export class SyncCoordinator {
   private intervalId: number | null = null;
   private dirty = false;
+  private syncing = false;
 
   constructor(
     private readonly getSettings: () => SyncSettings,
@@ -16,6 +17,14 @@ export class SyncCoordinator {
 
   markDirty(): void {
     this.dirty = true;
+  }
+
+  isSyncing(): boolean {
+    return this.syncing;
+  }
+
+  hasPendingWork(): boolean {
+    return this.dirty;
   }
 
   restartAutoSync(): void {
@@ -48,21 +57,29 @@ export class SyncCoordinator {
   }
 
   async runManualSync(): Promise<void> {
+    this.syncing = true;
     try {
       await this.syncOnce();
+      this.dirty = false;
       await this.setLastSyncError(null);
       new Notice("Sync completed", 3000);
     } catch (error) {
       await this.setLastSyncError(toSyncErrorState(error));
+    } finally {
+      this.syncing = false;
     }
   }
 
   async runBackgroundSync(): Promise<void> {
+    this.syncing = true;
     try {
       await this.syncOnce();
+      this.dirty = false;
       await this.setLastSyncError(null);
     } catch (error) {
       await this.setLastSyncError(toSyncErrorState(error));
+    } finally {
+      this.syncing = false;
     }
   }
 
