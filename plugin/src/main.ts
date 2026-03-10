@@ -184,12 +184,16 @@ export default class ObsidianSyncPlugin extends Plugin {
     state: "ok" | "pending" | "syncing" | "error" | "disabled";
     statusText: string;
     lastSyncAt: number | null;
+    vaultId: string;
+    lastError: string | null;
   } {
     if (!this.settings.autoSync) {
       return {
         state: "disabled",
         statusText: "Auto sync off",
         lastSyncAt: this.state.lastSyncAt,
+        vaultId: this.settings.vaultId,
+        lastError: this.state.lastSyncError?.message ?? null,
       };
     }
 
@@ -198,6 +202,8 @@ export default class ObsidianSyncPlugin extends Plugin {
         state: "syncing",
         statusText: "Syncing",
         lastSyncAt: this.state.lastSyncAt,
+        vaultId: this.settings.vaultId,
+        lastError: this.state.lastSyncError?.message ?? null,
       };
     }
 
@@ -206,6 +212,8 @@ export default class ObsidianSyncPlugin extends Plugin {
         state: "error",
         statusText: "Needs attention",
         lastSyncAt: this.state.lastSyncAt,
+        vaultId: this.settings.vaultId,
+        lastError: this.state.lastSyncError.message,
       };
     }
 
@@ -214,6 +222,8 @@ export default class ObsidianSyncPlugin extends Plugin {
         state: "pending",
         statusText: "Pending changes",
         lastSyncAt: this.state.lastSyncAt,
+        vaultId: this.settings.vaultId,
+        lastError: null,
       };
     }
 
@@ -221,6 +231,8 @@ export default class ObsidianSyncPlugin extends Plugin {
       state: "ok",
       statusText: "Up to date",
       lastSyncAt: this.state.lastSyncAt,
+      vaultId: this.settings.vaultId,
+      lastError: null,
     };
   }
 

@@ -6,6 +6,8 @@ export interface StatusBarSnapshot {
   state: StatusBarState;
   statusText: string;
   lastSyncAt: number | null;
+  vaultId: string;
+  lastError: string | null;
 }
 
 export class PluginStatusBar {
@@ -38,11 +40,15 @@ export class PluginStatusBar {
     const snapshot = this.getSnapshot();
     const menu = new Menu();
     menu.addItem((item) => item.setTitle(`Status: ${snapshot.statusText}`).setDisabled(true));
+    menu.addItem((item) => item.setTitle(`Vault: ${snapshot.vaultId}`).setDisabled(true));
     menu.addItem((item) =>
       item
         .setTitle(`Last sync: ${formatLastSync(snapshot.lastSyncAt)}`)
         .setDisabled(true),
     );
+    if (snapshot.lastError) {
+      menu.addItem((item) => item.setTitle(`Last issue: ${snapshot.lastError}`).setDisabled(true));
+    }
     menu.addSeparator();
     menu.addItem((item) =>
       item
@@ -60,15 +66,20 @@ export class PluginStatusBar {
     setIcon(iconEl, iconForState(snapshot.state));
 
     this.statusBarEl.createSpan({
-      text: snapshot.statusText,
-      cls: "obsidian-sync-status-label",
-    });
-    this.statusBarEl.createSpan({
       text: formatLastSync(snapshot.lastSyncAt),
       cls: "obsidian-sync-status-time",
     });
 
-    this.statusBarEl.title = `${snapshot.statusText}\nLast sync: ${formatLastSync(snapshot.lastSyncAt)}`;
+    const titleLines = [
+      `Status: ${snapshot.statusText}`,
+      `Vault: ${snapshot.vaultId}`,
+      `Last sync: ${formatLastSync(snapshot.lastSyncAt)}`,
+    ];
+    if (snapshot.lastError) {
+      titleLines.push(`Last issue: ${snapshot.lastError}`);
+    }
+
+    this.statusBarEl.title = titleLines.join("\n");
     this.statusBarEl.style.display = "inline-flex";
     this.statusBarEl.style.alignItems = "center";
     this.statusBarEl.style.gap = "6px";
