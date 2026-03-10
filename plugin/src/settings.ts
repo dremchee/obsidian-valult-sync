@@ -67,6 +67,22 @@ export class SyncSettingTab extends PluginSettingTab {
         }),
       );
 
+    new Setting(containerEl)
+      .setName("Ignore patterns")
+      .setDesc("One pattern per line. Supports '*', '?', and folder prefixes ending with '/'.")
+      .addTextArea((text) =>
+        text
+          .setPlaceholder(".obsidian/\nTemplates/\n*.canvas")
+          .setValue(this.plugin.settings.ignorePatterns.join("\n"))
+          .onChange(async (value) => {
+            this.plugin.settings.ignorePatterns = value
+              .split("\n")
+              .map((pattern) => pattern.trim())
+              .filter((pattern) => pattern.length > 0);
+            await this.plugin.persistData();
+          }),
+      );
+
     const devicesSection = containerEl.createDiv();
     devicesSection.createEl("h3", { text: "Registered devices" });
     const devicesStatus = devicesSection.createDiv({

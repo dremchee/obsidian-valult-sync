@@ -15,6 +15,7 @@ const DEFAULT_SETTINGS: SyncSettings = {
   serverUrl: "http://127.0.0.1:3000",
   vaultId: "default",
   knownVaultIds: ["default"],
+  ignorePatterns: [],
   deviceId: "",
   authToken: "",
   pollIntervalSecs: 2,

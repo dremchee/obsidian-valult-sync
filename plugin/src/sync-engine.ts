@@ -69,6 +69,10 @@ export class SyncEngine {
     const files = new Map<string, LocalFileSnapshot>();
 
     for (const file of this.app.vault.getFiles()) {
+      if (this.isIgnoredPath(file.path)) {
+        continue;
+      }
+
       const data = await this.readBinary(file);
       const stat = await this.app.vault.adapter.stat(file.path);
       const mtime = stat?.mtime ?? Date.now();
@@ -143,7 +147,7 @@ export class SyncEngine {
     localFiles: Map<string, LocalFileSnapshot>,
   ): Promise<void> {
     for (const [path, fileState] of Object.entries(state.files)) {
-      if (fileState.deleted || localFiles.has(path)) {
+      if (fileState.deleted || localFiles.has(path) || this.isIgnoredPath(path)) {
         continue;
       }
 
@@ -182,6 +186,11 @@ export class SyncEngine {
 
     for (const change of response.changes) {
       if (change.device_id === currentDeviceId) {
+        state.lastSeq = change.seq;
+        continue;
+      }
+
+      if (this.isIgnoredPath(change.path)) {
         state.lastSeq = change.seq;
         continue;
       }
@@ -332,6 +341,11 @@ export class SyncEngine {
     await this.app.vault.createBinary(path, toArrayBuffer(data));
   }
 
+  private isIgnoredPath(path: string): boolean {
+    const normalizedPath = normalizePath(path);
+    return this.getSettings().ignorePatterns.some((pattern) => matchesIgnorePattern(normalizedPath, pattern));
+  }
+
   private async withRetry<T>(operation: () => Promise<T>, label: string): Promise<T> {
     let attempt = 0;
 
@@ -433,4 +447,39 @@ function isRetryableError(error: unknown): boolean {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function matchesIgnorePattern(path: string, pattern: string): boolean {
+  const normalizedPattern = normalizePath(pattern.trim());
+  if (!normalizedPattern) {
+    return false;
+  }
+
+  if (normalizedPattern.endsWith("/")) {
+    return path.startsWith(normalizedPattern);
+  }
+
+  const regex = globPatternToRegExp(normalizedPattern);
+  return regex.test(path);
+}
+
+function globPatternToRegExp(pattern: string): RegExp {
+  let source = "^";
+
+  for (const char of pattern) {
+    if (char === "*") {
+      source += ".*";
+    } else if (char === "?") {
+      source += ".";
+    } else {
+      source += escapeRegExp(char);
+    }
+  }
+
+  source += "$";
+  return new RegExp(source);
+}
+
+function escapeRegExp(char: string): string {
+  return /[\\^$.*+?()[\]{}|/]/.test(char) ? `\\${char}` : char;
 }

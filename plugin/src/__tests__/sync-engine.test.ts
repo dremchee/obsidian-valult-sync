@@ -10,6 +10,7 @@ const DEFAULT_SETTINGS: SyncSettings = {
   serverUrl: "http://127.0.0.1:3000",
   vaultId: "vault-a",
   knownVaultIds: ["vault-a"],
+  ignorePatterns: [],
   deviceId: "device-local",
   authToken: "",
   pollIntervalSecs: 2,
@@ -285,6 +286,120 @@ describe("SyncEngine", () => {
         },
       },
     });
+  });
+
+  it("skips ignored local files during upload and deletion detection", async () => {
+    const app = createMemoryApp({
+      "Templates/Meeting.md": "template",
+      "notes/test.md": "sync me",
+    });
+    let persistedState: SyncState | null = null;
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      upload: vi.fn().mockResolvedValue({ ok: true, version: 1 }),
+      delete: vi.fn(),
+      getFile: vi.fn(),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [],
+        latest_seq: 0,
+      }),
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => ({
+        ...DEFAULT_SETTINGS,
+        ignorePatterns: ["Templates/"],
+      }),
+      () => ({
+        vaultId: DEFAULT_SETTINGS.vaultId,
+        files: {
+          "Templates/Old.md": {
+            hash: "old-hash",
+            version: 2,
+            mtime: 1,
+            deleted: false,
+          },
+        },
+        lastSeq: 0,
+      }),
+      async (state) => {
+        persistedState = state;
+      },
+      () => api,
+      async () => {},
+    );
+
+    await engine.syncOnce();
+
+    expect(api.upload).toHaveBeenCalledTimes(1);
+    expect(api.upload).toHaveBeenCalledWith(expect.objectContaining({
+      path: "notes/test.md",
+    }));
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(persistedState).toMatchObject({
+      files: {
+        "Templates/Old.md": {
+          version: 2,
+          deleted: false,
+        },
+        "notes/test.md": {
+          version: 1,
+          deleted: false,
+        },
+      },
+    });
+  });
+
+  it("skips ignored remote changes", async () => {
+    const app = createMemoryApp({});
+    let persistedState: SyncState = {
+      vaultId: DEFAULT_SETTINGS.vaultId,
+      files: {},
+      lastSeq: 1,
+    };
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      upload: vi.fn(),
+      delete: vi.fn(),
+      getFile: vi.fn(),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [
+          {
+            seq: 2,
+            device_id: "device-remote",
+            path: "Templates/Meeting.md",
+            version: 3,
+            deleted: false,
+          },
+        ],
+        latest_seq: 2,
+      }),
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => ({
+        ...DEFAULT_SETTINGS,
+        ignorePatterns: ["Templates/"],
+      }),
+      () => ({
+        vaultId: DEFAULT_SETTINGS.vaultId,
+        files: {},
+        lastSeq: 1,
+      }),
+      async (state) => {
+        persistedState = state;
+      },
+      () => api,
+      async () => {},
+    );
+
+    await engine.syncOnce();
+
+    expect(api.getFile).not.toHaveBeenCalled();
+    expect(app.listPaths()).toEqual([]);
+    expect(persistedState.lastSeq).toBe(2);
   });
 });
 
