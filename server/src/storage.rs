@@ -1,0 +1,86 @@
+use std::{
+    path::{Component, Path, PathBuf},
+    time::{SystemTime, UNIX_EPOCH},
+};
+
+use anyhow::{Context, Result};
+use tokio::fs;
+
+use crate::error::AppError;
+
+pub fn validate_relative_path(path: &str) -> Result<String, AppError> {
+    let candidate = Path::new(path);
+    if candidate.as_os_str().is_empty() || candidate.is_absolute() {
+        return Err(AppError::InvalidPath);
+    }
+
+    let mut normalized = PathBuf::new();
+    for component in candidate.components() {
+        match component {
+            Component::Normal(part) => normalized.push(part),
+            Component::CurDir => {}
+            Component::ParentDir | Component::RootDir | Component::Prefix(_) => {
+                return Err(AppError::InvalidPath);
+            }
+        }
+    }
+
+    let normalized = normalized.to_string_lossy().replace('\\', "/");
+    if normalized.is_empty() {
+        return Err(AppError::InvalidPath);
+    }
+
+    Ok(normalized)
+}
+
+pub async fn write_file(storage_root: &Path, relative_path: &str, data: &[u8]) -> Result<()> {
+    let target = resolve_path(storage_root, relative_path)?;
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).await.context("failed to create storage directory")?;
+    }
+
+    let temp_name = format!(
+        ".{}.tmp-{}",
+        target.file_name().and_then(|name| name.to_str()).unwrap_or("sync"),
+        unique_suffix()
+    );
+    let temp_path = target.with_file_name(temp_name);
+
+    fs::write(&temp_path, data)
+        .await
+        .context("failed to write temporary file")?;
+    fs::rename(&temp_path, &target)
+        .await
+        .context("failed to atomically replace file")?;
+
+    Ok(())
+}
+
+pub async fn read_file(storage_root: &Path, relative_path: &str) -> Result<Vec<u8>> {
+    let path = resolve_path(storage_root, relative_path)?;
+    fs::read(path).await.context("failed to read file")
+}
+
+pub async fn delete_file(storage_root: &Path, relative_path: &str) -> Result<()> {
+    let path = resolve_path(storage_root, relative_path)?;
+    match fs::remove_file(path).await {
+        Ok(_) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error).context("failed to delete file"),
+    }
+}
+
+fn resolve_path(storage_root: &Path, relative_path: &str) -> Result<PathBuf> {
+    let path = storage_root.join(relative_path);
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).context("failed to create parent directory")?;
+    }
+    Ok(path)
+}
+
+fn unique_suffix() -> u128 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_nanos())
+        .unwrap_or(0)
+}
