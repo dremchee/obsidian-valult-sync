@@ -15,7 +15,8 @@
 - протокол: `HTTP/JSON`
 - кодировка содержимого файла: `base64`
 - сервер отвечает `application/json`
-- при включённом `AUTH_TOKEN` сервер ожидает `Authorization: Bearer <token>`
+- при включённом `AUTH_TOKEN` или `AUTH_TOKENS` сервер ожидает `Authorization: Bearer <token>`
+- `AUTH_TOKENS` может содержать несколько токенов через запятую
 
 ### Идентификация файла
 
@@ -79,6 +80,7 @@ notes/daily/2026-03-10.md
 - `invalid_base64`
 - `hash_mismatch`
 - `not_found`
+- `unauthorized`
 - `internal_error`
 
 ---

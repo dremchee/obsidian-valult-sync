@@ -7,7 +7,7 @@ pub struct Config {
     pub port: u16,
     pub database_url: String,
     pub storage_root: PathBuf,
-    pub auth_token: Option<String>,
+    pub auth_tokens: Vec<String>,
 }
 
 impl Config {
@@ -24,16 +24,32 @@ impl Config {
         let storage_root = env::var("STORAGE_ROOT")
             .map(PathBuf::from)
             .unwrap_or_else(|_| PathBuf::from("../data/files"));
-        let auth_token = env::var("AUTH_TOKEN")
+        let auth_tokens = env::var("AUTH_TOKENS")
             .ok()
-            .map(|value| value.trim().to_string())
-            .filter(|value| !value.is_empty());
+            .map(|value| parse_auth_tokens(&value))
+            .filter(|tokens| !tokens.is_empty())
+            .or_else(|| {
+                env::var("AUTH_TOKEN")
+                    .ok()
+                    .map(|value| parse_auth_tokens(&value))
+                    .filter(|tokens| !tokens.is_empty())
+            })
+            .unwrap_or_default();
 
         Ok(Self {
             port,
             database_url,
             storage_root,
-            auth_token,
+            auth_tokens,
         })
     }
+}
+
+fn parse_auth_tokens(value: &str) -> Vec<String> {
+    value
+        .split(',')
+        .map(str::trim)
+        .filter(|token| !token.is_empty())
+        .map(ToString::to_string)
+        .collect()
 }

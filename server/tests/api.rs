@@ -38,6 +38,38 @@ async fn rejects_protected_routes_without_bearer_token() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(
+        read_json(response).await,
+        json!({
+            "error": "unauthorized",
+            "message": "valid bearer token is required"
+        })
+    );
+}
+
+#[tokio::test]
+async fn accepts_any_configured_bearer_token() {
+    let (_tmp_dir, app) = test_app_with_tokens(&["token-a", "token-b"]).await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/changes?vault_id=vault-a&since=0")
+                .header("authorization", "Bearer token-b")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        read_json(response).await,
+        json!({
+            "changes": [],
+            "latest_seq": 0
+        })
+    );
 }
 
 #[tokio::test]
@@ -253,6 +285,15 @@ async fn test_app() -> (TempDir, axum::Router) {
 }
 
 async fn test_app_with_token(token: &str) -> (TempDir, axum::Router) {
+    if token.is_empty() {
+        test_app_with_tokens(&[]).await
+    } else {
+        let tokens = [token];
+        test_app_with_tokens(&tokens).await
+    }
+}
+
+async fn test_app_with_tokens(tokens: &[&str]) -> (TempDir, axum::Router) {
     let temp_dir = TempDir::new().unwrap();
     let database_url = sqlite_url(temp_dir.path().join("sync.db"));
     let storage_root = temp_dir.path().join("files");
@@ -260,12 +301,8 @@ async fn test_app_with_token(token: &str) -> (TempDir, axum::Router) {
     let pool = db::connect(&database_url).await.unwrap();
     db::migrate(&pool).await.unwrap();
 
-    let auth_token = if token.is_empty() {
-        None
-    } else {
-        Some(token.to_string())
-    };
-    let state = AppState::new(pool, storage_root, auth_token);
+    let auth_tokens = tokens.iter().map(|token| token.to_string()).collect();
+    let state = AppState::new(pool, storage_root, auth_tokens);
     (temp_dir, app::build_router(state))
 }
 

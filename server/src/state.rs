@@ -10,16 +10,16 @@ pub struct AppState {
 struct AppStateInner {
     pub pool: SqlitePool,
     pub storage_root: PathBuf,
-    pub auth_token: Option<String>,
+    pub auth_tokens: Vec<String>,
 }
 
 impl AppState {
-    pub fn new(pool: SqlitePool, storage_root: PathBuf, auth_token: Option<String>) -> Self {
+    pub fn new(pool: SqlitePool, storage_root: PathBuf, auth_tokens: Vec<String>) -> Self {
         Self {
             inner: Arc::new(AppStateInner {
                 pool,
                 storage_root,
-                auth_token,
+                auth_tokens,
             }),
         }
     }
@@ -32,7 +32,7 @@ impl AppState {
         &self.inner.storage_root
     }
 
-    pub fn auth_token(&self) -> Option<&str> {
-        self.inner.auth_token.as_deref()
+    pub fn auth_tokens(&self) -> &[String] {
+        &self.inner.auth_tokens
     }
 }
