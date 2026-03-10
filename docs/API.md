@@ -18,6 +18,7 @@
 
 ### Идентификация файла
 
+- каждый файл принадлежит логическому `vault_id`
 - файл идентифицируется по `path`
 - `path` это относительный путь внутри vault
 - путь должен использовать `/`
@@ -38,6 +39,7 @@ notes/daily/2026-03-10.md
 ### Versioning
 
 - сервер хранит монотонно растущую `version` для каждого файла
+- версии изолированы внутри одного `vault_id`
 - клиент отправляет `base_version`
 - если `base_version` не совпадает с текущей серверной версией, запись отклоняется как conflict
 
@@ -106,6 +108,7 @@ notes/daily/2026-03-10.md
 
 ```json
 {
+  "vault_id": "default",
   "path": "notes/test.md",
   "content_b64": "IyBIZWxsbyB3b3JsZAo=",
   "hash": "f2d2b0e86e...",
@@ -116,6 +119,7 @@ notes/daily/2026-03-10.md
 ### Поля
 
 - `path: string`
+- `vault_id: string`
 - `content_b64: string`
 - `hash: string`
 - `base_version: integer`
@@ -161,7 +165,7 @@ notes/daily/2026-03-10.md
 ### Query parameters
 
 ```text
-path=notes/test.md
+vault_id=default&path=notes/test.md
 ```
 
 ### Успешный response
@@ -210,7 +214,7 @@ path=notes/test.md
 ### Query parameters
 
 ```text
-since=42
+vault_id=default&since=42
 ```
 
 ### Успешный response
@@ -269,6 +273,7 @@ since=42
 
 ```json
 {
+  "vault_id": "default",
   "path": "notes/test.md",
   "base_version": 5
 }

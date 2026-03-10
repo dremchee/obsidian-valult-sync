@@ -10,6 +10,8 @@ use thiserror::Error;
 pub enum AppError {
     #[error("path is invalid")]
     InvalidPath,
+    #[error("vault_id is invalid")]
+    InvalidVaultId,
     #[error("request body contains invalid base64")]
     InvalidBase64,
     #[error("provided hash does not match content")]
@@ -37,6 +39,7 @@ impl AppError {
     fn code(&self) -> &'static str {
         match self {
             Self::InvalidPath => "invalid_path",
+            Self::InvalidVaultId => "invalid_vault_id",
             Self::InvalidBase64 => "invalid_base64",
             Self::HashMismatch => "hash_mismatch",
             Self::NotFound => "not_found",
@@ -46,7 +49,9 @@ impl AppError {
 
     fn status(&self) -> StatusCode {
         match self {
-            Self::InvalidPath | Self::InvalidBase64 | Self::HashMismatch => StatusCode::BAD_REQUEST,
+            Self::InvalidPath | Self::InvalidVaultId | Self::InvalidBase64 | Self::HashMismatch => {
+                StatusCode::BAD_REQUEST
+            }
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }

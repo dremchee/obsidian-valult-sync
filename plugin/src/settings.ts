@@ -25,6 +25,25 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     new Setting(containerEl)
+      .setName("Vault ID")
+      .setDesc("Logical vault identifier used by the sync server.")
+      .addText((text) =>
+        text
+          .setPlaceholder("default")
+          .setValue(this.plugin.settings.vaultId)
+          .onChange(async (value) => {
+            const nextVaultId = value.trim() || "default";
+            this.plugin.settings.vaultId = nextVaultId;
+            this.plugin.state = {
+              vaultId: nextVaultId,
+              files: {},
+              lastSeq: 0,
+            };
+            await this.plugin.persistData();
+          }),
+      );
+
+    new Setting(containerEl)
       .setName("Poll interval")
       .setDesc("How often the plugin polls the server for remote changes.")
       .addText((text) =>

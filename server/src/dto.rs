@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
 pub struct UploadRequest {
+    pub vault_id: String,
     pub path: String,
     pub content_b64: String,
     pub hash: String,
@@ -10,6 +11,7 @@ pub struct UploadRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct DeleteRequest {
+    pub vault_id: String,
     pub path: String,
     pub base_version: i64,
 }

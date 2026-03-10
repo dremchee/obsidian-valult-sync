@@ -36,6 +36,7 @@ async fn upload_file_then_fetch_file_and_changes() {
                 .header("content-type", "application/json")
                 .body(Body::from(
                     json!({
+                        "vault_id": "vault-a",
                         "path": "notes/test.md",
                         "content_b64": "aGVsbG8K",
                         "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
@@ -56,6 +57,7 @@ async fn upload_file_then_fetch_file_and_changes() {
         .oneshot(
             Request::builder()
                 .uri("/file?path=notes%2Ftest.md")
+                .uri("/file?vault_id=vault-a&path=notes%2Ftest.md")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -77,7 +79,7 @@ async fn upload_file_then_fetch_file_and_changes() {
     let changes_response = app
         .oneshot(
             Request::builder()
-                .uri("/changes?since=0")
+                .uri("/changes?vault_id=vault-a&since=0")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -115,6 +117,7 @@ async fn stale_upload_returns_conflict() {
                 .header("content-type", "application/json")
                 .body(Body::from(
                     json!({
+                        "vault_id": "vault-a",
                         "path": "notes/test.md",
                         "content_b64": "d29ybGQK",
                         "hash": "e258d248fda94c63753607f7c4494ee0fcbe92f1a76bfdac795c9d84101eb317",
@@ -153,6 +156,7 @@ async fn delete_creates_tombstone_and_change_event() {
                 .header("content-type", "application/json")
                 .body(Body::from(
                     json!({
+                        "vault_id": "vault-a",
                         "path": "notes/test.md",
                         "base_version": 1
                     })
@@ -170,7 +174,7 @@ async fn delete_creates_tombstone_and_change_event() {
         .clone()
         .oneshot(
             Request::builder()
-                .uri("/file?path=notes%2Ftest.md")
+                .uri("/file?vault_id=vault-a&path=notes%2Ftest.md")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -192,7 +196,7 @@ async fn delete_creates_tombstone_and_change_event() {
     let changes_response = app
         .oneshot(
             Request::builder()
-                .uri("/changes?since=0")
+                .uri("/changes?vault_id=vault-a&since=0")
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -244,6 +248,7 @@ async fn upload_test_file(app: &axum::Router) {
                 .header("content-type", "application/json")
                 .body(Body::from(
                     json!({
+                        "vault_id": "vault-a",
                         "path": "notes/test.md",
                         "content_b64": "aGVsbG8K",
                         "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
@@ -257,6 +262,102 @@ async fn upload_test_file(app: &axum::Router) {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn isolates_same_path_across_vaults() {
+    let (_tmp_dir, app) = test_app().await;
+
+    let first = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/upload")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "vault_id": "vault-a",
+                        "path": "notes/shared.md",
+                        "content_b64": "Zmlyc3QK",
+                        "hash": "b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41",
+                        "base_version": 0
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first.status(), StatusCode::OK);
+
+    let second = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/upload")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "vault_id": "vault-b",
+                        "path": "notes/shared.md",
+                        "content_b64": "c2Vjb25kCg==",
+                        "hash": "480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4",
+                        "base_version": 0
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(second.status(), StatusCode::OK);
+
+    let vault_a_file = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri("/file?vault_id=vault-a&path=notes%2Fshared.md")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        read_json(vault_a_file).await,
+        json!({
+            "path": "notes/shared.md",
+            "hash": "b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41",
+            "version": 1,
+            "deleted": false,
+            "content_b64": "Zmlyc3QK"
+        })
+    );
+
+    let vault_b_changes = app
+        .oneshot(
+            Request::builder()
+                .uri("/changes?vault_id=vault-b&since=0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        read_json(vault_b_changes).await,
+        json!({
+            "changes": [
+                {
+                    "seq": 2,
+                    "path": "notes/shared.md",
+                    "version": 1,
+                    "deleted": false
+                }
+            ],
+            "latest_seq": 2
+        })
+    );
 }
 
 async fn read_json(response: axum::response::Response) -> Value {

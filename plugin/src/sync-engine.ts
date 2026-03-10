@@ -35,6 +35,7 @@ export class SyncEngine {
       const settings = this.getSettings();
       const state = structuredClone(this.getState());
       const api = new SyncApi(settings.serverUrl.replace(/\/+$/, ""));
+      state.vaultId = settings.vaultId;
 
       await api.health();
 
@@ -84,6 +85,7 @@ export class SyncEngine {
       }
 
       const response = await api.upload({
+        vault_id: this.getSettings().vaultId,
         path: local.path,
         content_b64: bytesToBase64(local.data),
         hash: local.hash,
@@ -117,6 +119,7 @@ export class SyncEngine {
       }
 
       const response = await api.delete({
+        vault_id: this.getSettings().vaultId,
         path,
         base_version: fileState.version,
       });
@@ -138,7 +141,7 @@ export class SyncEngine {
   }
 
   private async downloadRemoteChanges(api: SyncApi, state: SyncState): Promise<void> {
-    const response = await api.getChanges(state.lastSeq);
+    const response = await api.getChanges(state.vaultId, state.lastSeq);
 
     for (const change of response.changes) {
       const localState = state.files[change.path];
@@ -176,7 +179,7 @@ export class SyncEngine {
     state: SyncState,
     path: string,
   ): Promise<void> {
-    const remote = await api.getFile(path);
+    const remote = await api.getFile(this.getSettings().vaultId, path);
 
     if (remote.deleted) {
       await this.applyRemoteDelete(state, remote.path, remote.version);

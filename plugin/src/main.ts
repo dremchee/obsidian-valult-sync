@@ -6,11 +6,13 @@ import type { PluginDataShape, SyncSettings, SyncState } from "./types";
 
 const DEFAULT_SETTINGS: SyncSettings = {
   serverUrl: "http://127.0.0.1:3000",
+  vaultId: "default",
   pollIntervalSecs: 2,
   autoSync: true,
 };
 
 const DEFAULT_STATE: SyncState = {
+  vaultId: "default",
   files: {},
   lastSeq: 0,
 };
@@ -80,6 +82,7 @@ export default class ObsidianSyncPlugin extends Plugin {
   }
 
   async persistData(): Promise<void> {
+    this.state.vaultId = this.settings.vaultId;
     const data: PluginDataShape = {
       settings: this.settings,
       state: this.state,
@@ -140,5 +143,13 @@ export default class ObsidianSyncPlugin extends Plugin {
         ...raw?.state?.files,
       },
     };
+
+    if (this.state.vaultId !== this.settings.vaultId) {
+      this.state = {
+        vaultId: this.settings.vaultId,
+        files: {},
+        lastSeq: 0,
+      };
+    }
   }
 }

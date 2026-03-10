@@ -1,5 +1,6 @@
 export interface SyncSettings {
   serverUrl: string;
+  vaultId: string;
   pollIntervalSecs: number;
   autoSync: boolean;
 }
@@ -12,6 +13,7 @@ export interface FileState {
 }
 
 export interface SyncState {
+  vaultId: string;
   files: Record<string, FileState>;
   lastSeq: number;
 }
@@ -22,6 +24,7 @@ export interface PluginDataShape {
 }
 
 export interface UploadRequest {
+  vault_id: string;
   path: string;
   content_b64: string;
   hash: string;
@@ -29,6 +32,7 @@ export interface UploadRequest {
 }
 
 export interface DeleteRequest {
+  vault_id: string;
   path: string;
   base_version: number;
 }

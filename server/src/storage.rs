@@ -33,8 +33,24 @@ pub fn validate_relative_path(path: &str) -> Result<String, AppError> {
     Ok(normalized)
 }
 
-pub async fn write_file(storage_root: &Path, relative_path: &str, data: &[u8]) -> Result<()> {
-    let target = resolve_path(storage_root, relative_path)?;
+pub fn validate_vault_id(vault_id: &str) -> Result<String, AppError> {
+    let trimmed = vault_id.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidVaultId);
+    }
+
+    if trimmed
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '-' || ch == '_')
+    {
+        Ok(trimmed.to_string())
+    } else {
+        Err(AppError::InvalidVaultId)
+    }
+}
+
+pub async fn write_file(storage_root: &Path, vault_id: &str, relative_path: &str, data: &[u8]) -> Result<()> {
+    let target = resolve_path(storage_root, vault_id, relative_path)?;
     if let Some(parent) = target.parent() {
         fs::create_dir_all(parent).await.context("failed to create storage directory")?;
     }
@@ -56,13 +72,13 @@ pub async fn write_file(storage_root: &Path, relative_path: &str, data: &[u8]) -
     Ok(())
 }
 
-pub async fn read_file(storage_root: &Path, relative_path: &str) -> Result<Vec<u8>> {
-    let path = resolve_path(storage_root, relative_path)?;
+pub async fn read_file(storage_root: &Path, vault_id: &str, relative_path: &str) -> Result<Vec<u8>> {
+    let path = resolve_path(storage_root, vault_id, relative_path)?;
     fs::read(path).await.context("failed to read file")
 }
 
-pub async fn delete_file(storage_root: &Path, relative_path: &str) -> Result<()> {
-    let path = resolve_path(storage_root, relative_path)?;
+pub async fn delete_file(storage_root: &Path, vault_id: &str, relative_path: &str) -> Result<()> {
+    let path = resolve_path(storage_root, vault_id, relative_path)?;
     match fs::remove_file(path).await {
         Ok(_) => Ok(()),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
@@ -70,8 +86,8 @@ pub async fn delete_file(storage_root: &Path, relative_path: &str) -> Result<()>
     }
 }
 
-fn resolve_path(storage_root: &Path, relative_path: &str) -> Result<PathBuf> {
-    let path = storage_root.join(relative_path);
+fn resolve_path(storage_root: &Path, vault_id: &str, relative_path: &str) -> Result<PathBuf> {
+    let path = storage_root.join(vault_id).join(relative_path);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).context("failed to create parent directory")?;
     }

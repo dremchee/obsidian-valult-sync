@@ -23,13 +23,15 @@ export class SyncApi {
     return this.sendJson("/delete", payload);
   }
 
-  getFile(path: string): Promise<FileResponse> {
-    const encoded = encodeURIComponent(path);
-    return this.getJson(`/file?path=${encoded}`);
+  getFile(vaultId: string, path: string): Promise<FileResponse> {
+    const encodedVaultId = encodeURIComponent(vaultId);
+    const encodedPath = encodeURIComponent(path);
+    return this.getJson(`/file?vault_id=${encodedVaultId}&path=${encodedPath}`);
   }
 
-  getChanges(since: number): Promise<ChangesResponse> {
-    return this.getJson(`/changes?since=${since}`);
+  getChanges(vaultId: string, since: number): Promise<ChangesResponse> {
+    const encodedVaultId = encodeURIComponent(vaultId);
+    return this.getJson(`/changes?vault_id=${encodedVaultId}&since=${since}`);
   }
 
   private async getJson<T>(path: string): Promise<T> {
