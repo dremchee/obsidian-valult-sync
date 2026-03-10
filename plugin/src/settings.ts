@@ -243,20 +243,41 @@ export class SyncSettingTab extends PluginSettingTab {
     container.setText("Loading devices...");
 
     try {
+      const currentDeviceId = this.plugin.settings.deviceId.trim();
       const devices = await this.plugin.getRegisteredDevices();
+      const sortedDevices = [...devices].sort((left, right) => {
+        if (left.device_id === currentDeviceId && right.device_id !== currentDeviceId) {
+          return -1;
+        }
+        if (right.device_id === currentDeviceId && left.device_id !== currentDeviceId) {
+          return 1;
+        }
+        return left.device_id.localeCompare(right.device_id);
+      });
       container.empty();
 
-      if (devices.length === 0) {
+      if (sortedDevices.length === 0) {
         container.setText("No devices registered for this vault yet.");
         return;
       }
 
+      const currentDevice = sortedDevices.find((device) => device.device_id === currentDeviceId);
+      container.createEl("p", {
+        text: currentDevice
+          ? `Current device is registered. Last seen ${formatTimestamp(currentDevice.last_seen_at)}.`
+          : "Current device has not registered with this vault yet. Run sync to add it to the registry.",
+      });
+
       const list = container.createEl("ul");
-      for (const device of devices) {
+      for (const device of sortedDevices) {
         const item = list.createEl("li");
         const lastSeen = formatTimestamp(device.last_seen_at);
         const firstSeen = formatTimestamp(device.first_seen_at);
-        item.setText(`${device.device_id} — last seen ${lastSeen}, first seen ${firstSeen}`);
+        const label =
+          device.device_id === currentDeviceId
+            ? `${device.device_id} (this device)`
+            : device.device_id;
+        item.setText(`${label} — last seen ${lastSeen}, first seen ${firstSeen}`);
       }
     } catch (error) {
       container.empty();
