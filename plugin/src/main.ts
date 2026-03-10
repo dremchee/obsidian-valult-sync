@@ -1,9 +1,9 @@
-import { Notice, Plugin } from "obsidian";
+import { Plugin } from "obsidian";
 
 import { SyncApi } from "./api";
 import { E2eeState } from "./e2ee-state";
 import { PluginStateStore } from "./plugin-state-store";
-import { toSyncErrorState } from "./sync-errors";
+import { SyncCoordinator } from "./sync-coordinator";
 import { SyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync-engine";
 import type {
@@ -40,14 +40,12 @@ export default class ObsidianSyncPlugin extends Plugin {
   state: SyncState = structuredClone(DEFAULT_STATE);
 
   private engine!: SyncEngine;
-  private intervalId: number | null = null;
-  private dirty = false;
+  private coordinator!: SyncCoordinator;
   private readonly e2eeState = new E2eeState();
   private readonly stateStore = new PluginStateStore();
 
   async onload(): Promise<void> {
     await this.loadPluginData();
-    this.dirty = true;
 
     this.engine = new SyncEngine(
       this.app,
@@ -60,6 +58,16 @@ export default class ObsidianSyncPlugin extends Plugin {
         await this.persistData();
       },
     );
+    this.coordinator = new SyncCoordinator(
+      () => this.settings,
+      () => this.state,
+      async (state) => {
+        this.state = state;
+        await this.persistData();
+      },
+      async () => this.engine.syncOnce(),
+    );
+    this.coordinator.markDirty();
 
     this.addSettingTab(new SyncSettingTab(this.app, this));
 
@@ -67,40 +75,37 @@ export default class ObsidianSyncPlugin extends Plugin {
       id: "sync-now",
       name: "Sync now",
       callback: async () => {
-        await this.runManualSync();
+        await this.coordinator.runManualSync();
       },
     });
 
     this.registerEvent(
       this.app.vault.on("create", () => {
-        this.dirty = true;
+        this.coordinator.markDirty();
       }),
     );
     this.registerEvent(
       this.app.vault.on("modify", () => {
-        this.dirty = true;
+        this.coordinator.markDirty();
       }),
     );
     this.registerEvent(
       this.app.vault.on("delete", () => {
-        this.dirty = true;
+        this.coordinator.markDirty();
       }),
     );
     this.registerEvent(
       this.app.vault.on("rename", () => {
-        this.dirty = true;
+        this.coordinator.markDirty();
       }),
     );
 
-    this.restartAutoSync();
-    void this.safeSync();
+    this.coordinator.restartAutoSync();
+    void this.coordinator.runBackgroundSync();
   }
 
   onunload(): void {
-    if (this.intervalId !== null) {
-      window.clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
+    this.coordinator?.stop();
   }
 
   async persistData(): Promise<void> {
@@ -128,7 +133,7 @@ export default class ObsidianSyncPlugin extends Plugin {
     );
     this.stateStore.applyVaultScope(this.settings, vaultId);
     this.state = this.stateStore.getStateForVaultId(vaultId);
-    this.dirty = true;
+    this.coordinator?.markDirty();
     await this.persistData();
   }
 
@@ -142,7 +147,7 @@ export default class ObsidianSyncPlugin extends Plugin {
       this.settings.vaultId = fallbackVaultId;
       this.stateStore.applyVaultScope(this.settings, fallbackVaultId);
       this.state = this.stateStore.getStateForVaultId(fallbackVaultId);
-      this.dirty = true;
+      this.coordinator?.markDirty();
     }
 
     this.settings.knownVaultIds = this.stateStore.getKnownVaultIds(
@@ -219,50 +224,7 @@ export default class ObsidianSyncPlugin extends Plugin {
   }
 
   restartAutoSync(): void {
-    if (this.intervalId !== null) {
-      window.clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
-
-    if (!this.settings.autoSync) {
-      return;
-    }
-
-    const intervalMs = Math.max(this.settings.pollIntervalSecs, 1) * 1000;
-    this.intervalId = window.setInterval(async () => {
-      if (!this.dirty && this.state.lastSeq > 0) {
-        await this.safeSync();
-        return;
-      }
-
-      this.dirty = false;
-      await this.safeSync();
-    }, intervalMs);
-  }
-
-  private async runManualSync(): Promise<void> {
-    try {
-      await this.engine.syncOnce();
-      this.state.lastSyncError = null;
-      await this.persistData();
-      new Notice("Sync completed", 3000);
-    } catch (error) {
-      this.state.lastSyncError = toSyncErrorState(error);
-      await this.persistData();
-      // Notice is shown inside SyncEngine
-    }
-  }
-
-  private async safeSync(): Promise<void> {
-    try {
-      await this.engine.syncOnce();
-      this.state.lastSyncError = null;
-      await this.persistData();
-    } catch (error) {
-      this.state.lastSyncError = toSyncErrorState(error);
-      await this.persistData();
-      // Notice is shown inside SyncEngine
-    }
+    this.coordinator?.restartAutoSync();
   }
 
   private async loadPluginData(): Promise<void> {
