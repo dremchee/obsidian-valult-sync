@@ -227,6 +227,7 @@ vault_id=default&since=42
   "changes": [
     {
       "seq": 43,
+      "device_id": "device_local_desktop",
       "path": "notes/test.md",
       "version": 5,
       "deleted": false
@@ -245,6 +246,7 @@ vault_id=default&since=42
 ### Поля `changes[]`
 
 - `seq: integer`
+- `device_id: string`
 - `path: string`
 - `version: integer`
 - `deleted: boolean`

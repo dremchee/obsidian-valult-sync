@@ -58,6 +58,7 @@ export interface FileResponse {
 
 export interface ChangeItem {
   seq: number;
+  device_id: string;
   path: string;
   version: number;
   deleted: boolean;

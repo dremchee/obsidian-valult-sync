@@ -147,8 +147,14 @@ export class SyncEngine {
 
   private async downloadRemoteChanges(api: SyncApi, state: SyncState): Promise<void> {
     const response = await api.getChanges(state.vaultId, state.lastSeq);
+    const currentDeviceId = this.getSettings().deviceId;
 
     for (const change of response.changes) {
+      if (change.device_id === currentDeviceId) {
+        state.lastSeq = change.seq;
+        continue;
+      }
+
       const localState = state.files[change.path];
       if (localState && localState.version >= change.version) {
         continue;
