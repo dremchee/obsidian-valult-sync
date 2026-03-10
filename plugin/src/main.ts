@@ -12,6 +12,7 @@ import type {
 const DEFAULT_SETTINGS: SyncSettings = {
   serverUrl: "http://127.0.0.1:3000",
   vaultId: "default",
+  knownVaultIds: ["default"],
   deviceId: "",
   authToken: "",
   pollIntervalSecs: 2,
@@ -92,6 +93,10 @@ export default class ObsidianSyncPlugin extends Plugin {
   async persistData(): Promise<void> {
     this.state.vaultId = this.settings.vaultId;
     this.statesByVaultId[this.settings.vaultId] = structuredClone(this.state);
+    this.settings.knownVaultIds = this.normalizeKnownVaultIds(
+      this.settings.knownVaultIds,
+      this.settings.vaultId,
+    );
     const data: PluginDataShape = {
       settings: this.settings,
       statesByVaultId: this.statesByVaultId,
@@ -101,9 +106,35 @@ export default class ObsidianSyncPlugin extends Plugin {
 
   async activateVault(vaultId: string): Promise<void> {
     this.settings.vaultId = vaultId;
+    this.settings.knownVaultIds = this.normalizeKnownVaultIds(
+      this.settings.knownVaultIds,
+      vaultId,
+    );
     this.state = this.getStateForVaultId(vaultId);
     this.dirty = true;
     await this.persistData();
+  }
+
+  async forgetVault(vaultId: string): Promise<void> {
+    const nextKnownVaultIds = this.settings.knownVaultIds.filter((current) => current !== vaultId);
+    delete this.statesByVaultId[vaultId];
+
+    if (this.settings.vaultId === vaultId) {
+      const fallbackVaultId = nextKnownVaultIds[0] ?? DEFAULT_SETTINGS.vaultId;
+      this.settings.vaultId = fallbackVaultId;
+      this.state = this.getStateForVaultId(fallbackVaultId);
+      this.dirty = true;
+    }
+
+    this.settings.knownVaultIds = this.normalizeKnownVaultIds(
+      nextKnownVaultIds,
+      this.settings.vaultId,
+    );
+    await this.persistData();
+  }
+
+  getKnownVaultIds(): string[] {
+    return [...this.settings.knownVaultIds];
   }
 
   restartAutoSync(): void {
@@ -150,6 +181,10 @@ export default class ObsidianSyncPlugin extends Plugin {
     this.settings = {
       ...DEFAULT_SETTINGS,
       ...raw?.settings,
+      knownVaultIds: this.normalizeKnownVaultIds(
+        raw?.settings?.knownVaultIds,
+        raw?.settings?.vaultId || DEFAULT_SETTINGS.vaultId,
+      ),
     };
     if (!this.settings.deviceId) {
       this.settings.deviceId = this.generateDeviceId();
@@ -214,5 +249,22 @@ export default class ObsidianSyncPlugin extends Plugin {
     }
 
     return statesByVaultId;
+  }
+
+  private normalizeKnownVaultIds(
+    knownVaultIds: string[] | undefined,
+    activeVaultId: string,
+  ): string[] {
+    const uniqueVaultIds = new Set<string>();
+
+    for (const vaultId of knownVaultIds ?? []) {
+      const trimmed = vaultId.trim();
+      if (trimmed) {
+        uniqueVaultIds.add(trimmed);
+      }
+    }
+
+    uniqueVaultIds.add(activeVaultId);
+    return Array.from(uniqueVaultIds);
   }
 }

@@ -10,6 +10,7 @@ export class SyncSettingTab extends PluginSettingTab {
   display(): void {
     const { containerEl } = this;
     containerEl.empty();
+    const knownVaultIds = this.plugin.getKnownVaultIds();
 
     new Setting(containerEl)
       .setName("Server URL")
@@ -34,7 +35,35 @@ export class SyncSettingTab extends PluginSettingTab {
           .onChange(async (value) => {
             const nextVaultId = value.trim() || "default";
             await this.plugin.activateVault(nextVaultId);
+            this.display();
           }),
+      );
+
+    new Setting(containerEl)
+      .setName("Switch vault")
+      .setDesc("Load sync state for another known vault ID.")
+      .addDropdown((dropdown) => {
+        for (const vaultId of knownVaultIds) {
+          dropdown.addOption(vaultId, vaultId);
+        }
+
+        dropdown
+          .setValue(this.plugin.settings.vaultId)
+          .onChange(async (value) => {
+            await this.plugin.activateVault(value);
+            this.display();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName("Forget current vault")
+      .setDesc("Remove persisted sync state for the current vault ID on this device.")
+      .addButton((button) =>
+        button.setButtonText("Forget").onClick(async () => {
+          const currentVaultId = this.plugin.settings.vaultId;
+          await this.plugin.forgetVault(currentVaultId);
+          this.display();
+        }),
       );
 
     new Setting(containerEl)

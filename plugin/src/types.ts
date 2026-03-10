@@ -1,6 +1,7 @@
 export interface SyncSettings {
   serverUrl: string;
   vaultId: string;
+  knownVaultIds: string[];
   deviceId: string;
   authToken: string;
   pollIntervalSecs: number;
