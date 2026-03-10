@@ -247,7 +247,12 @@ export class SyncSettingTab extends PluginSettingTab {
     createKeyValueRow(syncHealthSection, "Last successful sync", formatLastSyncAt(this.plugin.state.lastSyncAt));
     createKeyValueRow(syncHealthSection, "Last issue", formatSyncErrorState(this.plugin.state.lastSyncError));
 
-    const currentScopeSection = createPanel(containerEl);
+    const currentScopeSection = createCollapsibleSection(
+      containerEl,
+      "Current sync scope",
+      "Preview which files are included or skipped by the current rules.",
+      false,
+    );
     currentScopeSection.createEl("div", { text: "Current sync scope", cls: "obsidian-sync-panel-title" });
     const scopeList = currentScopeSection.createEl("div");
     scopeList.style.display = "grid";
@@ -279,10 +284,16 @@ export class SyncSettingTab extends PluginSettingTab {
     }
 
     renderSectionHeader(containerEl, "Devices", "Inspect the current device registry for this vault.");
-    const devicesStatus = createPanel(containerEl);
+    const devicesSection = createCollapsibleSection(
+      containerEl,
+      "Registered devices",
+      "Open to inspect known devices for this vault.",
+      false,
+    );
+    const devicesStatus = createPanel(devicesSection);
     devicesStatus.createEl("div", { text: "Loading devices...", cls: "obsidian-sync-panel-title" });
 
-    new Setting(containerEl)
+    new Setting(devicesSection)
       .setName("Refresh devices")
       .setDesc("Fetch the current device registry for this vault from the server.")
       .addButton((button) =>
@@ -294,8 +305,14 @@ export class SyncSettingTab extends PluginSettingTab {
     void this.renderDevices(devicesStatus);
 
     renderSectionHeader(containerEl, "E2EE", "Manage the session passphrase and fingerprint for this vault.");
+    const e2eeSection = createCollapsibleSection(
+      containerEl,
+      "E2EE controls",
+      "Open to manage the session passphrase and this vault fingerprint.",
+      false,
+    );
 
-    new Setting(containerEl)
+    new Setting(e2eeSection)
       .setName("E2EE passphrase")
       .setDesc("Optional passphrase for encrypting file contents locally before upload. Kept only in memory for the current Obsidian session.")
       .addText((text) =>
@@ -308,7 +325,7 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     const e2eeStatus = createInlineStatus(
-      containerEl,
+      e2eeSection,
       "E2EE",
       buildE2eeStatusText(
         this.controller.getE2eeFingerprint(),
@@ -316,7 +333,7 @@ export class SyncSettingTab extends PluginSettingTab {
       ),
     );
 
-    new Setting(containerEl)
+    new Setting(e2eeSection)
       .setName("Passphrase validation")
       .setDesc("Check the session passphrase against the stored fingerprint for this vault.")
       .addButton((button) =>
@@ -413,6 +430,32 @@ function createPanel(container: HTMLElement): HTMLElement {
   panel.style.gap = "10px";
   panel.style.marginBottom = "16px";
   return panel;
+}
+
+function createCollapsibleSection(
+  container: HTMLElement,
+  title: string,
+  summaryText: string,
+  open: boolean,
+): HTMLElement {
+  const details = container.createEl("details");
+  details.open = open;
+  details.style.marginBottom = "16px";
+
+  const summary = details.createEl("summary");
+  summary.style.cursor = "pointer";
+  summary.style.marginBottom = "10px";
+  summary.style.fontWeight = "600";
+  summary.createSpan({ text: title });
+
+  const help = details.createEl("div", {
+    text: summaryText,
+    cls: "setting-item-description",
+  });
+  help.style.marginTop = "8px";
+  help.style.marginBottom = "12px";
+
+  return details;
 }
 
 function createInlineStatus(container: HTMLElement, label: string, value: string): HTMLElement {
