@@ -1,8 +1,8 @@
 import { Notice, Plugin } from "obsidian";
 
 import { SyncApi } from "./api";
-import { buildPassphraseFingerprint } from "./e2ee";
-import { createSyncError, toSyncErrorState } from "./sync-errors";
+import { E2eeState } from "./e2ee-state";
+import { toSyncErrorState } from "./sync-errors";
 import { SyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync-engine";
 import type {
@@ -39,12 +39,11 @@ export default class ObsidianSyncPlugin extends Plugin {
   state: SyncState = structuredClone(DEFAULT_STATE);
   statesByVaultId: Record<string, SyncState> = {};
   vaultScopesById: Record<string, VaultScopeConfig> = {};
-  e2eeFingerprintsByVaultId: Record<string, string> = {};
 
   private engine!: SyncEngine;
   private intervalId: number | null = null;
   private dirty = false;
-  private sessionE2eePassphrasesByVaultId: Record<string, string> = {};
+  private readonly e2eeState = new E2eeState();
 
   async onload(): Promise<void> {
     await this.loadPluginData();
@@ -116,7 +115,7 @@ export default class ObsidianSyncPlugin extends Plugin {
       settings: this.settings,
       statesByVaultId: this.statesByVaultId,
       vaultScopesById: this.vaultScopesById,
-      e2eeFingerprintsByVaultId: this.e2eeFingerprintsByVaultId,
+      e2eeFingerprintsByVaultId: this.e2eeState.exportFingerprints(),
     };
     await this.saveData(data);
   }
@@ -138,8 +137,7 @@ export default class ObsidianSyncPlugin extends Plugin {
     const nextKnownVaultIds = this.settings.knownVaultIds.filter((current) => current !== vaultId);
     delete this.statesByVaultId[vaultId];
     delete this.vaultScopesById[vaultId];
-    delete this.e2eeFingerprintsByVaultId[vaultId];
-    delete this.sessionE2eePassphrasesByVaultId[vaultId];
+    this.e2eeState.forgetVault(vaultId);
 
     if (this.settings.vaultId === vaultId) {
       const fallbackVaultId = nextKnownVaultIds[0] ?? DEFAULT_SETTINGS.vaultId;
@@ -161,66 +159,29 @@ export default class ObsidianSyncPlugin extends Plugin {
   }
 
   getE2eePassphrase(vaultId = this.settings.vaultId): string {
-    return this.sessionE2eePassphrasesByVaultId[vaultId] ?? "";
+    return this.e2eeState.getPassphrase(vaultId);
   }
 
   setE2eePassphrase(passphrase: string, vaultId = this.settings.vaultId): void {
-    const trimmed = passphrase.trim();
-    if (!trimmed) {
-      delete this.sessionE2eePassphrasesByVaultId[vaultId];
-      return;
-    }
-
-    this.sessionE2eePassphrasesByVaultId[vaultId] = passphrase;
+    this.e2eeState.setPassphrase(vaultId, passphrase);
   }
 
   getE2eeFingerprint(vaultId = this.settings.vaultId): string | null {
-    return this.e2eeFingerprintsByVaultId[vaultId] ?? null;
+    return this.e2eeState.getFingerprint(vaultId);
   }
 
   async validateCurrentE2eePassphrase(): Promise<string> {
-    const vaultId = this.settings.vaultId;
-    const passphrase = this.getE2eePassphrase(vaultId).trim();
-    const fingerprint = this.getE2eeFingerprint(vaultId);
-
-    if (!fingerprint) {
-      return passphrase
-        ? "No fingerprint stored yet. It will be recorded after the first encrypted sync."
-        : "E2EE is not configured for this vault yet.";
-    }
-
-    if (!passphrase) {
-      throw createSyncError("missing_passphrase", "E2EE passphrase is required for this vault");
-    }
-
-    const currentFingerprint = await buildPassphraseFingerprint(vaultId, passphrase);
-    if (currentFingerprint !== fingerprint) {
-      throw createSyncError("fingerprint_mismatch", "E2EE passphrase does not match the stored fingerprint for this vault");
-    }
-
-    return `Passphrase matches fingerprint ${shortFingerprint(fingerprint)}.`;
+    return this.e2eeState.validatePassphrase(this.settings.vaultId);
   }
 
   async clearCurrentE2eeFingerprint(): Promise<void> {
-    delete this.e2eeFingerprintsByVaultId[this.settings.vaultId];
-    await this.persistData();
+    if (this.e2eeState.clearFingerprint(this.settings.vaultId)) {
+      await this.persistData();
+    }
   }
 
   async rememberCurrentE2eePassphrase(): Promise<void> {
-    const vaultId = this.settings.vaultId;
-    const passphrase = this.getE2eePassphrase(vaultId).trim();
-    if (!passphrase) {
-      return;
-    }
-
-    const currentFingerprint = await buildPassphraseFingerprint(vaultId, passphrase);
-    const knownFingerprint = this.getE2eeFingerprint(vaultId);
-    if (knownFingerprint && knownFingerprint !== currentFingerprint) {
-      throw createSyncError("fingerprint_mismatch", "E2EE passphrase does not match the stored fingerprint for this vault");
-    }
-
-    if (!knownFingerprint) {
-      this.e2eeFingerprintsByVaultId[vaultId] = currentFingerprint;
+    if (await this.e2eeState.rememberPassphrase(this.settings.vaultId)) {
       await this.persistData();
     }
   }
@@ -326,7 +287,7 @@ export default class ObsidianSyncPlugin extends Plugin {
     }
     this.statesByVaultId = this.normalizePersistedStates(raw);
     this.vaultScopesById = this.normalizePersistedVaultScopes(raw);
-    this.e2eeFingerprintsByVaultId = { ...(raw?.e2eeFingerprintsByVaultId ?? {}) };
+    this.e2eeState.replaceFingerprints({ ...(raw?.e2eeFingerprintsByVaultId ?? {}) });
     this.applyVaultScope(this.settings.vaultId);
     this.state = this.getStateForVaultId(this.settings.vaultId);
   }
@@ -453,8 +414,4 @@ export default class ObsidianSyncPlugin extends Plugin {
 function stripLegacySecrets(settings: Partial<SyncSettings> & { e2eePassphrase?: string }): Partial<SyncSettings> {
   const { e2eePassphrase: _ignored, ...safeSettings } = settings;
   return safeSettings;
-}
-
-function shortFingerprint(value: string): string {
-  return value.slice(0, 12);
 }
