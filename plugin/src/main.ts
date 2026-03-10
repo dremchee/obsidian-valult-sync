@@ -2,6 +2,7 @@ import { Notice, Plugin } from "obsidian";
 
 import { SyncApi } from "./api";
 import { E2eeState } from "./e2ee-state";
+import { PluginStateStore } from "./plugin-state-store";
 import { toSyncErrorState } from "./sync-errors";
 import { SyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync-engine";
@@ -37,13 +38,12 @@ const DEFAULT_STATE: SyncState = {
 export default class ObsidianSyncPlugin extends Plugin {
   settings: SyncSettings = structuredClone(DEFAULT_SETTINGS);
   state: SyncState = structuredClone(DEFAULT_STATE);
-  statesByVaultId: Record<string, SyncState> = {};
-  vaultScopesById: Record<string, VaultScopeConfig> = {};
 
   private engine!: SyncEngine;
   private intervalId: number | null = null;
   private dirty = false;
   private readonly e2eeState = new E2eeState();
+  private readonly stateStore = new PluginStateStore();
 
   async onload(): Promise<void> {
     await this.loadPluginData();
@@ -104,50 +104,48 @@ export default class ObsidianSyncPlugin extends Plugin {
   }
 
   async persistData(): Promise<void> {
-    this.state.vaultId = this.settings.vaultId;
-    this.statesByVaultId[this.settings.vaultId] = structuredClone(this.state);
-    this.vaultScopesById[this.settings.vaultId] = this.getCurrentVaultScope();
-    this.settings.knownVaultIds = this.normalizeKnownVaultIds(
+    this.stateStore.snapshotState(this.settings.vaultId, this.state);
+    this.stateStore.saveCurrentVaultScope(this.settings);
+    this.settings.knownVaultIds = this.stateStore.getKnownVaultIds(
       this.settings.knownVaultIds,
       this.settings.vaultId,
     );
     const data: PluginDataShape = {
       settings: this.settings,
-      statesByVaultId: this.statesByVaultId,
-      vaultScopesById: this.vaultScopesById,
+      statesByVaultId: this.stateStore.statesByVaultId,
+      vaultScopesById: this.stateStore.vaultScopesById,
       e2eeFingerprintsByVaultId: this.e2eeState.exportFingerprints(),
     };
     await this.saveData(data);
   }
 
   async activateVault(vaultId: string): Promise<void> {
-    this.vaultScopesById[this.settings.vaultId] = this.getCurrentVaultScope();
+    this.stateStore.saveCurrentVaultScope(this.settings);
     this.settings.vaultId = vaultId;
-    this.settings.knownVaultIds = this.normalizeKnownVaultIds(
+    this.settings.knownVaultIds = this.stateStore.getKnownVaultIds(
       this.settings.knownVaultIds,
       vaultId,
     );
-    this.applyVaultScope(vaultId);
-    this.state = this.getStateForVaultId(vaultId);
+    this.stateStore.applyVaultScope(this.settings, vaultId);
+    this.state = this.stateStore.getStateForVaultId(vaultId);
     this.dirty = true;
     await this.persistData();
   }
 
   async forgetVault(vaultId: string): Promise<void> {
     const nextKnownVaultIds = this.settings.knownVaultIds.filter((current) => current !== vaultId);
-    delete this.statesByVaultId[vaultId];
-    delete this.vaultScopesById[vaultId];
+    this.stateStore.forgetVault(vaultId);
     this.e2eeState.forgetVault(vaultId);
 
     if (this.settings.vaultId === vaultId) {
       const fallbackVaultId = nextKnownVaultIds[0] ?? DEFAULT_SETTINGS.vaultId;
       this.settings.vaultId = fallbackVaultId;
-      this.applyVaultScope(fallbackVaultId);
-      this.state = this.getStateForVaultId(fallbackVaultId);
+      this.stateStore.applyVaultScope(this.settings, fallbackVaultId);
+      this.state = this.stateStore.getStateForVaultId(fallbackVaultId);
       this.dirty = true;
     }
 
-    this.settings.knownVaultIds = this.normalizeKnownVaultIds(
+    this.settings.knownVaultIds = this.stateStore.getKnownVaultIds(
       nextKnownVaultIds,
       this.settings.vaultId,
     );
@@ -187,21 +185,17 @@ export default class ObsidianSyncPlugin extends Plugin {
   }
 
   updateCurrentVaultScope(scope: VaultScopeConfig): void {
-    this.settings.includePatterns = [...scope.includePatterns];
-    this.settings.ignorePatterns = [...scope.ignorePatterns];
-    this.vaultScopesById[this.settings.vaultId] = this.getCurrentVaultScope();
+    this.stateStore.updateCurrentVaultScope(this.settings, scope);
   }
 
   async copyCurrentVaultScopeToVault(vaultId: string): Promise<void> {
-    const nextVaultId = vaultId.trim();
-    if (!nextVaultId) {
+    if (!this.stateStore.copyCurrentVaultScopeToVault(this.settings, vaultId)) {
       return;
     }
 
-    this.vaultScopesById[nextVaultId] = this.getCurrentVaultScope();
-    this.settings.knownVaultIds = this.normalizeKnownVaultIds(
+    this.settings.knownVaultIds = this.stateStore.getKnownVaultIds(
       this.settings.knownVaultIds,
-      nextVaultId,
+      vaultId.trim(),
     );
     await this.persistData();
   }
@@ -277,7 +271,7 @@ export default class ObsidianSyncPlugin extends Plugin {
     this.settings = {
       ...DEFAULT_SETTINGS,
       ...rawSettings,
-      knownVaultIds: this.normalizeKnownVaultIds(
+      knownVaultIds: this.stateStore.getKnownVaultIds(
         rawSettings?.knownVaultIds,
         rawSettings?.vaultId || DEFAULT_SETTINGS.vaultId,
       ),
@@ -285,130 +279,15 @@ export default class ObsidianSyncPlugin extends Plugin {
     if (!this.settings.deviceId) {
       this.settings.deviceId = this.generateDeviceId();
     }
-    this.statesByVaultId = this.normalizePersistedStates(raw);
-    this.vaultScopesById = this.normalizePersistedVaultScopes(raw);
     this.e2eeState.replaceFingerprints({ ...(raw?.e2eeFingerprintsByVaultId ?? {}) });
-    this.applyVaultScope(this.settings.vaultId);
-    this.state = this.getStateForVaultId(this.settings.vaultId);
+    this.state = this.stateStore.load(raw, this.settings.vaultId);
+    this.stateStore.applyVaultScope(this.settings, this.settings.vaultId);
   }
 
   private generateDeviceId(): string {
     return `device_${crypto.randomUUID().replace(/-/g, "_")}`;
   }
 
-  private getStateForVaultId(vaultId: string): SyncState {
-    const existing = this.statesByVaultId[vaultId];
-    if (existing) {
-      return {
-        ...DEFAULT_STATE,
-        ...existing,
-        vaultId,
-        files: {
-          ...DEFAULT_STATE.files,
-          ...existing.files,
-        },
-      };
-    }
-
-    const freshState: SyncState = {
-      vaultId,
-      files: {},
-      lastSeq: 0,
-      lastSyncAt: null,
-      lastSyncError: null,
-    };
-    this.statesByVaultId[vaultId] = structuredClone(freshState);
-    return freshState;
-  }
-
-  private normalizePersistedStates(raw: LegacyPluginDataShape | null): Record<string, SyncState> {
-    const statesByVaultId: Record<string, SyncState> = {};
-
-    for (const [vaultId, state] of Object.entries(raw?.statesByVaultId ?? {})) {
-      statesByVaultId[vaultId] = {
-        ...DEFAULT_STATE,
-        ...state,
-        vaultId,
-        files: {
-          ...DEFAULT_STATE.files,
-          ...state.files,
-        },
-      };
-    }
-
-    const legacyVaultId = raw?.state?.vaultId || this.settings.vaultId;
-    if (raw?.state && !statesByVaultId[legacyVaultId]) {
-      statesByVaultId[legacyVaultId] = {
-        ...DEFAULT_STATE,
-        ...raw.state,
-        vaultId: legacyVaultId,
-        files: {
-          ...DEFAULT_STATE.files,
-          ...raw.state.files,
-        },
-      };
-    }
-
-    return statesByVaultId;
-  }
-
-  private normalizeKnownVaultIds(
-    knownVaultIds: string[] | undefined,
-    activeVaultId: string,
-  ): string[] {
-    const uniqueVaultIds = new Set<string>();
-
-    for (const vaultId of knownVaultIds ?? []) {
-      const trimmed = vaultId.trim();
-      if (trimmed) {
-        uniqueVaultIds.add(trimmed);
-      }
-    }
-
-    uniqueVaultIds.add(activeVaultId);
-    return Array.from(uniqueVaultIds);
-  }
-
-  private getCurrentVaultScope(): VaultScopeConfig {
-    return {
-      includePatterns: [...this.settings.includePatterns],
-      ignorePatterns: [...this.settings.ignorePatterns],
-    };
-  }
-
-  private applyVaultScope(vaultId: string): void {
-    const scope = this.vaultScopesById[vaultId] ?? {
-      includePatterns: [],
-      ignorePatterns: [],
-    };
-    this.settings.includePatterns = [...scope.includePatterns];
-    this.settings.ignorePatterns = [...scope.ignorePatterns];
-    this.vaultScopesById[vaultId] = {
-      includePatterns: [...scope.includePatterns],
-      ignorePatterns: [...scope.ignorePatterns],
-    };
-  }
-
-  private normalizePersistedVaultScopes(raw: LegacyPluginDataShape | null): Record<string, VaultScopeConfig> {
-    const vaultScopesById: Record<string, VaultScopeConfig> = {};
-
-    for (const [vaultId, scope] of Object.entries(raw?.vaultScopesById ?? {})) {
-      vaultScopesById[vaultId] = {
-        includePatterns: [...(scope.includePatterns ?? [])],
-        ignorePatterns: [...(scope.ignorePatterns ?? [])],
-      };
-    }
-
-    const legacyVaultId = raw?.settings?.vaultId || DEFAULT_SETTINGS.vaultId;
-    if (!vaultScopesById[legacyVaultId]) {
-      vaultScopesById[legacyVaultId] = {
-        includePatterns: [...(raw?.settings?.includePatterns ?? [])],
-        ignorePatterns: [...(raw?.settings?.ignorePatterns ?? [])],
-      };
-    }
-
-    return vaultScopesById;
-  }
 }
 
 function stripLegacySecrets(settings: Partial<SyncSettings> & { e2eePassphrase?: string }): Partial<SyncSettings> {
