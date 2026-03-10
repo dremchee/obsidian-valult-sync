@@ -1,7 +1,7 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 
 import { ApiError } from "./api";
-import { describeSyncScope, normalizePatternList } from "./sync-scope";
+import { describeSyncScope, normalizePatternList, shouldSyncPath } from "./sync-scope";
 import type ObsidianSyncPlugin from "./main";
 
 export class SyncSettingTab extends PluginSettingTab {
@@ -104,6 +104,21 @@ export class SyncSettingTab extends PluginSettingTab {
       this.plugin.settings.ignorePatterns,
     )) {
       scopeList.createEl("li", { text: line });
+    }
+
+    const preview = buildScopePreview(
+      this.plugin.app.vault.getFiles().map((file) => file.path),
+      this.plugin.settings.includePatterns,
+      this.plugin.settings.ignorePatterns,
+    );
+    scopeSection.createEl("p", {
+      text: `Preview: ${preview.syncedCount} synced, ${preview.skippedCount} skipped`,
+    });
+    if (preview.sampleLines.length > 0) {
+      const previewList = scopeSection.createEl("ul");
+      for (const line of preview.sampleLines) {
+        previewList.createEl("li", { text: line });
+      }
     }
 
     const devicesSection = containerEl.createDiv();
@@ -226,4 +241,54 @@ function formatDeviceError(error: unknown): string {
   }
 
   return String(error);
+}
+
+function buildScopePreview(
+  paths: string[],
+  includePatterns: string[],
+  ignorePatterns: string[],
+): {
+  syncedCount: number;
+  skippedCount: number;
+  sampleLines: string[];
+} {
+  const sortedPaths = [...paths].sort((left, right) => left.localeCompare(right));
+  let syncedCount = 0;
+  let skippedCount = 0;
+
+  const sampleLines = sortedPaths.slice(0, 12).map((path) => {
+    const synced = shouldSyncPath(path, includePatterns, ignorePatterns);
+    if (synced) {
+      syncedCount += 1;
+    } else {
+      skippedCount += 1;
+    }
+    return `${synced ? "synced" : "skipped"}: ${path}`;
+  });
+
+  for (const path of sortedPaths.slice(12)) {
+    if (shouldSyncPath(path, includePatterns, ignorePatterns)) {
+      syncedCount += 1;
+    } else {
+      skippedCount += 1;
+    }
+  }
+
+  if (sortedPaths.length === 0) {
+    return {
+      syncedCount: 0,
+      skippedCount: 0,
+      sampleLines: ["Vault is currently empty."],
+    };
+  }
+
+  if (sortedPaths.length > 12) {
+    sampleLines.push(`... and ${sortedPaths.length - 12} more path(s)`);
+  }
+
+  return {
+    syncedCount,
+    skippedCount,
+    sampleLines,
+  };
 }
