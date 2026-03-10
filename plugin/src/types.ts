@@ -102,3 +102,13 @@ export interface LocalFileSnapshot {
   mtime: number;
   data: Uint8Array;
 }
+
+export interface E2eeEnvelope {
+  v: 1;
+  alg: "AES-GCM-256";
+  kdf: "PBKDF2-SHA-256";
+  iterations: number;
+  salt_b64: string;
+  iv_b64: string;
+  ciphertext_b64: string;
+}
