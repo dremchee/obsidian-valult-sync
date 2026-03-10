@@ -29,7 +29,7 @@ export interface SyncState {
   files: Record<string, FileState>;
   lastSeq: number;
   lastSyncAt: number | null;
-  lastSyncError: string | null;
+  lastSyncError: SyncErrorState | null;
 }
 
 export interface PluginDataShape {
@@ -119,4 +119,19 @@ export interface E2eeEnvelope {
   salt_b64: string;
   iv_b64: string;
   ciphertext_b64: string;
+}
+
+export type SyncErrorCode =
+  | "network_error"
+  | "unauthorized"
+  | "missing_passphrase"
+  | "fingerprint_mismatch"
+  | "decrypt_failed"
+  | "invalid_e2ee_envelope"
+  | "invalid_settings"
+  | "unknown_error";
+
+export interface SyncErrorState {
+  code: SyncErrorCode;
+  message: string;
 }

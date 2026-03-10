@@ -1,3 +1,4 @@
+import { createSyncError } from "./sync-errors";
 import type { E2eeEnvelope } from "./types";
 
 const PBKDF2_ITERATIONS = 600_000;
@@ -79,15 +80,15 @@ export async function decryptEnvelope(
   passphrase: string,
 ): Promise<Uint8Array> {
   if (envelope.v !== 1) {
-    throw new Error(`Unsupported envelope version: ${String(envelope.v)}`);
+    throw createSyncError("invalid_e2ee_envelope", `Unsupported envelope version: ${String(envelope.v)}`);
   }
 
   if (envelope.alg !== "AES-GCM-256") {
-    throw new Error(`Unsupported envelope algorithm: ${envelope.alg}`);
+    throw createSyncError("invalid_e2ee_envelope", `Unsupported envelope algorithm: ${envelope.alg}`);
   }
 
   if (envelope.kdf !== "PBKDF2-SHA-256") {
-    throw new Error(`Unsupported envelope KDF: ${envelope.kdf}`);
+    throw createSyncError("invalid_e2ee_envelope", `Unsupported envelope KDF: ${envelope.kdf}`);
   }
 
   const salt = base64ToBytes(envelope.salt_b64);
@@ -106,7 +107,7 @@ export async function decryptEnvelope(
     );
     return new Uint8Array(plaintext);
   } catch {
-    throw new Error("Failed to decrypt E2EE payload");
+    throw createSyncError("decrypt_failed", "Failed to decrypt E2EE payload");
   }
 }
 
@@ -120,7 +121,7 @@ export function parseEnvelope(data: Uint8Array): E2eeEnvelope {
   try {
     parsed = JSON.parse(new TextDecoder().decode(data)) as Partial<E2eeEnvelope>;
   } catch {
-    throw new Error("Invalid E2EE envelope");
+    throw createSyncError("invalid_e2ee_envelope", "Invalid E2EE envelope");
   }
 
   if (
@@ -132,7 +133,7 @@ export function parseEnvelope(data: Uint8Array): E2eeEnvelope {
     typeof parsed.iv_b64 !== "string" ||
     typeof parsed.ciphertext_b64 !== "string"
   ) {
-    throw new Error("Invalid E2EE envelope");
+    throw createSyncError("invalid_e2ee_envelope", "Invalid E2EE envelope");
   }
 
   return {

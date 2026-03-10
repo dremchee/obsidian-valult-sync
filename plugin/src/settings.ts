@@ -1,6 +1,7 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 
 import { ApiError } from "./api";
+import { formatSyncErrorState } from "./sync-errors";
 import { describeSyncScope, normalizePatternList, shouldSyncPath } from "./sync-scope";
 import type ObsidianSyncPlugin from "./main";
 
@@ -152,7 +153,7 @@ export class SyncSettingTab extends PluginSettingTab {
       text: `Last successful sync: ${formatLastSyncAt(this.plugin.state.lastSyncAt)}`,
     });
     syncHealthList.createEl("li", {
-      text: `Last sync error: ${this.plugin.state.lastSyncError ?? "None"}`,
+      text: `Last sync error: ${formatSyncErrorState(this.plugin.state.lastSyncError)}`,
     });
 
     const scopeSection = containerEl.createDiv();

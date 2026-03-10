@@ -7,6 +7,7 @@ import {
 
 import { ApiError, SyncApi } from "./api";
 import { decryptEnvelope, encryptBytes, parseEnvelope, serializeEnvelope } from "./e2ee";
+import { createSyncError, toSyncErrorState } from "./sync-errors";
 import { shouldSyncPath } from "./sync-scope";
 import type {
   ContentFormat,
@@ -96,15 +97,15 @@ export class SyncEngine {
 
   private validateSettings(settings: SyncSettings): void {
     if (!settings.serverUrl.trim()) {
-      throw new Error("Server URL is not configured");
+      throw createSyncError("invalid_settings", "Server URL is not configured");
     }
 
     if (!settings.vaultId.trim()) {
-      throw new Error("Vault ID is not configured");
+      throw createSyncError("invalid_settings", "Vault ID is not configured");
     }
 
     if (!settings.deviceId.trim()) {
-      throw new Error("Device ID is not configured");
+      throw createSyncError("invalid_settings", "Device ID is not configured");
     }
   }
 
@@ -389,7 +390,7 @@ export class SyncEngine {
 
     const passphrase = this.getE2eePassphrase().trim();
     if (!passphrase) {
-      throw new Error("E2EE passphrase is required to decrypt synced content");
+      throw createSyncError("missing_passphrase", "E2EE passphrase is required to decrypt synced content");
     }
 
     await this.rememberValidatedE2eePassphrase();
@@ -468,26 +469,7 @@ function buildConflictPath(path: string): string {
 }
 
 function formatError(error: unknown): string {
-  if (error instanceof ApiError) {
-    if (error.status === 401) {
-      return "Unauthorized. Check Auth token in plugin settings.";
-    }
-
-    if (error.code === "invalid_vault_id") {
-      return "Vault ID is invalid. Use only letters, digits, '-' or '_'.";
-    }
-
-    if (error.code === "invalid_device_id") {
-      return "Device ID is invalid. Use only letters, digits, '-' or '_'.";
-    }
-
-    return error.message;
-  }
-
-  if (error instanceof Error) {
-    return error.message;
-  }
-  return String(error);
+  return toSyncErrorState(error).message;
 }
 
 function isRetryableError(error: unknown): boolean {

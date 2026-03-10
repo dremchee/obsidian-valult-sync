@@ -2,6 +2,7 @@ import { Notice, Plugin } from "obsidian";
 
 import { SyncApi } from "./api";
 import { buildPassphraseFingerprint } from "./e2ee";
+import { createSyncError, toSyncErrorState } from "./sync-errors";
 import { SyncSettingTab } from "./settings";
 import { SyncEngine } from "./sync-engine";
 import type {
@@ -189,12 +190,12 @@ export default class ObsidianSyncPlugin extends Plugin {
     }
 
     if (!passphrase) {
-      throw new Error("E2EE passphrase is required for this vault");
+      throw createSyncError("missing_passphrase", "E2EE passphrase is required for this vault");
     }
 
     const currentFingerprint = await buildPassphraseFingerprint(vaultId, passphrase);
     if (currentFingerprint !== fingerprint) {
-      throw new Error("E2EE passphrase does not match the stored fingerprint for this vault");
+      throw createSyncError("fingerprint_mismatch", "E2EE passphrase does not match the stored fingerprint for this vault");
     }
 
     return `Passphrase matches fingerprint ${shortFingerprint(fingerprint)}.`;
@@ -215,7 +216,7 @@ export default class ObsidianSyncPlugin extends Plugin {
     const currentFingerprint = await buildPassphraseFingerprint(vaultId, passphrase);
     const knownFingerprint = this.getE2eeFingerprint(vaultId);
     if (knownFingerprint && knownFingerprint !== currentFingerprint) {
-      throw new Error("E2EE passphrase does not match the stored fingerprint for this vault");
+      throw createSyncError("fingerprint_mismatch", "E2EE passphrase does not match the stored fingerprint for this vault");
     }
 
     if (!knownFingerprint) {
@@ -291,7 +292,7 @@ export default class ObsidianSyncPlugin extends Plugin {
       await this.persistData();
       new Notice("Sync completed", 3000);
     } catch (error) {
-      this.state.lastSyncError = formatSyncFailure(error);
+      this.state.lastSyncError = toSyncErrorState(error);
       await this.persistData();
       // Notice is shown inside SyncEngine
     }
@@ -303,7 +304,7 @@ export default class ObsidianSyncPlugin extends Plugin {
       this.state.lastSyncError = null;
       await this.persistData();
     } catch (error) {
-      this.state.lastSyncError = formatSyncFailure(error);
+      this.state.lastSyncError = toSyncErrorState(error);
       await this.persistData();
       // Notice is shown inside SyncEngine
     }
@@ -456,12 +457,4 @@ function stripLegacySecrets(settings: Partial<SyncSettings> & { e2eePassphrase?:
 
 function shortFingerprint(value: string): string {
   return value.slice(0, 12);
-}
-
-function formatSyncFailure(error: unknown): string {
-  if (error instanceof Error) {
-    return error.message;
-  }
-
-  return String(error);
 }
