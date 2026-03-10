@@ -315,6 +315,62 @@ vault_id=default
 }
 ```
 
+---
+
+## GET /vaults
+
+### Назначение
+
+Вернуть список известных vault-ов на сервере.
+
+### Успешный response
+
+```json
+{
+  "vaults": [
+    {
+      "vault_id": "default",
+      "created_at": "2026-03-10T12:00:00Z",
+      "updated_at": "2026-03-10T12:05:00Z",
+      "device_count": 2
+    }
+  ]
+}
+```
+
+---
+
+## POST /vaults
+
+### Назначение
+
+Явно создать vault в registry до первого sync.
+
+### Request
+
+```json
+{
+  "vault_id": "team_notes"
+}
+```
+
+### Успешный response
+
+```json
+{
+  "ok": true,
+  "created": true,
+  "vault": {
+    "vault_id": "team_notes",
+    "created_at": "2026-03-10T12:00:00Z",
+    "updated_at": "2026-03-10T12:00:00Z",
+    "device_count": 0
+  }
+}
+```
+
+Если vault уже существует, сервер возвращает `200 OK` с `created: false`.
+
 ### Поля `devices[]`
 
 - `device_id: string`

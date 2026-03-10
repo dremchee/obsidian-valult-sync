@@ -25,3 +25,11 @@ pub struct DeviceRecord {
     pub first_seen_at: String,
     pub last_seen_at: String,
 }
+
+#[derive(Debug, Clone)]
+pub struct VaultRecord {
+    pub vault_id: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub device_count: i64,
+}

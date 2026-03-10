@@ -73,6 +73,67 @@ async fn accepts_any_configured_bearer_token() {
 }
 
 #[tokio::test]
+async fn create_vault_then_list_vaults() {
+    let (_tmp_dir, app) = test_app().await;
+
+    let create_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/vaults")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "vault_id": "product_docs"
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(create_response.status(), StatusCode::OK);
+    let created = read_json(create_response).await;
+    assert_eq!(created["ok"], json!(true));
+    assert_eq!(created["created"], json!(true));
+    assert_eq!(created["vault"]["vault_id"], json!("product_docs"));
+    assert_eq!(created["vault"]["device_count"], json!(0));
+
+    let vaults_response = app
+        .oneshot(Request::builder().uri("/vaults").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(vaults_response.status(), StatusCode::OK);
+    let listed = read_json(vaults_response).await;
+    assert_eq!(listed["vaults"].as_array().unwrap().len(), 1);
+    assert_eq!(listed["vaults"][0]["vault_id"], json!("product_docs"));
+}
+
+#[tokio::test]
+async fn upload_auto_registers_vault_in_registry() {
+    let (_tmp_dir, app) = test_app().await;
+
+    upload_test_file(&app).await;
+
+    let vaults_response = app
+        .oneshot(Request::builder().uri("/vaults").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+
+    assert_eq!(vaults_response.status(), StatusCode::OK);
+    let listed = read_json(vaults_response).await;
+    let vaults = listed["vaults"].as_array().unwrap();
+    assert_eq!(vaults.len(), 1);
+    assert_eq!(vaults[0]["vault_id"], json!("vault-a"));
+    assert_eq!(vaults[0]["device_count"], json!(1));
+    assert!(vaults[0]["created_at"].as_str().unwrap().contains('T'));
+    assert!(vaults[0]["updated_at"].as_str().unwrap().contains('T'));
+}
+
+#[tokio::test]
 async fn upload_file_then_fetch_file_and_changes() {
     let (_tmp_dir, app) = test_app().await;
 

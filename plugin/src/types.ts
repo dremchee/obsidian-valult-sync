@@ -104,6 +104,23 @@ export interface DevicesResponse {
   devices: DeviceItem[];
 }
 
+export interface VaultItem {
+  vault_id: string;
+  created_at: string;
+  updated_at: string;
+  device_count: number;
+}
+
+export interface VaultsResponse {
+  vaults: VaultItem[];
+}
+
+export interface CreateVaultResponse {
+  ok: boolean;
+  created: boolean;
+  vault: VaultItem;
+}
+
 export interface LocalFileSnapshot {
   path: string;
   hash: string;

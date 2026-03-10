@@ -75,3 +75,28 @@ pub struct DeviceItem {
 pub struct DevicesResponse {
     pub devices: Vec<DeviceItem>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct CreateVaultRequest {
+    pub vault_id: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VaultItem {
+    pub vault_id: String,
+    pub created_at: String,
+    pub updated_at: String,
+    pub device_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VaultsResponse {
+    pub vaults: Vec<VaultItem>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct CreateVaultResponse {
+    pub ok: bool,
+    pub created: bool,
+    pub vault: VaultItem,
+}

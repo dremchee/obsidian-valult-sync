@@ -4,9 +4,13 @@ import { ApiError } from "./api";
 import { formatSyncErrorState } from "./sync-errors";
 import { describeSyncScope, normalizePatternList, shouldSyncPath } from "./sync-scope";
 import { SettingsController } from "./settings-controller";
+import type { VaultItem } from "./types";
 import type ObsidianSyncPlugin from "./main";
 
 export class SyncSettingTab extends PluginSettingTab {
+  private remoteVaults: VaultItem[] | null = null;
+  private createVaultDraft = "";
+
   constructor(
     app: App,
     private readonly plugin: ObsidianSyncPlugin,
@@ -169,23 +173,74 @@ export class SyncSettingTab extends PluginSettingTab {
 
     renderSectionHeader(containerEl, "Vault", "Choose which logical vault this client is syncing.");
 
+    const vaultStatus = createInlineStatus(
+      containerEl,
+      "Vault registry",
+      this.remoteVaults ? `${this.remoteVaults.length} vault(s) loaded` : "Not loaded",
+    );
+    renderQuickActions(containerEl, [
+      {
+        label: "Load vaults",
+        onClick: async () => {
+          vaultStatus.setText("Vault registry: Loading...");
+          try {
+            this.remoteVaults = await this.controller.getRemoteVaults();
+            vaultStatus.setText(`Vault registry: ${this.remoteVaults.length} vault(s) loaded.`);
+          } catch (error) {
+            vaultStatus.setText(`Vault registry: ${formatDeviceError(error)}`);
+          }
+          this.display();
+        },
+      },
+    ]);
+
+    const currentVaultPanel = createPanel(containerEl);
+    currentVaultPanel.createEl("div", { text: "Current vault", cls: "obsidian-sync-panel-title" });
+    createKeyValueRow(currentVaultPanel, "Active vault", currentVaultId);
+    createKeyValueRow(currentVaultPanel, "Known locally", String(knownVaultIds.length));
+
     new Setting(containerEl)
-      .setName("Vault ID")
-      .setDesc("Logical vault identifier used by the sync server.")
+      .setName("Create vault")
+      .setDesc("Create a new vault on the server and switch this client to it.")
       .addText((text) =>
         text
-          .setPlaceholder("default")
-          .setValue(currentVaultId)
-          .onChange(async (value) => {
-            const nextVaultId = value.trim() || "default";
-            await this.controller.activateVault(nextVaultId);
-            this.display();
+          .setPlaceholder("team_notes")
+          .setValue(this.createVaultDraft)
+          .onChange((value) => {
+            this.createVaultDraft = value.trim();
           }),
+      )
+      .addButton((button) =>
+        button.setButtonText("Create & join").setCta().onClick(async () => {
+          const nextVaultId = this.createVaultDraft.trim();
+          if (!nextVaultId) {
+            vaultStatus.setText("Vault registry: Enter a vault ID first.");
+            return;
+          }
+
+          vaultStatus.setText(`Vault registry: Creating ${nextVaultId}...`);
+          try {
+            const response = await this.controller.createVault(nextVaultId);
+            await this.controller.activateVault(response.vault.vault_id);
+            this.createVaultDraft = "";
+            if (this.remoteVaults) {
+              this.remoteVaults = await this.controller.getRemoteVaults();
+            }
+            vaultStatus.setText(
+              response.created
+                ? `Vault registry: Created and joined ${response.vault.vault_id}.`
+                : `Vault registry: Joined existing vault ${response.vault.vault_id}.`,
+            );
+          } catch (error) {
+            vaultStatus.setText(`Vault registry: ${formatDeviceError(error)}`);
+          }
+          this.display();
+        }),
       );
 
     new Setting(containerEl)
-      .setName("Switch vault")
-      .setDesc("Load sync state for another known vault ID.")
+      .setName("Join known vault")
+      .setDesc("Switch to another vault that is already known on this device.")
       .addDropdown((dropdown) => {
         for (const vaultId of knownVaultIds) {
           dropdown.addOption(vaultId, vaultId);
@@ -198,6 +253,67 @@ export class SyncSettingTab extends PluginSettingTab {
             this.display();
           });
       });
+
+    if (this.remoteVaults) {
+      const remoteVaultsPanel = createCollapsibleSection(
+        containerEl,
+        "Available vaults",
+        "Vaults loaded from the server. Join one to switch this client.",
+        true,
+      );
+      const remoteVaultsList = createPanel(remoteVaultsPanel);
+      remoteVaultsList.createEl("div", { text: "Server vaults", cls: "obsidian-sync-panel-title" });
+
+      if (this.remoteVaults.length === 0) {
+        remoteVaultsList.createEl("div", {
+          text: "No vaults found on the server yet.",
+          cls: "setting-item-description",
+        });
+      } else {
+        for (const vault of this.remoteVaults) {
+          const row = remoteVaultsList.createDiv();
+          row.style.display = "flex";
+          row.style.justifyContent = "space-between";
+          row.style.alignItems = "flex-start";
+          row.style.gap = "12px";
+          row.style.padding = "6px 0";
+
+          const meta = row.createDiv();
+          meta.style.display = "grid";
+          meta.style.gap = "4px";
+          meta.createEl("div", { text: vault.vault_id });
+          meta.createEl("div", {
+            text: `${vault.device_count} device(s), updated ${formatTimestamp(vault.updated_at)}`,
+            cls: "setting-item-description",
+          });
+
+          const joinButton = row.createEl("button", { text: vault.vault_id === currentVaultId ? "Current" : "Join" });
+          if (vault.vault_id === currentVaultId) {
+            joinButton.disabled = true;
+          } else {
+            joinButton.addEventListener("click", async () => {
+              vaultStatus.setText(`Vault registry: Joining ${vault.vault_id}...`);
+              await this.controller.activateVault(vault.vault_id);
+              this.display();
+            });
+          }
+        }
+      }
+    }
+
+    new Setting(containerEl)
+      .setName("Manual vault ID")
+      .setDesc("Fallback for advanced cases when you need to enter a vault ID directly.")
+      .addText((text) =>
+        text
+          .setPlaceholder("default")
+          .setValue(currentVaultId)
+          .onChange(async (value) => {
+            const nextVaultId = value.trim() || "default";
+            await this.controller.activateVault(nextVaultId);
+            this.display();
+          }),
+      );
 
     new Setting(containerEl)
       .setName("Forget current vault")

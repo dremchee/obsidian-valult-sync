@@ -2,11 +2,13 @@ import { requestUrl } from "obsidian";
 
 import type {
   ChangesResponse,
+  CreateVaultResponse,
   DeleteRequest,
   DevicesResponse,
   FileResponse,
   MutationResponse,
   UploadRequest,
+  VaultsResponse,
 } from "./types";
 
 export class ApiError extends Error {
@@ -52,6 +54,14 @@ export class SyncApi {
   getDevices(vaultId: string): Promise<DevicesResponse> {
     const encodedVaultId = encodeURIComponent(vaultId);
     return this.getJson(`/devices?vault_id=${encodedVaultId}`);
+  }
+
+  getVaults(): Promise<VaultsResponse> {
+    return this.getJson("/vaults");
+  }
+
+  createVault(vaultId: string): Promise<CreateVaultResponse> {
+    return this.sendJson("/vaults", { vault_id: vaultId });
   }
 
   private async getJson<T>(path: string): Promise<T> {

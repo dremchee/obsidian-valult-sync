@@ -3,9 +3,11 @@ import { E2eeState } from "./e2ee-state";
 import { PluginStateStore } from "./plugin-state-store";
 import { SyncCoordinator } from "./sync-coordinator";
 import type {
+  CreateVaultResponse,
   DeviceItem,
   SyncSettings,
   SyncState,
+  VaultItem,
   VaultScopeConfig,
 } from "./types";
 
@@ -109,6 +111,19 @@ export class SettingsController {
     const settings = this.getSettings();
     const response = await this.api().getDevices(settings.vaultId);
     return `Connected to ${settings.vaultId}. ${response.devices.length} device(s) registered.`;
+  }
+
+  async getRemoteVaults(): Promise<VaultItem[]> {
+    const response = await this.api().getVaults();
+    return response.vaults;
+  }
+
+  async createVault(vaultId: string): Promise<CreateVaultResponse> {
+    const response = await this.api().createVault(vaultId);
+    const settings = this.getSettings();
+    settings.knownVaultIds = this.stateStore.getKnownVaultIds(settings.knownVaultIds, response.vault.vault_id);
+    await this.persistData();
+    return response;
   }
 
   runManualSync(): Promise<void> {

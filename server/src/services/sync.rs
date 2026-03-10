@@ -5,11 +5,12 @@ use sqlx::{Row, SqlitePool};
 
 use crate::{
     dto::{
-        ChangeItem, ChangesResponse, ContentFormat, DeleteRequest, DeviceItem, DevicesResponse,
-        FileResponse, MutationResponse, UploadRequest,
+        ChangeItem, ChangesResponse, ContentFormat, CreateVaultRequest, CreateVaultResponse,
+        DeleteRequest, DeviceItem, DevicesResponse, FileResponse, MutationResponse, UploadRequest,
+        VaultItem, VaultsResponse,
     },
     error::AppError,
-    models::{ChangeRecord, DeviceRecord, FileRecord},
+    models::{ChangeRecord, DeviceRecord, FileRecord, VaultRecord},
     state::AppState,
     storage,
 };
@@ -28,6 +29,7 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
     let device_id = storage::validate_device_id(&request.device_id)?;
     let safe_path = storage::validate_relative_path(&request.path)?;
     let now = Utc::now().to_rfc3339();
+    touch_vault(state.pool(), &vault_id, &now).await?;
     touch_device(state.pool(), &vault_id, &device_id, &now).await?;
     let current = get_file_record(state.pool(), &vault_id, &safe_path).await?;
     let current_version = current.as_ref().map(|record| record.version).unwrap_or(0);
@@ -104,6 +106,7 @@ pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<Mutation
     let device_id = storage::validate_device_id(&request.device_id)?;
     let safe_path = storage::validate_relative_path(&request.path)?;
     let now = Utc::now().to_rfc3339();
+    touch_vault(state.pool(), &vault_id, &now).await?;
     touch_device(state.pool(), &vault_id, &device_id, &now).await?;
     let current = get_file_record(state.pool(), &vault_id, &safe_path)
         .await?
@@ -267,6 +270,68 @@ pub async fn get_devices(state: &AppState, vault_id: String) -> Result<DevicesRe
     Ok(DevicesResponse { devices })
 }
 
+pub async fn get_vaults(state: &AppState) -> Result<VaultsResponse, AppError> {
+    let rows = sqlx::query(
+        r#"
+        SELECT vaults.vault_id, vaults.created_at, vaults.updated_at, COUNT(devices.device_id) AS device_count
+        FROM vaults
+        LEFT JOIN devices ON devices.vault_id = vaults.vault_id
+        GROUP BY vaults.vault_id, vaults.created_at, vaults.updated_at
+        ORDER BY vaults.updated_at DESC, vaults.vault_id ASC
+        "#,
+    )
+    .fetch_all(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+
+    let vaults = rows
+        .into_iter()
+        .map(|row| VaultRecord {
+            vault_id: row.get("vault_id"),
+            created_at: row.get("created_at"),
+            updated_at: row.get("updated_at"),
+            device_count: row.get("device_count"),
+        })
+        .map(vault_record_to_dto)
+        .collect();
+
+    Ok(VaultsResponse { vaults })
+}
+
+pub async fn create_vault(
+    state: &AppState,
+    request: CreateVaultRequest,
+) -> Result<CreateVaultResponse, AppError> {
+    let vault_id = storage::validate_vault_id(&request.vault_id)?;
+    let now = Utc::now().to_rfc3339();
+
+    let inserted = sqlx::query(
+        r#"
+        INSERT INTO vaults (vault_id, created_at, updated_at)
+        VALUES (?1, ?2, ?3)
+        ON CONFLICT(vault_id) DO NOTHING
+        "#,
+    )
+    .bind(&vault_id)
+    .bind(&now)
+    .bind(&now)
+    .execute(state.pool())
+    .await
+    .map_err(AppError::internal)?
+    .rows_affected()
+        > 0;
+
+    let vault = get_vault_record(state.pool(), &vault_id)
+        .await?
+        .ok_or_else(|| AppError::internal("created vault is missing"))?;
+
+    Ok(CreateVaultResponse {
+        ok: true,
+        created: inserted,
+        vault: vault_record_to_dto(vault),
+    })
+}
+
 async fn get_file_record(pool: &SqlitePool, vault_id: &str, path: &str) -> Result<Option<FileRecord>, AppError> {
     let row = sqlx::query(
         "SELECT vault_id, path, hash, payload_hash, content_format, version, deleted FROM files WHERE vault_id = ?1 AND path = ?2",
@@ -331,4 +396,54 @@ async fn touch_device(
     .map_err(AppError::internal)?;
 
     Ok(())
+}
+
+async fn touch_vault(pool: &SqlitePool, vault_id: &str, now: &str) -> Result<(), AppError> {
+    sqlx::query(
+        r#"
+        INSERT INTO vaults (vault_id, created_at, updated_at)
+        VALUES (?1, ?2, ?2)
+        ON CONFLICT(vault_id) DO UPDATE SET
+          updated_at = excluded.updated_at
+        "#,
+    )
+    .bind(vault_id)
+    .bind(now)
+    .execute(pool)
+    .await
+    .map_err(AppError::internal)?;
+
+    Ok(())
+}
+
+async fn get_vault_record(pool: &SqlitePool, vault_id: &str) -> Result<Option<VaultRecord>, AppError> {
+    let row = sqlx::query(
+        r#"
+        SELECT vaults.vault_id, vaults.created_at, vaults.updated_at, COUNT(devices.device_id) AS device_count
+        FROM vaults
+        LEFT JOIN devices ON devices.vault_id = vaults.vault_id
+        WHERE vaults.vault_id = ?1
+        GROUP BY vaults.vault_id, vaults.created_at, vaults.updated_at
+        "#,
+    )
+    .bind(vault_id)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::internal)?;
+
+    Ok(row.map(|row| VaultRecord {
+        vault_id: row.get("vault_id"),
+        created_at: row.get("created_at"),
+        updated_at: row.get("updated_at"),
+        device_count: row.get("device_count"),
+    }))
+}
+
+fn vault_record_to_dto(record: VaultRecord) -> VaultItem {
+    VaultItem {
+        vault_id: record.vault_id,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+        device_count: record.device_count,
+    }
 }
