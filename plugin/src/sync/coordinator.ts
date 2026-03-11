@@ -1,22 +1,35 @@
 import { Notice } from "obsidian";
 
+import { RealtimeSyncClient } from "./realtime";
 import { toSyncErrorState } from "./errors";
 import type { SyncSettings, SyncState } from "../types";
 
 export class SyncCoordinator {
   private intervalId: number | null = null;
   private dirty = false;
+  private dirtyVersion = 0;
   private syncing = false;
+  private readonly realtime: RealtimeSyncClient;
 
   constructor(
     private readonly getSettings: () => SyncSettings,
     private readonly getState: () => SyncState,
     private readonly setState: (state: SyncState) => Promise<void>,
     private readonly syncOnce: () => Promise<void>,
-  ) {}
+  ) {
+    this.realtime = new RealtimeSyncClient(
+      this.getSettings,
+      this.getState,
+      async () => {
+        this.markDirty();
+        await this.runBackgroundSync();
+      },
+    );
+  }
 
   markDirty(): void {
     this.dirty = true;
+    this.dirtyVersion += 1;
   }
 
   isSyncing(): boolean {
@@ -34,17 +47,18 @@ export class SyncCoordinator {
     }
 
     if (!this.getSettings().autoSync) {
+      this.realtime.stop();
       return;
     }
 
     const intervalMs = Math.max(this.getSettings().pollIntervalSecs, 1) * 1000;
+    this.realtime.restart();
     this.intervalId = window.setInterval(async () => {
       if (!this.dirty && this.getState().lastSeq > 0) {
         await this.runBackgroundSync();
         return;
       }
 
-      this.dirty = false;
       await this.runBackgroundSync();
     }, intervalMs);
   }
@@ -54,13 +68,20 @@ export class SyncCoordinator {
       window.clearInterval(this.intervalId);
       this.intervalId = null;
     }
+    this.realtime.stop();
   }
 
   async runManualSync(): Promise<void> {
+    if (this.syncing) {
+      new Notice("Sync already running", 3000);
+      return;
+    }
+
+    const startedDirtyVersion = this.dirtyVersion;
     this.syncing = true;
     try {
       await this.syncOnce();
-      this.dirty = false;
+      this.clearDirtyIfUnchanged(startedDirtyVersion);
       await this.setLastSyncError(null);
       new Notice("Sync completed", 3000);
     } catch (error) {
@@ -71,10 +92,17 @@ export class SyncCoordinator {
   }
 
   async runBackgroundSync(): Promise<void> {
+    if (this.syncing) {
+      this.dirty = true;
+      this.dirtyVersion += 1;
+      return;
+    }
+
+    const startedDirtyVersion = this.dirtyVersion;
     this.syncing = true;
     try {
       await this.syncOnce();
-      this.dirty = false;
+      this.clearDirtyIfUnchanged(startedDirtyVersion);
       await this.setLastSyncError(null);
     } catch (error) {
       await this.setLastSyncError(toSyncErrorState(error));
@@ -87,5 +115,11 @@ export class SyncCoordinator {
     const state = structuredClone(this.getState());
     state.lastSyncError = nextError;
     await this.setState(state);
+  }
+
+  private clearDirtyIfUnchanged(startedDirtyVersion: number): void {
+    if (this.dirtyVersion === startedDirtyVersion) {
+      this.dirty = false;
+    }
   }
 }

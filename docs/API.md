@@ -287,6 +287,41 @@ vault_id=default&since=42
 
 ---
 
+## GET /events
+
+### Назначение
+
+SSE stream для realtime push. Клиент подписывается на `vault_id` и получает hint, что в change feed появился новый `latest_seq`.
+
+### Query parameters
+
+```text
+vault_id=default&since=44
+```
+
+- `vault_id: string`
+- `since: integer`, опционально. Если на сервере уже есть более новый `latest_seq`, сервер сразу отправит initial event после подключения.
+
+### Response
+
+- `Content-Type: text/event-stream`
+- событие `change`
+
+Пример payload:
+
+```text
+event: change
+data: {"latest_seq":45}
+```
+
+Важно:
+
+- это не замена `GET /changes`, а realtime hint поверх него
+- после push-события клиент всё равно должен читать `GET /changes?since=...`
+- polling остаётся допустимым fallback transport
+
+---
+
 ## GET /devices
 
 ### Назначение

@@ -81,7 +81,7 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
         "uploaded file"
     );
 
-    sqlx::query(
+    let change_result = sqlx::query(
         "INSERT INTO changes (vault_id, device_id, path, version, deleted, updated_at) VALUES (?1, ?2, ?3, ?4, 0, ?5)",
     )
     .bind(&vault_id)
@@ -92,6 +92,7 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
     .execute(state.pool())
     .await
     .map_err(AppError::internal)?;
+    state.notify_vault_event(&vault_id, change_result.last_insert_rowid());
 
     Ok(MutationResponse {
         ok: true,
@@ -150,7 +151,7 @@ pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<Mutation
         "deleted file"
     );
 
-    sqlx::query(
+    let change_result = sqlx::query(
         "INSERT INTO changes (vault_id, device_id, path, version, deleted, updated_at) VALUES (?1, ?2, ?3, ?4, 1, ?5)",
     )
     .bind(&vault_id)
@@ -161,6 +162,7 @@ pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<Mutation
     .execute(state.pool())
     .await
     .map_err(AppError::internal)?;
+    state.notify_vault_event(&vault_id, change_result.last_insert_rowid());
 
     Ok(MutationResponse {
         ok: true,
@@ -232,15 +234,21 @@ pub async fn get_changes(state: &AppState, vault_id: String, since: i64) -> Resu
         })
         .collect();
 
+    let latest_seq = get_latest_seq(state, vault_id).await?;
+
+    Ok(ChangesResponse { changes, latest_seq })
+}
+
+pub async fn get_latest_seq(state: &AppState, vault_id: String) -> Result<i64, AppError> {
     let latest_seq = sqlx::query_scalar::<_, i64>(
         "SELECT COALESCE(MAX(seq), 0) FROM changes WHERE vault_id = ?1",
     )
-        .bind(&vault_id)
-        .fetch_one(state.pool())
-        .await
-        .map_err(AppError::internal)?;
+    .bind(&vault_id)
+    .fetch_one(state.pool())
+    .await
+    .map_err(AppError::internal)?;
 
-    Ok(ChangesResponse { changes, latest_seq })
+    Ok(latest_seq)
 }
 
 pub async fn get_devices(state: &AppState, vault_id: String) -> Result<DevicesResponse, AppError> {

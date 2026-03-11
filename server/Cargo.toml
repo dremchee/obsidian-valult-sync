@@ -5,9 +5,11 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1"
+async-stream = "0.3"
 axum = "0.8"
 base64 = "0.22"
 chrono = "0.4"
+futures-core = "0.3"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio-rustls"] }

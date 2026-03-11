@@ -218,6 +218,39 @@ async fn upload_file_then_fetch_file_and_changes() {
 }
 
 #[tokio::test]
+async fn events_stream_sends_initial_latest_seq() {
+    let (_tmp_dir, app) = test_app().await;
+
+    upload_test_file(&app).await;
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/events?vault_id=vault-a&since=0")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response
+            .headers()
+            .get("content-type")
+            .and_then(|value| value.to_str().ok()),
+        Some("text/event-stream")
+    );
+
+    let mut body = response.into_body();
+    let frame = body.frame().await.unwrap().unwrap();
+    let bytes = frame.into_data().unwrap();
+    let text = String::from_utf8(bytes.to_vec()).unwrap();
+    assert!(text.contains("event: change"));
+    assert!(text.contains("{\"latest_seq\":1}"));
+}
+
+#[tokio::test]
 async fn stale_upload_returns_conflict() {
     let (_tmp_dir, app) = test_app().await;
 

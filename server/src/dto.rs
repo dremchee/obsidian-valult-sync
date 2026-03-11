@@ -65,6 +65,11 @@ pub struct ChangesResponse {
 }
 
 #[derive(Debug, Serialize)]
+pub struct RealtimeEvent {
+    pub latest_seq: i64,
+}
+
+#[derive(Debug, Serialize)]
 pub struct DeviceItem {
     pub device_id: String,
     pub first_seen_at: String,

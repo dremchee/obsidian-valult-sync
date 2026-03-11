@@ -36,6 +36,7 @@ export class SettingsController {
     this.setState(this.stateStore.getStateForVaultId(vaultId));
     this.coordinator.markDirty();
     await this.persistData();
+    this.coordinator.restartAutoSync();
   }
 
   async forgetVault(defaultVaultId: string, vaultId: string): Promise<void> {
@@ -57,6 +58,7 @@ export class SettingsController {
       settings.vaultId,
     );
     await this.persistData();
+    this.coordinator.restartAutoSync();
   }
 
   async disconnectVault(defaultVaultId: string, vaultId: string): Promise<void> {
@@ -76,6 +78,7 @@ export class SettingsController {
       settings.vaultId,
     );
     await this.persistData();
+    this.coordinator.restartAutoSync();
   }
 
   updateCurrentVaultScope(scope: VaultScopeConfig): void {

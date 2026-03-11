@@ -89,6 +89,7 @@ Plugin:
 - сканирует vault
 - загружает локальные изменения
 - отправляет удаления
+- держит realtime SSE-подписку на сервер
 - читает change feed сервера
 - пропускает change events, которые сам же и создал через тот же `Device ID`
 - скачивает удалённые изменения
@@ -106,16 +107,14 @@ Plugin:
 - upload изменений
 - delete через tombstones
 - download удалённых изменений
-- polling sync
+- realtime push с polling fallback
 - conflict copy
 
 Текущие ограничения:
 
-- нет E2EE
-- нет selective sync
 - нет merge содержимого
-- нет realtime push
-- нет полноценного auth flow
+- metadata vault/file не скрывается E2EE
+- нет version history / restore
 
 ---
 

@@ -148,6 +148,7 @@ export class SyncSettingTab extends PluginSettingTab {
             this.remoteVaults = null;
             this.remoteVaultsError = null;
             await this.plugin.persistData();
+            this.controller.restartAutoSync();
             this.display();
           }),
       )
@@ -190,6 +191,7 @@ export class SyncSettingTab extends PluginSettingTab {
             this.remoteVaults = null;
             this.remoteVaultsError = null;
             await this.plugin.persistData();
+            this.controller.restartAutoSync();
             this.display();
           }),
       );
