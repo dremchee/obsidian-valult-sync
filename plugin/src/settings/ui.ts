@@ -26,14 +26,10 @@ export function createSettingGroup(
 }
 
 export function createPanel(container: HTMLElement): HTMLElement {
-  const panel = container.createDiv({ cls: "setting-item" });
+  const panel = container.createDiv({ cls: "setting-item obsidian-sync-panel" });
   if (container.childElementCount > 1) {
-    panel.style.borderTop = "1px solid var(--background-modifier-border)";
+    panel.addClass("obsidian-sync-with-top-border");
   }
-  panel.style.padding = "18px 20px";
-  panel.style.background = "transparent";
-  panel.style.display = "grid";
-  panel.style.gap = "12px";
   return panel;
 }
 
@@ -42,11 +38,7 @@ export function createCalloutPanel(
   tone: "warn" | "error",
 ): HTMLElement {
   const panel = createPanel(container);
-  panel.style.borderLeft = `3px solid ${tone === "warn" ? "var(--color-orange)" : "var(--color-red)"}`;
-  panel.style.background =
-    tone === "warn"
-      ? "color-mix(in srgb, var(--background-secondary) 88%, var(--color-orange) 12%)"
-      : "color-mix(in srgb, var(--background-secondary) 88%, var(--color-red) 12%)";
+  panel.addClass(tone === "warn" ? "obsidian-sync-callout-warn" : "obsidian-sync-callout-error");
   return panel;
 }
 
@@ -56,42 +48,32 @@ export function createCollapsibleSection(
   summaryText: string,
   open: boolean,
 ): HTMLElement {
-  const details = container.createEl("details", { cls: "setting-item" });
+  const details = container.createEl("details", { cls: "setting-item obsidian-sync-collapsible" });
   details.open = open;
   if (container.childElementCount > 1) {
-    details.style.borderTop = "1px solid var(--background-modifier-border)";
+    details.addClass("obsidian-sync-with-top-border");
   }
-  details.style.padding = "18px 20px";
 
-  const summary = details.createEl("summary");
-  summary.style.cursor = "pointer";
-  summary.style.fontWeight = "600";
-  summary.style.lineHeight = "1.4";
+  const summary = details.createEl("summary", { cls: "obsidian-sync-collapsible-summary" });
   summary.createSpan({ text: title });
 
   const help = details.createEl("div", {
     text: summaryText,
-    cls: "setting-item-description",
+    cls: "setting-item-description obsidian-sync-collapsible-help",
   });
-  help.style.marginTop = "6px";
-  help.style.marginBottom = "14px";
-  help.style.lineHeight = "1.4";
 
   return details;
 }
 
 export function createInlineStatus(container: HTMLElement, label: string, value: string): HTMLElement {
-  const row = container.createDiv({ cls: "setting-item" });
+  const row = container.createDiv({ cls: "setting-item obsidian-sync-inline-status-row" });
   const statusEl = row.createDiv({
     text: `${label}: ${value}`,
-    cls: "setting-item-description",
+    cls: "setting-item-description obsidian-sync-inline-status",
   });
   if (container.childElementCount > 1) {
-    row.style.borderTop = "1px solid var(--background-modifier-border)";
+    row.addClass("obsidian-sync-with-top-border");
   }
-  row.style.padding = "18px 20px";
-  statusEl.style.lineHeight = "1.4";
-  statusEl.style.color = "var(--text-muted)";
   return statusEl;
 }
 
@@ -103,15 +85,10 @@ export function renderQuickActions(
     cta?: boolean;
   }>,
 ): void {
-  const row = container.createDiv({ cls: "setting-item" });
+  const row = container.createDiv({ cls: "setting-item obsidian-sync-quick-actions" });
   if (container.childElementCount > 1) {
-    row.style.borderTop = "1px solid var(--background-modifier-border)";
+    row.addClass("obsidian-sync-with-top-border");
   }
-  row.style.display = "flex";
-  row.style.flexWrap = "wrap";
-  row.style.alignItems = "center";
-  row.style.gap = "8px";
-  row.style.padding = "18px 20px";
 
   for (const action of actions) {
     const button = row.createEl("button", { text: action.label });
@@ -131,46 +108,25 @@ export function renderQuickActions(
 }
 
 export function createKeyValueRow(container: HTMLElement, label: string, value: string): void {
-  const row = container.createDiv();
-  row.style.display = "grid";
-  row.style.gridTemplateColumns = "160px 1fr";
-  row.style.gap = "12px";
-  row.style.alignItems = "start";
-  row.style.fontSize = "13px";
+  const row = container.createDiv({ cls: "obsidian-sync-key-value-row" });
 
-  const labelEl = row.createSpan({ text: label });
-  labelEl.style.color = "var(--text-muted)";
-  labelEl.style.fontWeight = "600";
+  row.createSpan({ text: label, cls: "obsidian-sync-key-value-label" });
 
-  const valueEl = row.createSpan({ text: value });
-  valueEl.style.wordBreak = "break-word";
+  row.createSpan({ text: value, cls: "obsidian-sync-key-value-value" });
 }
 
 export function renderStatusHeader(container: HTMLElement, status: StatusHeaderData): void {
   const panel = createPanel(container);
-  const topRow = panel.createDiv();
-  topRow.style.display = "flex";
-  topRow.style.justifyContent = "space-between";
-  topRow.style.alignItems = "flex-start";
-  topRow.style.gap = "12px";
-  topRow.style.flexWrap = "wrap";
+  const topRow = panel.createDiv({ cls: "obsidian-sync-status-header" });
 
-  const copy = topRow.createDiv();
-  copy.style.display = "grid";
-  copy.style.gap = "6px";
-  copy.style.flex = "1 1 280px";
-  const title = copy.createEl("div", { text: "Sync status" });
-  title.style.fontWeight = "600";
-  title.style.lineHeight = "1.4";
+  const copy = topRow.createDiv({ cls: "obsidian-sync-status-copy" });
+  copy.createEl("div", { text: "Sync status", cls: "obsidian-sync-section-subtitle" });
   copy.createEl("div", {
     text: buildOverviewSummary(status),
     cls: "setting-item-description",
   });
 
-  const badges = topRow.createDiv();
-  badges.style.display = "flex";
-  badges.style.gap = "8px";
-  badges.style.flexWrap = "wrap";
+  const badges = topRow.createDiv({ cls: "obsidian-sync-badges" });
   createBadge(
     badges,
     status.lastSyncError === "No recent errors" ? "Healthy" : "Needs attention",
@@ -199,24 +155,8 @@ function createBadge(
   text: string,
   tone: "ok" | "warn" | "error" | "muted",
 ): void {
-  const badge = container.createSpan({ text });
-  badge.style.display = "inline-flex";
-  badge.style.alignItems = "center";
-  badge.style.padding = "4px 10px";
-  badge.style.borderRadius = "999px";
-  badge.style.fontSize = "12px";
-  badge.style.fontWeight = "600";
-  badge.style.border = "1px solid var(--background-modifier-border)";
-
-  if (tone === "ok") {
-    badge.style.background = "color-mix(in srgb, var(--background-secondary) 78%, var(--color-green) 22%)";
-  } else if (tone === "warn") {
-    badge.style.background = "color-mix(in srgb, var(--background-secondary) 78%, var(--color-orange) 22%)";
-  } else if (tone === "error") {
-    badge.style.background = "color-mix(in srgb, var(--background-secondary) 74%, var(--color-red) 26%)";
-  } else {
-    badge.style.background = "var(--background-primary-alt)";
-  }
+  const badge = container.createSpan({ text, cls: "obsidian-sync-badge" });
+  badge.addClass(`obsidian-sync-badge-${tone}`);
 }
 
 export function createStatusBadge(

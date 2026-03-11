@@ -1,0 +1,121 @@
+.obsidian-sync-panel {
+  padding: 18px 20px;
+  background: transparent;
+  display: grid;
+  gap: 12px;
+}
+
+.obsidian-sync-with-top-border {
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-sync-callout-warn {
+  border-left: 3px solid var(--color-orange);
+  background: color-mix(in srgb, var(--background-secondary) 88%, var(--color-orange) 12%);
+}
+
+.obsidian-sync-callout-error {
+  border-left: 3px solid var(--color-red);
+  background: color-mix(in srgb, var(--background-secondary) 88%, var(--color-red) 12%);
+}
+
+.obsidian-sync-collapsible {
+  padding: 18px 20px;
+}
+
+.obsidian-sync-collapsible-summary {
+  cursor: pointer;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.obsidian-sync-collapsible-help {
+  margin-top: 6px;
+  margin-bottom: 14px;
+  line-height: 1.4;
+}
+
+.obsidian-sync-inline-status-row {
+  padding: 18px 20px;
+}
+
+.obsidian-sync-inline-status {
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.obsidian-sync-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 18px 20px;
+}
+
+.obsidian-sync-key-value-row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  align-items: start;
+  font-size: 13px;
+}
+
+.obsidian-sync-key-value-label {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.obsidian-sync-key-value-value {
+  word-break: break-word;
+}
+
+.obsidian-sync-status-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.obsidian-sync-status-copy {
+  display: grid;
+  gap: 6px;
+  flex: 1 1 280px;
+}
+
+.obsidian-sync-section-subtitle {
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.obsidian-sync-badges {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.obsidian-sync-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.obsidian-sync-badge-ok {
+  background: color-mix(in srgb, var(--background-secondary) 78%, var(--color-green) 22%);
+}
+
+.obsidian-sync-badge-warn {
+  background: color-mix(in srgb, var(--background-secondary) 78%, var(--color-orange) 22%);
+}
+
+.obsidian-sync-badge-error {
+  background: color-mix(in srgb, var(--background-secondary) 74%, var(--color-red) 26%);
+}
+
+.obsidian-sync-badge-muted {
+  background: var(--background-primary-alt);
+}
