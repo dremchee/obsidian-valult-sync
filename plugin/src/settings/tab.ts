@@ -6,12 +6,10 @@ import { SettingsController } from "./controller";
 import {
   buildE2eeStatusText,
   buildScopePreview,
-  createCalloutPanel,
   createCollapsibleSection,
   createInlineStatus,
   createKeyValueRow,
   createPanel,
-  createStatusBadge,
   createSettingGroup,
   formatDeviceError,
   formatLastSyncAt,
@@ -95,23 +93,15 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private renderConnectionLockState(container: HTMLElement): void {
-    const panel = createCalloutPanel(container, this.plugin.settings.authToken.trim() ? "error" : "warn");
-    const topRow = panel.createDiv();
-    topRow.style.display = "flex";
-    topRow.style.justifyContent = "space-between";
-    topRow.style.alignItems = "center";
-    topRow.style.gap = "12px";
-    topRow.style.flexWrap = "wrap";
-    topRow.createEl("div", { text: "Settings are locked", cls: "obsidian-sync-panel-title" });
-    createStatusBadge(
-      topRow,
-      this.plugin.settings.authToken.trim() ? "Auth failed" : "Locked",
-      this.plugin.settings.authToken.trim() ? "error" : "warn",
-    );
-    panel.createEl("div", {
+    const hint = container.createDiv({
       text: this.getAuthGateMessage(),
       cls: "setting-item-description",
     });
+    hint.style.marginTop = "8px";
+    hint.style.lineHeight = "1.4";
+    hint.style.color = this.plugin.settings.authToken.trim()
+      ? "var(--text-error)"
+      : "var(--text-muted)";
   }
 
   private getAuthGateMessage(): string {
@@ -231,7 +221,7 @@ export class SyncSettingTab extends PluginSettingTab {
     connectionStatus.style.lineHeight = "1.4";
     connectionStatus.style.color = "var(--text-muted)";
 
-    new Setting(group)
+    const authSetting = new Setting(group)
       .setName("Auth token")
       .setDesc("Bearer token required by the sync server.")
       .addText((text) =>
@@ -255,7 +245,7 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     if (!unlocked) {
-      this.renderConnectionLockState(group);
+      this.renderConnectionLockState(authSetting.descEl);
       return;
     }
 
