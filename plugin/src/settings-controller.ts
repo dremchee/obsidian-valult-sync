@@ -59,6 +59,25 @@ export class SettingsController {
     await this.persistData();
   }
 
+  async disconnectVault(defaultVaultId: string, vaultId: string): Promise<void> {
+    const settings = this.getSettings();
+    const nextKnownVaultIds = settings.knownVaultIds.filter((current) => current !== vaultId);
+
+    if (settings.vaultId === vaultId) {
+      const fallbackVaultId = nextKnownVaultIds[0] ?? defaultVaultId;
+      settings.vaultId = fallbackVaultId;
+      this.stateStore.applyVaultScope(settings, fallbackVaultId);
+      this.setState(this.stateStore.getStateForVaultId(fallbackVaultId));
+      this.coordinator.markDirty();
+    }
+
+    settings.knownVaultIds = this.stateStore.getKnownVaultIds(
+      nextKnownVaultIds,
+      settings.vaultId,
+    );
+    await this.persistData();
+  }
+
   updateCurrentVaultScope(scope: VaultScopeConfig): void {
     this.stateStore.updateCurrentVaultScope(this.getSettings(), scope);
   }

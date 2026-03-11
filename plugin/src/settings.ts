@@ -198,6 +198,27 @@ export class SyncSettingTab extends PluginSettingTab {
     currentVaultPanel.createEl("div", { text: "Current vault", cls: "obsidian-sync-panel-title" });
     createKeyValueRow(currentVaultPanel, "Active vault", currentVaultId);
     createKeyValueRow(currentVaultPanel, "Known locally", String(knownVaultIds.length));
+    const currentVaultActions = currentVaultPanel.createDiv();
+    currentVaultActions.style.display = "flex";
+    currentVaultActions.style.flexWrap = "wrap";
+    currentVaultActions.style.gap = "8px";
+
+    const disconnectButton = currentVaultActions.createEl("button", { text: "Disconnect" });
+    disconnectButton.addEventListener("click", async () => {
+      vaultStatus.setText(`Vault registry: Disconnecting ${currentVaultId}...`);
+      await this.controller.disconnectVault("default", currentVaultId);
+      vaultStatus.setText(`Vault registry: Disconnected from ${currentVaultId}. Local state was kept.`);
+      this.display();
+    });
+
+    const forgetButton = currentVaultActions.createEl("button", { text: "Forget local state" });
+    forgetButton.addClass("mod-warning");
+    forgetButton.addEventListener("click", async () => {
+      vaultStatus.setText(`Vault registry: Removing local state for ${currentVaultId}...`);
+      await this.controller.forgetVault("default", currentVaultId);
+      vaultStatus.setText(`Vault registry: Removed local state for ${currentVaultId}.`);
+      this.display();
+    });
 
     new Setting(containerEl)
       .setName("Create vault")
@@ -313,16 +334,6 @@ export class SyncSettingTab extends PluginSettingTab {
             await this.controller.activateVault(nextVaultId);
             this.display();
           }),
-      );
-
-    new Setting(containerEl)
-      .setName("Forget current vault")
-      .setDesc("Remove persisted sync state for the current vault ID on this device.")
-      .addButton((button) =>
-        button.setButtonText("Forget").onClick(async () => {
-          await this.controller.forgetVault("default", this.plugin.settings.vaultId);
-          this.display();
-        }),
       );
 
     renderSectionHeader(containerEl, "Sync Scope", "Control which files are eligible for sync in this vault.");
