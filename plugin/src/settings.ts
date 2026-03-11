@@ -249,10 +249,50 @@ export class SyncSettingTab extends PluginSettingTab {
         cls: "setting-item-description",
       });
     } else if (this.remoteVaults) {
+      const currentVaultOnServer = this.remoteVaults.some((vault) => vault.vault_id === currentVaultId);
       vaultRegistryState.createEl("div", {
         text: `Loaded ${this.remoteVaults.length} vault(s) from the server. Join one below or create a new vault.`,
         cls: "setting-item-description",
       });
+      if (!currentVaultOnServer) {
+        vaultRegistryState.createEl("div", {
+          text: `The current vault "${currentVaultId}" is only local so far.`,
+          cls: "setting-item-description",
+        });
+        vaultRegistryState.createEl("div", {
+          text: "Create it on the server to start syncing this vault, or join another existing vault below.",
+          cls: "setting-item-description",
+        });
+
+        const onboardingActions = vaultRegistryState.createDiv();
+        onboardingActions.style.display = "flex";
+        onboardingActions.style.flexWrap = "wrap";
+        onboardingActions.style.gap = "8px";
+
+        const createCurrentVaultButton = onboardingActions.createEl("button", {
+          text: "Create current vault on server",
+        });
+        createCurrentVaultButton.addClass("mod-cta");
+        createCurrentVaultButton.addEventListener("click", async () => {
+          vaultStatus.setText(`Vault registry: Creating ${currentVaultId}...`);
+          try {
+            const response = await this.controller.createVault(currentVaultId);
+            await this.controller.activateVault(response.vault.vault_id);
+            this.remoteVaults = await this.controller.getRemoteVaults();
+            this.remoteVaultsError = null;
+            vaultStatus.setText(
+              response.created
+                ? `Vault registry: Created and joined ${response.vault.vault_id}.`
+                : `Vault registry: Joined existing vault ${response.vault.vault_id}.`,
+            );
+          } catch (error) {
+            this.remoteVaults = null;
+            this.remoteVaultsError = formatDeviceError(error);
+            vaultStatus.setText(`Vault registry: ${this.remoteVaultsError}`);
+          }
+          this.display();
+        });
+      }
     } else {
       vaultRegistryState.createEl("div", {
         text: "Vault list has not been loaded yet.",
