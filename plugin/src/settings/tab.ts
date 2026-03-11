@@ -184,20 +184,12 @@ export class SyncSettingTab extends PluginSettingTab {
     const title = section.createEl("h3", { text: "Connection" });
     title.style.margin = "0 0 12px";
 
-    const primaryItems = section.createDiv();
-    primaryItems.style.display = "grid";
-    primaryItems.style.gap = "0";
-    primaryItems.style.border = "1px solid var(--background-modifier-border)";
-    primaryItems.style.borderRadius = "14px";
-    primaryItems.style.overflow = "hidden";
-    primaryItems.style.background = "var(--background-secondary)";
-
     let connectionStatus!: HTMLElement;
     const unlocked = this.isSettingsUnlocked();
 
-    const serverSetting = new Setting(primaryItems)
+    const serverSetting = new Setting(section)
       .setName("Server URL")
-      .setDesc("")
+      .setDesc("Base URL of the Rust sync server.")
       .addText((text) =>
         text
           .setPlaceholder("http://127.0.0.1:3000")
@@ -226,22 +218,17 @@ export class SyncSettingTab extends PluginSettingTab {
           }
         }),
       );
-    serverSetting.descEl.empty();
-    serverSetting.descEl.createDiv({
-      text: "Base URL of the Rust sync server.",
-      cls: "setting-item-description",
-    });
     connectionStatus = serverSetting.descEl.createDiv({
-      text: "Not checked",
+      text: "Connection: Not checked",
       cls: "setting-item-description",
     });
     connectionStatus.style.marginTop = "8px";
     connectionStatus.style.lineHeight = "1.4";
     connectionStatus.style.color = "var(--text-muted)";
 
-    const authSetting = new Setting(primaryItems)
+    const authSetting = new Setting(section)
       .setName("Auth token")
-      .setDesc("")
+      .setDesc("Bearer token required by the sync server.")
       .addText((text) =>
         text
           .setPlaceholder("secret-token")
@@ -261,11 +248,6 @@ export class SyncSettingTab extends PluginSettingTab {
             this.display();
           }),
       );
-    authSetting.descEl.empty();
-    authSetting.descEl.createDiv({
-      text: "Bearer token required by the sync server.",
-      cls: "setting-item-description",
-    });
     if (!unlocked) {
       this.renderConnectionLockState(authSetting.descEl);
       return;
