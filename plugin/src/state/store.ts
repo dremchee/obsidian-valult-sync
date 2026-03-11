@@ -6,164 +6,132 @@ import type {
 } from "../types";
 
 const DEFAULT_STATE: SyncState = {
-  vaultId: "default",
+  vaultId: "",
   files: {},
   lastSeq: 0,
   lastSyncAt: null,
   lastSyncError: null,
 };
 
+const DEFAULT_SCOPE: VaultScopeConfig = {
+  includePatterns: [],
+  ignorePatterns: [],
+};
+
 export class PluginStateStore {
-  statesByVaultId: Record<string, SyncState> = {};
-  vaultScopesById: Record<string, VaultScopeConfig> = {};
+  state: SyncState = structuredClone(DEFAULT_STATE);
+  scope: VaultScopeConfig = structuredClone(DEFAULT_SCOPE);
 
   load(raw: LegacyPluginDataShape | null, activeVaultId: string): SyncState {
-    this.statesByVaultId = this.normalizePersistedStates(raw, activeVaultId);
-    this.vaultScopesById = this.normalizePersistedVaultScopes(raw, activeVaultId);
-    return this.getStateForVaultId(activeVaultId);
+    this.state = this.normalizePersistedState(raw, activeVaultId);
+    this.scope = this.normalizePersistedScope(raw, activeVaultId);
+    return structuredClone(this.state);
   }
 
   snapshotState(activeVaultId: string, state: SyncState): void {
-    state.vaultId = activeVaultId;
-    this.statesByVaultId[activeVaultId] = structuredClone(state);
+    this.state = structuredClone({
+      ...state,
+      vaultId: activeVaultId,
+    });
   }
 
-  getKnownVaultIds(knownVaultIds: string[] | undefined, activeVaultId: string): string[] {
-    const uniqueVaultIds = new Set<string>();
-
-    for (const vaultId of knownVaultIds ?? []) {
-      const trimmed = vaultId.trim();
-      if (trimmed) {
-        uniqueVaultIds.add(trimmed);
-      }
-    }
-
-    uniqueVaultIds.add(activeVaultId);
-    return Array.from(uniqueVaultIds);
+  getState(): SyncState {
+    return structuredClone(this.state);
   }
 
-  getStateForVaultId(vaultId: string): SyncState {
-    const existing = this.statesByVaultId[vaultId];
-    if (existing) {
-      return {
-        ...DEFAULT_STATE,
-        ...existing,
-        vaultId,
-        files: {
-          ...DEFAULT_STATE.files,
-          ...existing.files,
-        },
-      };
-    }
-
-    const freshState: SyncState = {
+  resetState(activeVaultId: string): SyncState {
+    this.state = {
       ...DEFAULT_STATE,
-      vaultId,
+      vaultId: activeVaultId,
     };
-    this.statesByVaultId[vaultId] = structuredClone(freshState);
-    return freshState;
+    return this.getState();
   }
 
-  getCurrentVaultScope(settings: SyncSettings): VaultScopeConfig {
+  getCurrentScope(settings: SyncSettings): VaultScopeConfig {
     return {
       includePatterns: [...settings.includePatterns],
       ignorePatterns: [...settings.ignorePatterns],
     };
   }
 
-  saveCurrentVaultScope(settings: SyncSettings): void {
-    this.vaultScopesById[settings.vaultId] = this.getCurrentVaultScope(settings);
+  saveCurrentScope(settings: SyncSettings): void {
+    this.scope = this.getCurrentScope(settings);
   }
 
-  applyVaultScope(settings: SyncSettings, vaultId: string): void {
-    const scope = this.vaultScopesById[vaultId] ?? {
-      includePatterns: [],
-      ignorePatterns: [],
-    };
+  applyScope(settings: SyncSettings): void {
+    settings.includePatterns = [...this.scope.includePatterns];
+    settings.ignorePatterns = [...this.scope.ignorePatterns];
+  }
+
+  updateCurrentScope(settings: SyncSettings, scope: VaultScopeConfig): void {
     settings.includePatterns = [...scope.includePatterns];
     settings.ignorePatterns = [...scope.ignorePatterns];
-    this.vaultScopesById[vaultId] = {
-      includePatterns: [...scope.includePatterns],
-      ignorePatterns: [...scope.ignorePatterns],
-    };
+    this.scope = this.getCurrentScope(settings);
   }
 
-  updateCurrentVaultScope(settings: SyncSettings, scope: VaultScopeConfig): void {
-    settings.includePatterns = [...scope.includePatterns];
-    settings.ignorePatterns = [...scope.ignorePatterns];
-    this.vaultScopesById[settings.vaultId] = this.getCurrentVaultScope(settings);
+  resetScope(settings: SyncSettings): void {
+    this.scope = structuredClone(DEFAULT_SCOPE);
+    this.applyScope(settings);
   }
 
-  copyCurrentVaultScopeToVault(settings: SyncSettings, vaultId: string): boolean {
-    const nextVaultId = vaultId.trim();
-    if (!nextVaultId) {
-      return false;
-    }
-
-    this.vaultScopesById[nextVaultId] = this.getCurrentVaultScope(settings);
-    return true;
-  }
-
-  forgetVault(vaultId: string): void {
-    delete this.statesByVaultId[vaultId];
-    delete this.vaultScopesById[vaultId];
-  }
-
-  private normalizePersistedStates(
+  private normalizePersistedState(
     raw: LegacyPluginDataShape | null,
     activeVaultId: string,
-  ): Record<string, SyncState> {
-    const statesByVaultId: Record<string, SyncState> = {};
-
-    for (const [vaultId, state] of Object.entries(raw?.statesByVaultId ?? {})) {
-      statesByVaultId[vaultId] = {
+  ): SyncState {
+    const persistedCurrentState = raw?.state;
+    if (persistedCurrentState) {
+      return {
         ...DEFAULT_STATE,
-        ...state,
-        vaultId,
+        ...persistedCurrentState,
+        vaultId: activeVaultId,
         files: {
           ...DEFAULT_STATE.files,
-          ...state.files,
+          ...persistedCurrentState.files,
         },
       };
     }
 
-    const legacyVaultId = raw?.state?.vaultId || activeVaultId;
-    if (raw?.state && !statesByVaultId[legacyVaultId]) {
-      statesByVaultId[legacyVaultId] = {
+    const legacyMappedState = raw?.statesByVaultId?.[activeVaultId];
+    if (legacyMappedState) {
+      return {
         ...DEFAULT_STATE,
-        ...raw.state,
-        vaultId: legacyVaultId,
+        ...legacyMappedState,
+        vaultId: activeVaultId,
         files: {
           ...DEFAULT_STATE.files,
-          ...raw.state.files,
+          ...legacyMappedState.files,
         },
       };
     }
 
-    return statesByVaultId;
+    return {
+      ...DEFAULT_STATE,
+      vaultId: activeVaultId,
+    };
   }
 
-  private normalizePersistedVaultScopes(
+  private normalizePersistedScope(
     raw: LegacyPluginDataShape | null,
     activeVaultId: string,
-  ): Record<string, VaultScopeConfig> {
-    const vaultScopesById: Record<string, VaultScopeConfig> = {};
-
-    for (const [vaultId, scope] of Object.entries(raw?.vaultScopesById ?? {})) {
-      vaultScopesById[vaultId] = {
-        includePatterns: [...(scope.includePatterns ?? [])],
-        ignorePatterns: [...(scope.ignorePatterns ?? [])],
+  ): VaultScopeConfig {
+    if (raw?.scope) {
+      return {
+        includePatterns: [...(raw.scope.includePatterns ?? [])],
+        ignorePatterns: [...(raw.scope.ignorePatterns ?? [])],
       };
     }
 
-    const legacyVaultId = raw?.settings?.vaultId || activeVaultId;
-    if (!vaultScopesById[legacyVaultId]) {
-      vaultScopesById[legacyVaultId] = {
-        includePatterns: [...(raw?.settings?.includePatterns ?? [])],
-        ignorePatterns: [...(raw?.settings?.ignorePatterns ?? [])],
+    const legacyScope = raw?.vaultScopesById?.[activeVaultId];
+    if (legacyScope) {
+      return {
+        includePatterns: [...(legacyScope.includePatterns ?? [])],
+        ignorePatterns: [...(legacyScope.ignorePatterns ?? [])],
       };
     }
 
-    return vaultScopesById;
+    return {
+      includePatterns: [...(raw?.settings?.includePatterns ?? [])],
+      ignorePatterns: [...(raw?.settings?.ignorePatterns ?? [])],
+    };
   }
 }

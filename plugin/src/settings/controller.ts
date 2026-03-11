@@ -26,79 +26,52 @@ export class SettingsController {
     private readonly coordinator: SyncCoordinator,
   ) {}
 
-  getKnownVaultIds(): string[] {
-    return [...this.getSettings().knownVaultIds];
-  }
+  async bindVault(vaultId: string): Promise<void> {
+    const nextVaultId = vaultId.trim();
+    if (!nextVaultId) {
+      return;
+    }
 
-  async activateVault(vaultId: string): Promise<void> {
     const settings = this.getSettings();
-    this.stateStore.saveCurrentVaultScope(settings);
-    settings.vaultId = vaultId;
-    settings.knownVaultIds = this.stateStore.getKnownVaultIds(settings.knownVaultIds, vaultId);
-    this.stateStore.applyVaultScope(settings, vaultId);
-    this.setState(this.stateStore.getStateForVaultId(vaultId));
+    const previousVaultId = settings.vaultId;
+    if (previousVaultId && previousVaultId !== nextVaultId) {
+      this.e2eeState.forgetVault(previousVaultId);
+      this.stateStore.resetScope(settings);
+    }
+
+    settings.vaultId = nextVaultId;
+    this.setState(this.stateStore.resetState(nextVaultId));
+    this.stateStore.applyScope(settings);
     this.coordinator.markDirty();
     await this.persistData();
     this.coordinator.restartAutoSync();
   }
 
-  async forgetVault(defaultVaultId: string, vaultId: string): Promise<void> {
+  async forgetLocalState(): Promise<void> {
     const settings = this.getSettings();
-    const nextKnownVaultIds = settings.knownVaultIds.filter((current) => current !== vaultId);
-    this.stateStore.forgetVault(vaultId);
-    this.e2eeState.forgetVault(vaultId);
-
-    if (settings.vaultId === vaultId) {
-      const fallbackVaultId = nextKnownVaultIds[0] ?? defaultVaultId;
-      settings.vaultId = fallbackVaultId;
-      this.stateStore.applyVaultScope(settings, fallbackVaultId);
-      this.setState(this.stateStore.getStateForVaultId(fallbackVaultId));
-      this.coordinator.markDirty();
-    }
-
-    settings.knownVaultIds = this.stateStore.getKnownVaultIds(
-      nextKnownVaultIds,
-      settings.vaultId,
-    );
+    this.e2eeState.forgetVault(settings.vaultId);
+    this.stateStore.resetScope(settings);
+    this.setState(this.stateStore.resetState(settings.vaultId));
+    this.coordinator.markDirty();
     await this.persistData();
     this.coordinator.restartAutoSync();
   }
 
-  async disconnectVault(defaultVaultId: string, vaultId: string): Promise<void> {
+  async disconnectVault(): Promise<void> {
     const settings = this.getSettings();
-    const nextKnownVaultIds = settings.knownVaultIds.filter((current) => current !== vaultId);
-
-    if (settings.vaultId === vaultId) {
-      const fallbackVaultId = nextKnownVaultIds[0] ?? defaultVaultId;
-      settings.vaultId = fallbackVaultId;
-      this.stateStore.applyVaultScope(settings, fallbackVaultId);
-      this.setState(this.stateStore.getStateForVaultId(fallbackVaultId));
-      this.coordinator.markDirty();
+    if (settings.vaultId) {
+      this.e2eeState.forgetVault(settings.vaultId);
     }
-
-    settings.knownVaultIds = this.stateStore.getKnownVaultIds(
-      nextKnownVaultIds,
-      settings.vaultId,
-    );
+    settings.vaultId = "";
+    this.stateStore.resetScope(settings);
+    this.setState(this.stateStore.resetState(""));
+    this.coordinator.markDirty();
     await this.persistData();
     this.coordinator.restartAutoSync();
   }
 
   updateCurrentVaultScope(scope: VaultScopeConfig): void {
-    this.stateStore.updateCurrentVaultScope(this.getSettings(), scope);
-  }
-
-  async copyCurrentVaultScopeToVault(vaultId: string): Promise<void> {
-    const settings = this.getSettings();
-    if (!this.stateStore.copyCurrentVaultScopeToVault(settings, vaultId)) {
-      return;
-    }
-
-    settings.knownVaultIds = this.stateStore.getKnownVaultIds(
-      settings.knownVaultIds,
-      vaultId.trim(),
-    );
-    await this.persistData();
+    this.stateStore.updateCurrentScope(this.getSettings(), scope);
   }
 
   getE2eePassphrase(vaultId = this.getSettings().vaultId): string {
@@ -134,6 +107,11 @@ export class SettingsController {
 
   async checkConnection(): Promise<string> {
     const settings = this.getSettings();
+    if (!settings.vaultId.trim()) {
+      const response = await this.api().getVaults();
+      return `Connected. ${response.vaults.length} vault(s) available on the server.`;
+    }
+
     const response = await this.api().getDevices(settings.vaultId);
     return `Connected to ${settings.vaultId}. ${response.devices.length} device(s) registered.`;
   }
@@ -153,9 +131,6 @@ export class SettingsController {
 
   async createVault(vaultId: string): Promise<CreateVaultResponse> {
     const response = await this.api().createVault(vaultId);
-    const settings = this.getSettings();
-    settings.knownVaultIds = this.stateStore.getKnownVaultIds(settings.knownVaultIds, response.vault.vault_id);
-    await this.persistData();
     return response;
   }
 

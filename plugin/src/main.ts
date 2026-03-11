@@ -18,8 +18,7 @@ import type {
 
 const DEFAULT_SETTINGS: SyncSettings = {
   serverUrl: "http://127.0.0.1:3000",
-  vaultId: "default",
-  knownVaultIds: ["default"],
+  vaultId: "",
   includePatterns: [],
   ignorePatterns: [],
   deviceId: "",
@@ -29,7 +28,7 @@ const DEFAULT_SETTINGS: SyncSettings = {
 };
 
 const DEFAULT_STATE: SyncState = {
-  vaultId: "default",
+  vaultId: "",
   files: {},
   lastSeq: 0,
   lastSyncAt: null,
@@ -195,16 +194,12 @@ export default class ObsidianSyncPlugin extends Plugin {
 
   async persistData(): Promise<void> {
     this.stateStore.snapshotState(this.settings.vaultId, this.state);
-    this.stateStore.saveCurrentVaultScope(this.settings);
-    this.settings.knownVaultIds = this.stateStore.getKnownVaultIds(
-      this.settings.knownVaultIds,
-      this.settings.vaultId,
-    );
+    this.stateStore.saveCurrentScope(this.settings);
     const data: PluginDataShape = {
       settings: this.settings,
-      statesByVaultId: this.stateStore.statesByVaultId,
-      vaultScopesById: this.stateStore.vaultScopesById,
-      e2eeFingerprintsByVaultId: this.e2eeState.exportFingerprints(),
+      state: this.stateStore.getState(),
+      scope: this.stateStore.scope,
+      e2eeFingerprint: this.e2eeState.getFingerprint(this.settings.vaultId),
     };
     await this.saveData(data);
   }
@@ -225,17 +220,19 @@ export default class ObsidianSyncPlugin extends Plugin {
     this.settings = {
       ...DEFAULT_SETTINGS,
       ...rawSettings,
-      knownVaultIds: this.stateStore.getKnownVaultIds(
-        rawSettings?.knownVaultIds,
-        rawSettings?.vaultId || DEFAULT_SETTINGS.vaultId,
-      ),
     };
     if (!this.settings.deviceId) {
       this.settings.deviceId = this.generateDeviceId();
     }
-    this.e2eeState.replaceFingerprints({ ...(raw?.e2eeFingerprintsByVaultId ?? {}) });
+    this.e2eeState.replaceFingerprints(
+      raw?.e2eeFingerprintsByVaultId
+        ? { ...raw.e2eeFingerprintsByVaultId }
+        : raw?.e2eeFingerprint && this.settings.vaultId
+          ? { [this.settings.vaultId]: raw.e2eeFingerprint }
+          : {},
+    );
     this.state = this.stateStore.load(raw, this.settings.vaultId);
-    this.stateStore.applyVaultScope(this.settings, this.settings.vaultId);
+    this.stateStore.applyScope(this.settings);
   }
 
   private generateDeviceId(): string {
@@ -252,9 +249,9 @@ export default class ObsidianSyncPlugin extends Plugin {
     if (!this.settings.autoSync) {
       return {
         state: "disabled",
-        statusText: "Auto sync off",
+        statusText: this.settings.vaultId.trim() ? "Auto sync off" : "No vault connected",
         lastSyncAt: this.state.lastSyncAt,
-        vaultId: this.settings.vaultId,
+        vaultId: this.settings.vaultId || "Not connected",
         lastError: this.state.lastSyncError?.message ?? null,
       };
     }
@@ -264,7 +261,7 @@ export default class ObsidianSyncPlugin extends Plugin {
         state: "syncing",
         statusText: "Syncing",
         lastSyncAt: this.state.lastSyncAt,
-        vaultId: this.settings.vaultId,
+        vaultId: this.settings.vaultId || "Not connected",
         lastError: this.state.lastSyncError?.message ?? null,
       };
     }
@@ -274,7 +271,7 @@ export default class ObsidianSyncPlugin extends Plugin {
         state: "error",
         statusText: "Needs attention",
         lastSyncAt: this.state.lastSyncAt,
-        vaultId: this.settings.vaultId,
+        vaultId: this.settings.vaultId || "Not connected",
         lastError: this.state.lastSyncError.message,
       };
     }
@@ -284,7 +281,7 @@ export default class ObsidianSyncPlugin extends Plugin {
         state: "pending",
         statusText: "Pending changes",
         lastSyncAt: this.state.lastSyncAt,
-        vaultId: this.settings.vaultId,
+        vaultId: this.settings.vaultId || "Not connected",
         lastError: null,
       };
     }
@@ -293,7 +290,7 @@ export default class ObsidianSyncPlugin extends Plugin {
       state: "ok",
       statusText: "Up to date",
       lastSyncAt: this.state.lastSyncAt,
-      vaultId: this.settings.vaultId,
+      vaultId: this.settings.vaultId || "Not connected",
       lastError: null,
     };
   }

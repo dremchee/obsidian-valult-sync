@@ -1,7 +1,6 @@
 export interface SyncSettings {
   serverUrl: string;
   vaultId: string;
-  knownVaultIds: string[];
   includePatterns: string[];
   ignorePatterns: string[];
   deviceId: string;
@@ -34,14 +33,16 @@ export interface SyncState {
 
 export interface PluginDataShape {
   settings: SyncSettings;
-  statesByVaultId: Record<string, SyncState>;
-  vaultScopesById: Record<string, VaultScopeConfig>;
-  e2eeFingerprintsByVaultId: Record<string, string>;
+  state: SyncState;
+  scope: VaultScopeConfig;
+  e2eeFingerprint: string | null;
 }
 
 export interface LegacyPluginDataShape {
   settings?: Partial<SyncSettings>;
   state?: Partial<SyncState>;
+  scope?: Partial<VaultScopeConfig>;
+  e2eeFingerprint?: string | null;
   statesByVaultId?: Record<string, Partial<SyncState>>;
   vaultScopesById?: Record<string, Partial<VaultScopeConfig>>;
   e2eeFingerprintsByVaultId?: Record<string, string>;

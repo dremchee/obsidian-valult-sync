@@ -1,4 +1,4 @@
-import { App, Notice, PluginSettingTab, Setting } from "obsidian";
+import { App, PluginSettingTab, Setting } from "obsidian";
 
 import { describeSyncScope, normalizePatternList } from "../sync/scope";
 import { formatSyncErrorState } from "../sync/errors";
@@ -230,7 +230,6 @@ export class SyncSettingTab extends PluginSettingTab {
   private renderVaultSection(container: HTMLElement): void {
     const group = createSettingGroup(container, "Vault", "Choose which logical vault this client is syncing.");
     const currentVaultId = this.plugin.settings.vaultId;
-    const knownVaultIds = this.controller.getKnownVaultIds();
 
     const vaultStatus = createInlineStatus(
       group,
@@ -248,8 +247,6 @@ export class SyncSettingTab extends PluginSettingTab {
     this.renderCreateVaultControl(flowPanel, vaultStatus);
     this.renderJoinServerVaultControl(flowPanel, currentVaultId, vaultStatus);
     this.renderRemoteVaultsPanel(group, currentVaultId, vaultStatus);
-    this.renderLocalVaultsPanel(group, currentVaultId, knownVaultIds);
-    this.renderAdvancedVaultPanel(group, currentVaultId);
   }
 
   private renderVaultRegistryHint(
@@ -312,11 +309,15 @@ export class SyncSettingTab extends PluginSettingTab {
 
       if (!currentVaultOnServer) {
         block.createEl("div", {
-          text: `The current vault "${currentVaultId}" is only local so far.`,
+          text: currentVaultId
+            ? `This folder is connected to "${currentVaultId}", but that vault is not in the current server registry.`
+            : "This folder is not connected to a vault yet.",
           cls: "setting-item-description",
         });
         block.createEl("div", {
-          text: "Create it on the server to start syncing this vault, or join another existing vault below.",
+          text: currentVaultId
+            ? "Create this vault on the server or reconnect this folder to another existing vault below."
+            : "Create a new vault for this folder or connect it to an existing vault below.",
           cls: "setting-item-description",
         });
 
@@ -368,14 +369,16 @@ export class SyncSettingTab extends PluginSettingTab {
     currentVaultBlock.style.paddingBottom = "10px";
     currentVaultBlock.style.borderBottom = "1px solid var(--background-modifier-border)";
     currentVaultBlock.createEl("div", {
-      text: "Current vault",
+      text: "Current folder binding",
       cls: "setting-item-description",
     });
-    createKeyValueRow(currentVaultBlock, "Active vault", currentVaultId);
+    createKeyValueRow(currentVaultBlock, "Connected vault", currentVaultId || "Not connected");
     createKeyValueRow(
       currentVaultBlock,
       "Server registry",
-      this.remoteVaults
+      !currentVaultId
+        ? "Not connected"
+        : this.remoteVaults
         ? this.remoteVaults.some((vault) => vault.vault_id === currentVaultId) ? "Loaded" : "Not loaded here"
         : this.loadingRemoteVaults ? "Loading..." : this.remoteVaultsError ? "Unavailable" : "Not loaded",
     );
@@ -388,7 +391,12 @@ export class SyncSettingTab extends PluginSettingTab {
     const disconnectButton = actions.createEl("button", {
       text: this.confirmDisconnectVaultId === currentVaultId ? "Confirm disconnect" : "Disconnect",
     });
+    disconnectButton.disabled = !currentVaultId;
     disconnectButton.addEventListener("click", async () => {
+      if (!currentVaultId) {
+        return;
+      }
+
       const needsConfirm = this.controller.hasPendingSyncWork() || this.plugin.state.lastSyncError !== null;
       if (needsConfirm && this.confirmDisconnectVaultId !== currentVaultId) {
         this.confirmDisconnectVaultId = currentVaultId;
@@ -400,8 +408,8 @@ export class SyncSettingTab extends PluginSettingTab {
       this.confirmDisconnectVaultId = null;
       this.confirmForgetVaultId = null;
       vaultStatus.setText(`Vault registry: Disconnecting ${currentVaultId}...`);
-      await this.controller.disconnectVault("default", currentVaultId);
-      vaultStatus.setText(`Vault registry: Disconnected from ${currentVaultId}. Local state was kept.`);
+      await this.controller.disconnectVault();
+      vaultStatus.setText(`Vault registry: This folder is no longer connected to ${currentVaultId}.`);
       this.display();
     });
 
@@ -409,7 +417,12 @@ export class SyncSettingTab extends PluginSettingTab {
       text: this.confirmForgetVaultId === currentVaultId ? "Confirm forget" : "Forget local state",
     });
     forgetButton.addClass("mod-warning");
+    forgetButton.disabled = !currentVaultId;
     forgetButton.addEventListener("click", async () => {
+      if (!currentVaultId) {
+        return;
+      }
+
       if (this.confirmForgetVaultId !== currentVaultId) {
         this.confirmForgetVaultId = currentVaultId;
         this.confirmDisconnectVaultId = null;
@@ -420,7 +433,7 @@ export class SyncSettingTab extends PluginSettingTab {
 
       this.confirmForgetVaultId = null;
       vaultStatus.setText(`Vault registry: Removing local state for ${currentVaultId}...`);
-      await this.controller.forgetVault("default", currentVaultId);
+      await this.controller.forgetLocalState();
       vaultStatus.setText(`Vault registry: Removed local state for ${currentVaultId}.`);
       this.display();
     });
@@ -429,9 +442,10 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private renderCreateVaultControl(container: HTMLElement, vaultStatus: HTMLElement): void {
+    const currentVaultId = this.plugin.settings.vaultId;
     new Setting(container)
       .setName("Create vault")
-      .setDesc("Create a new vault on the server and switch this client to it.")
+      .setDesc(currentVaultId ? "Create a new vault on the server and reconnect this folder to it." : "Create a new vault on the server and connect this folder to it.")
       .addText((text) =>
         text
           .setPlaceholder("team_notes")
@@ -461,10 +475,12 @@ export class SyncSettingTab extends PluginSettingTab {
       this.remoteVaults?.find((vault) => vault.vault_id !== currentVaultId)?.vault_id ?? "";
 
     new Setting(container)
-      .setName("Join server vault")
+      .setName(currentVaultId ? "Reconnect this folder" : "Join server vault")
       .setDesc(
         this.remoteVaults
-          ? "Switch to a vault discovered on the server."
+          ? currentVaultId
+            ? "Reconnect this folder to a vault discovered on the server."
+            : "Connect this folder to a vault discovered on the server."
           : this.loadingRemoteVaults
             ? "Loading vaults from the server..."
             : "Load vaults from the server first.",
@@ -493,8 +509,12 @@ export class SyncSettingTab extends PluginSettingTab {
         button.setButtonText("Join").onClick(async () => {
           this.confirmDisconnectVaultId = null;
           this.confirmForgetVaultId = null;
-          vaultStatus.setText(`Vault registry: Joining ${remoteJoinVaultId}...`);
-          await this.controller.activateVault(remoteJoinVaultId);
+          vaultStatus.setText(
+            currentVaultId
+              ? `Vault registry: Reconnecting this folder to ${remoteJoinVaultId}...`
+              : `Vault registry: Joining ${remoteJoinVaultId}...`,
+          );
+          await this.controller.bindVault(remoteJoinVaultId);
           this.display();
         });
       });
@@ -512,7 +532,9 @@ export class SyncSettingTab extends PluginSettingTab {
     const panel = createCollapsibleSection(
       container,
       "Available vaults",
-      "Vaults loaded from the server. Join one to switch this client.",
+      currentVaultId
+        ? "Vaults loaded from the server. Reconnect this folder to one of them if needed."
+        : "Vaults loaded from the server. Connect this folder to one of them.",
       true,
     );
     const list = createPanel(panel);
@@ -552,71 +574,21 @@ export class SyncSettingTab extends PluginSettingTab {
         joinButton.addEventListener("click", async () => {
           this.confirmDisconnectVaultId = null;
           this.confirmForgetVaultId = null;
-          vaultStatus.setText(`Vault registry: Joining ${vault.vault_id}...`);
-          await this.controller.activateVault(vault.vault_id);
+          vaultStatus.setText(
+            currentVaultId
+              ? `Vault registry: Reconnecting this folder to ${vault.vault_id}...`
+              : `Vault registry: Joining ${vault.vault_id}...`,
+          );
+          await this.controller.bindVault(vault.vault_id);
           this.display();
         });
       }
     }
   }
 
-  private renderLocalVaultsPanel(
-    container: HTMLElement,
-    currentVaultId: string,
-    knownVaultIds: string[],
-  ): void {
-    if (knownVaultIds.length <= 1) {
-      return;
-    }
-
-    const panel = createCollapsibleSection(
-      container,
-      "Recent local vaults",
-      "Vaults remembered on this device, even if they were not loaded from the server in this session.",
-      false,
-    );
-    const list = createPanel(panel);
-    list.createEl("div", { text: "Local vault history", cls: "obsidian-sync-panel-title" });
-
-    for (const vaultId of knownVaultIds) {
-      createKeyValueRow(
-        list,
-        vaultId,
-        vaultId === currentVaultId ? "Current vault" : "Available locally",
-      );
-    }
-  }
-
-  private renderAdvancedVaultPanel(container: HTMLElement, currentVaultId: string): void {
-    const panel = createCollapsibleSection(
-      container,
-      "Advanced vault actions",
-      "Manual vault controls for recovery and edge cases.",
-      false,
-    );
-
-    new Setting(panel)
-      .setName("Manual vault ID")
-      .setDesc("Fallback for advanced cases when you need to enter a vault ID directly.")
-      .addText((text) =>
-        text
-          .setPlaceholder("default")
-          .setValue(currentVaultId)
-          .onChange(async (value) => {
-            this.confirmDisconnectVaultId = null;
-            this.confirmForgetVaultId = null;
-            const nextVaultId = value.trim() || "default";
-            await this.controller.activateVault(nextVaultId);
-            this.display();
-          }),
-      );
-  }
-
   private renderSyncScopeSection(container: HTMLElement): void {
     const group = createSettingGroup(container, "Sync Scope", "Control which files are eligible for sync in this vault.");
     const currentVaultId = this.plugin.settings.vaultId;
-    const knownVaultIds = this.controller.getKnownVaultIds();
-    const otherVaultIds = knownVaultIds.filter((vaultId) => vaultId !== currentVaultId);
 
     new Setting(group)
       .setName("Include patterns")
@@ -652,44 +624,9 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    let presetTargetVaultId = otherVaultIds[0] ?? "";
-    new Setting(group)
-      .setName("Copy scope preset")
-      .setDesc(
-        otherVaultIds.length > 0
-          ? "Copy the current include/ignore rules into another known vault preset."
-          : "No other known vaults yet. Add or switch to another vault ID first.",
-      )
-      .addDropdown((dropdown) => {
-        if (otherVaultIds.length === 0) {
-          dropdown.addOption("", "No target vault");
-          dropdown.setValue("");
-          return;
-        }
-
-        for (const vaultId of otherVaultIds) {
-          dropdown.addOption(vaultId, vaultId);
-        }
-
-        dropdown.setValue(presetTargetVaultId).onChange((value) => {
-          presetTargetVaultId = value;
-        });
-      })
-      .addButton((button) => {
-        if (otherVaultIds.length === 0) {
-          button.setButtonText("Copy").setDisabled(true);
-          return;
-        }
-
-        button.setButtonText("Copy").onClick(async () => {
-          await this.controller.copyCurrentVaultScopeToVault(presetTargetVaultId);
-          new Notice(`Copied sync scope preset to ${presetTargetVaultId}`, 3000);
-        });
-      });
-
     const syncHealth = createPanel(group);
     syncHealth.createEl("div", { text: "Sync health", cls: "obsidian-sync-panel-title" });
-    createKeyValueRow(syncHealth, "Vault", currentVaultId);
+    createKeyValueRow(syncHealth, "Vault", currentVaultId || "Not connected");
     createKeyValueRow(syncHealth, "Change cursor", String(this.plugin.state.lastSeq));
     createKeyValueRow(syncHealth, "Files tracked", String(this.getTrackedFilesCount()));
     createKeyValueRow(syncHealth, "Deletes tracked", String(this.getDeletedFilesCount()));
@@ -735,6 +672,11 @@ export class SyncSettingTab extends PluginSettingTab {
 
   private renderDevicesSection(container: HTMLElement): void {
     const group = createSettingGroup(container, "Devices", "Inspect the current device registry for this vault.");
+    if (!this.plugin.settings.vaultId.trim()) {
+      createInlineStatus(group, "Devices", "Connect this folder to a vault to view registered devices.");
+      return;
+    }
+
     const section = createCollapsibleSection(
       group,
       "Registered devices",
@@ -758,6 +700,11 @@ export class SyncSettingTab extends PluginSettingTab {
 
   private renderE2eeSection(container: HTMLElement): void {
     const group = createSettingGroup(container, "E2EE", "Manage the session passphrase and fingerprint for this vault.");
+    if (!this.plugin.settings.vaultId.trim()) {
+      createInlineStatus(group, "E2EE", "Connect this folder to a vault before enabling E2EE.");
+      return;
+    }
+
     const section = createCollapsibleSection(
       group,
       "E2EE controls",
@@ -818,7 +765,7 @@ export class SyncSettingTab extends PluginSettingTab {
     vaultStatus.setText(`Vault registry: Creating ${vaultId}...`);
     try {
       const response = await this.controller.createVault(vaultId);
-      await this.controller.activateVault(response.vault.vault_id);
+      await this.controller.bindVault(response.vault.vault_id);
       this.createVaultDraft = "";
       this.remoteVaults = await this.controller.getRemoteVaults();
       this.remoteVaultsError = null;

@@ -10,7 +10,6 @@ import type { SyncSettings, SyncState } from "../types";
 const DEFAULT_SETTINGS: SyncSettings = {
   serverUrl: "http://127.0.0.1:3000",
   vaultId: "vault-a",
-  knownVaultIds: ["vault-a"],
   includePatterns: [],
   ignorePatterns: [],
   deviceId: "device-local",

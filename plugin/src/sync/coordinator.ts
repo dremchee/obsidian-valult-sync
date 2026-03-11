@@ -46,7 +46,7 @@ export class SyncCoordinator {
       this.intervalId = null;
     }
 
-    if (!this.getSettings().autoSync) {
+    if (!this.getSettings().autoSync || !this.getSettings().vaultId.trim()) {
       this.realtime.stop();
       return;
     }
@@ -72,6 +72,11 @@ export class SyncCoordinator {
   }
 
   async runManualSync(): Promise<void> {
+    if (!this.getSettings().vaultId.trim()) {
+      new Notice("Connect this folder to a vault first", 4000);
+      return;
+    }
+
     if (this.syncing) {
       new Notice("Sync already running", 3000);
       return;
@@ -92,6 +97,10 @@ export class SyncCoordinator {
   }
 
   async runBackgroundSync(): Promise<void> {
+    if (!this.getSettings().vaultId.trim()) {
+      return;
+    }
+
     if (this.syncing) {
       this.dirty = true;
       this.dirtyVersion += 1;
