@@ -154,6 +154,9 @@ export class SettingsController {
 
   private api(): SyncApi {
     const settings = this.getSettings();
+    if (!settings.authToken.trim()) {
+      throw new Error("Auth token is required");
+    }
     return new SyncApi(settings.serverUrl.replace(/\/+$/, ""), settings.authToken);
   }
 }

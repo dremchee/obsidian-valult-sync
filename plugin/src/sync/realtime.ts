@@ -7,7 +7,6 @@ interface RealtimePayload {
 
 export class RealtimeSyncClient {
   private abortController: AbortController | null = null;
-  private eventSource: EventSource | null = null;
   private reconnectTimeoutId: number | null = null;
   private generation = 0;
 
@@ -32,8 +31,6 @@ export class RealtimeSyncClient {
     this.generation += 1;
     this.abortController?.abort();
     this.abortController = null;
-    this.eventSource?.close();
-    this.eventSource = null;
     if (this.reconnectTimeoutId !== null) {
       window.clearTimeout(this.reconnectTimeoutId);
       this.reconnectTimeoutId = null;
@@ -44,11 +41,6 @@ export class RealtimeSyncClient {
     const settings = this.getSettings();
     const serverUrl = settings.serverUrl.trim().replace(/\/+$/, "");
     if (!serverUrl) {
-      return;
-    }
-
-    if (!settings.authToken.trim() && typeof EventSource !== "undefined") {
-      this.connectWithEventSource(generation, serverUrl, settings.vaultId);
       return;
     }
 
@@ -111,45 +103,6 @@ export class RealtimeSyncClient {
       console.warn("obsidian-sync: realtime stream disconnected", error);
       this.scheduleReconnect(generation, retryDelayMs);
     }
-  }
-
-  private connectWithEventSource(
-    generation: number,
-    serverUrl: string,
-    vaultId: string,
-  ): void {
-    const eventSource = new EventSource(
-      `${serverUrl}/events?vault_id=${encodeURIComponent(vaultId)}&since=${this.getState().lastSeq}`,
-    );
-    this.eventSource = eventSource;
-
-    eventSource.addEventListener("change", (event) => {
-      if (generation !== this.generation) {
-        return;
-      }
-
-      try {
-        const payload = JSON.parse((event as MessageEvent<string>).data) as Partial<RealtimePayload>;
-        if (typeof payload.latest_seq === "number") {
-          void this.onRemoteChange(payload.latest_seq);
-        }
-      } catch (error) {
-        console.warn("obsidian-sync: failed to parse realtime EventSource payload", error);
-      }
-    });
-
-    eventSource.onerror = () => {
-      if (generation !== this.generation) {
-        return;
-      }
-
-      eventSource.close();
-      if (this.eventSource === eventSource) {
-        this.eventSource = null;
-      }
-      console.warn("obsidian-sync: realtime EventSource disconnected");
-      this.scheduleReconnect(generation, 5_000);
-    };
   }
 
   private scheduleReconnect(generation: number, delayMs: number): void {

@@ -181,7 +181,7 @@ export class SyncSettingTab extends PluginSettingTab {
 
     new Setting(group)
       .setName("Auth token")
-      .setDesc("Optional bearer token expected by the sync server.")
+      .setDesc("Bearer token required by the sync server.")
       .addText((text) =>
         text
           .setPlaceholder("secret-token")

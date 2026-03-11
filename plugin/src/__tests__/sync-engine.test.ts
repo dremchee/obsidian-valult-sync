@@ -13,7 +13,7 @@ const DEFAULT_SETTINGS: SyncSettings = {
   includePatterns: [],
   ignorePatterns: [],
   deviceId: "device-local",
-  authToken: "",
+  authToken: "test-token",
   pollIntervalSecs: 2,
   autoSync: true,
 };

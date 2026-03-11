@@ -71,8 +71,9 @@ npm run build
 
 - `Server URL = http://127.0.0.1:3000`
 - `Vault ID = общий идентификатор логического vault`
+- `Auth token = bearer token, заданный на сервере через AUTH_TOKEN или AUTH_TOKENS`
 
-Если на сервере включён `AUTH_TOKEN`, в plugin должен быть указан такой же `Auth token`.
+`Auth token` обязателен. Если сервер использует `AUTH_TOKEN`, в plugin должен быть указан такой же токен.
 
 Если сервер использует `AUTH_TOKENS`, в plugin должен быть указан один из разрешённых bearer tokens.
 
@@ -131,7 +132,7 @@ Plugin:
 
 ```bash
 cd server
-cargo run
+AUTH_TOKEN=secret-token cargo run
 ```
 
 После этого plugin может подключаться к `http://127.0.0.1:3000`.

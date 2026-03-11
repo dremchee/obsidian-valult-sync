@@ -100,6 +100,10 @@ export class SyncEngine {
       throw createSyncError("invalid_settings", "Server URL is not configured");
     }
 
+    if (!settings.authToken.trim()) {
+      throw createSyncError("invalid_settings", "Auth token is not configured");
+    }
+
     if (!settings.vaultId.trim()) {
       throw createSyncError("invalid_settings", "Vault ID is not configured");
     }

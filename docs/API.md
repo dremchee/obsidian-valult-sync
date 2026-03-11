@@ -15,8 +15,9 @@
 - протокол: `HTTP/JSON`
 - кодировка содержимого файла: `base64`
 - сервер отвечает `application/json`
-- при включённом `AUTH_TOKEN` или `AUTH_TOKENS` сервер ожидает `Authorization: Bearer <token>`
+- сервер требует `Authorization: Bearer <token>`
 - `AUTH_TOKENS` может содержать несколько токенов через запятую
+- должен быть задан хотя бы один env: `AUTH_TOKEN` или `AUTH_TOKENS`
 
 ### Идентификация файла
 

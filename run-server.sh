@@ -11,4 +11,11 @@ if [[ ! -d "$SERVER_DIR" ]]; then
 fi
 
 cd "$SERVER_DIR"
+
+if [[ -z "${AUTH_TOKEN:-}" && -z "${AUTH_TOKENS:-}" ]]; then
+  echo "Set AUTH_TOKEN or AUTH_TOKENS before starting the server." >&2
+  echo "Example: AUTH_TOKEN=secret-token ./run-server.sh" >&2
+  exit 1
+fi
+
 cargo run

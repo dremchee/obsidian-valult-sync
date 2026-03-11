@@ -34,7 +34,7 @@ impl Config {
                     .map(|value| parse_auth_tokens(&value))
                     .filter(|tokens| !tokens.is_empty())
             })
-            .unwrap_or_default();
+            .context("AUTH_TOKEN or AUTH_TOKENS must be set")?;
 
         Ok(Self {
             port,

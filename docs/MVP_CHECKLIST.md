@@ -19,10 +19,9 @@
 - в обоих vault одинаковый `Server URL`
 - в обоих vault одинаковый `Vault ID`
 - в обоих vault разные `Device ID`
+- в обоих vault одинаковый `Auth token`
 - `Poll interval` выставлен в `2`
 - `Auto sync` включён
-
-Если на сервере включён `AUTH_TOKEN`, одинаковый токен должен быть указан в обоих plugin instances.
 
 ---
 
