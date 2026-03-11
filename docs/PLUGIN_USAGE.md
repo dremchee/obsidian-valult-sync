@@ -56,6 +56,8 @@ npm run build
 
 ## Настройки plugin
 
+Основной пользовательский сценарий от установки plugin до подключения vault описан в `docs/PLUGIN_UX_FLOW.md`.
+
 В настройках plugin доступны:
 
 - `Server URL`
