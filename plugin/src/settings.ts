@@ -439,7 +439,13 @@ export class SyncSettingTab extends PluginSettingTab {
       }
     }
 
-    new Setting(containerEl)
+    const advancedVaultPanel = createCollapsibleSection(
+      containerEl,
+      "Advanced vault actions",
+      "Manual vault controls for recovery and edge cases.",
+      false,
+    );
+    new Setting(advancedVaultPanel)
       .setName("Manual vault ID")
       .setDesc("Fallback for advanced cases when you need to enter a vault ID directly.")
       .addText((text) =>
