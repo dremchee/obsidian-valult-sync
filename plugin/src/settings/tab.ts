@@ -23,6 +23,7 @@ import type ObsidianSyncPlugin from "../main";
 export class SyncSettingTab extends PluginSettingTab {
   private remoteVaults: VaultItem[] | null = null;
   private createVaultDraft = "";
+  private authTokenDraft: string | null = null;
   private loadingRemoteVaults = false;
   private remoteVaultsError: string | null = null;
   private confirmForgetVaultId: string | null = null;
@@ -40,6 +41,7 @@ export class SyncSettingTab extends PluginSettingTab {
     const { containerEl } = this;
     containerEl.empty();
 
+    this.ensureDrafts();
     this.maybeLoadRemoteVaults();
     this.renderConnectionSection(containerEl);
     if (!this.isSettingsUnlocked()) {
@@ -78,6 +80,12 @@ export class SyncSettingTab extends PluginSettingTab {
         this.loadingRemoteVaults = false;
         this.display();
       });
+  }
+
+  private ensureDrafts(): void {
+    if (this.authTokenDraft === null) {
+      this.authTokenDraft = this.plugin.settings.authToken;
+    }
   }
 
   private isSettingsUnlocked(): boolean {
@@ -224,21 +232,35 @@ export class SyncSettingTab extends PluginSettingTab {
       .addText((text) =>
         text
           .setPlaceholder("secret-token")
-          .setValue(this.plugin.settings.authToken)
-          .onChange(async (value) => {
-            this.plugin.settings.authToken = value.trim();
-            this.remoteVaults = null;
-            this.remoteVaultsError = null;
-            if (
-              this.plugin.state.lastSyncError?.code === "unauthorized"
-              || this.plugin.state.lastSyncError?.code === "invalid_settings"
-            ) {
-              this.plugin.state.lastSyncError = null;
-            }
-            await this.plugin.persistData();
-            this.controller.restartAutoSync();
-            this.display();
+          .setValue(this.authTokenDraft ?? "")
+          .onChange((value) => {
+            this.authTokenDraft = value.trim();
           }),
+      )
+      .addButton((button) =>
+        button.setButtonText("Authorize").setCta().onClick(async () => {
+          this.plugin.settings.authToken = (this.authTokenDraft ?? "").trim();
+          this.remoteVaults = null;
+          this.remoteVaultsError = null;
+          if (
+            this.plugin.state.lastSyncError?.code === "unauthorized"
+            || this.plugin.state.lastSyncError?.code === "invalid_settings"
+          ) {
+            this.plugin.state.lastSyncError = null;
+          }
+          await this.plugin.persistData();
+          this.controller.restartAutoSync();
+
+          connectionStatus.setText("Connection: Checking...");
+          try {
+            const message = await this.controller.checkConnection();
+            connectionStatus.setText(`Connection: ${message}`);
+          } catch (error) {
+            connectionStatus.setText(`Connection: ${formatDeviceError(error)}`);
+          }
+
+          this.display();
+        }),
       );
     if (!unlocked) {
       this.renderConnectionLockState(authSetting.descEl);
