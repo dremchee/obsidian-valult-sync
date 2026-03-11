@@ -1,5 +1,6 @@
 # OS / editor
 .DS_Store
+.env
 
 # Local vaults used for manual testing
 vaults/

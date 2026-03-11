@@ -30,6 +30,7 @@
 ### Сервер
 
 ```bash
+cp .env.example .env
 ./run-server.sh
 ```
 

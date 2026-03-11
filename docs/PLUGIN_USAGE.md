@@ -130,6 +130,26 @@ Plugin:
 
 ## Запуск сервера
 
+Можно создать `.env` в корне проекта:
+
+```bash
+cp .env.example .env
+```
+
+И указать в нём:
+
+```bash
+AUTH_TOKEN=secret-token
+```
+
+После этого сервер можно запускать так:
+
+```bash
+./run-server.sh
+```
+
+Или без `.env`, передав токен через env прямо в команду:
+
 ```bash
 cd server
 AUTH_TOKEN=secret-token cargo run
