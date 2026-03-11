@@ -15,10 +15,13 @@ export interface StatusHeaderData {
 export function createSettingGroup(
   container: HTMLElement,
   title: string,
-  description: string,
+  _description: string,
 ): HTMLElement {
   const group = container.createDiv({ cls: "obsidian-sync-setting-group" });
   group.style.marginBottom = "24px";
+
+  const titleEl = group.createEl("h3", { text: title });
+  titleEl.style.margin = "0 0 12px";
 
   const items = group.createDiv({ cls: "obsidian-sync-setting-group-items" });
   items.style.display = "grid";
@@ -27,22 +30,6 @@ export function createSettingGroup(
   items.style.borderRadius = "14px";
   items.style.overflow = "hidden";
   items.style.background = "var(--background-secondary)";
-
-  const header = items.createDiv({ cls: "obsidian-sync-setting-group-header" });
-  header.style.display = "grid";
-  header.style.gap = "6px";
-  header.style.padding = "18px 20px 16px";
-  header.style.borderBottom = "1px solid var(--background-modifier-border)";
-
-  const titleEl = header.createEl("h3", { text: title });
-  titleEl.style.margin = "0";
-
-  const descriptionEl = header.createEl("p", {
-    text: description,
-    cls: "setting-item-description",
-  });
-  descriptionEl.style.margin = "0";
-
   return items;
 }
 
