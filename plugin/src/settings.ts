@@ -11,6 +11,7 @@ export class SyncSettingTab extends PluginSettingTab {
   private remoteVaults: VaultItem[] | null = null;
   private createVaultDraft = "";
   private loadingRemoteVaults = false;
+  private remoteVaultsError: string | null = null;
 
   constructor(
     app: App,
@@ -36,9 +37,11 @@ export class SyncSettingTab extends PluginSettingTab {
         .getRemoteVaults()
         .then((vaults) => {
           this.remoteVaults = vaults;
+          this.remoteVaultsError = null;
         })
-        .catch(() => {
-          this.remoteVaults = [];
+        .catch((error) => {
+          this.remoteVaults = null;
+          this.remoteVaultsError = formatDeviceError(error);
         })
         .finally(() => {
           this.loadingRemoteVaults = false;
@@ -195,6 +198,8 @@ export class SyncSettingTab extends PluginSettingTab {
       "Vault registry",
       this.loadingRemoteVaults
         ? "Loading..."
+        : this.remoteVaultsError
+          ? this.remoteVaultsError
         : this.remoteVaults
           ? `${this.remoteVaults.length} vault(s) loaded`
           : "Not loaded",
@@ -206,14 +211,58 @@ export class SyncSettingTab extends PluginSettingTab {
           vaultStatus.setText("Vault registry: Loading...");
           try {
             this.remoteVaults = await this.controller.getRemoteVaults();
+            this.remoteVaultsError = null;
             vaultStatus.setText(`Vault registry: ${this.remoteVaults.length} vault(s) loaded.`);
           } catch (error) {
-            vaultStatus.setText(`Vault registry: ${formatDeviceError(error)}`);
+            this.remoteVaults = null;
+            this.remoteVaultsError = formatDeviceError(error);
+            vaultStatus.setText(`Vault registry: ${this.remoteVaultsError}`);
           }
           this.display();
         },
       },
     ]);
+
+    const vaultRegistryState = createPanel(containerEl);
+    vaultRegistryState.createEl("div", { text: "Vault registry", cls: "obsidian-sync-panel-title" });
+    if (this.loadingRemoteVaults) {
+      vaultRegistryState.createEl("div", {
+        text: "Loading vaults from the server. You will be able to join an existing vault as soon as the list arrives.",
+        cls: "setting-item-description",
+      });
+    } else if (this.remoteVaultsError) {
+      vaultRegistryState.createEl("div", {
+        text: `Vault list is unavailable: ${this.remoteVaultsError}`,
+        cls: "setting-item-description",
+      });
+      vaultRegistryState.createEl("div", {
+        text: "Check server URL and auth token, then use Load vaults again. You can still create a vault if the server is reachable.",
+        cls: "setting-item-description",
+      });
+    } else if (this.remoteVaults && this.remoteVaults.length === 0) {
+      vaultRegistryState.createEl("div", {
+        text: "No vaults exist on the server yet.",
+        cls: "setting-item-description",
+      });
+      vaultRegistryState.createEl("div", {
+        text: "Create a vault below to start syncing this device.",
+        cls: "setting-item-description",
+      });
+    } else if (this.remoteVaults) {
+      vaultRegistryState.createEl("div", {
+        text: `Loaded ${this.remoteVaults.length} vault(s) from the server. Join one below or create a new vault.`,
+        cls: "setting-item-description",
+      });
+    } else {
+      vaultRegistryState.createEl("div", {
+        text: "Vault list has not been loaded yet.",
+        cls: "setting-item-description",
+      });
+      vaultRegistryState.createEl("div", {
+        text: "Use Load vaults to discover existing vaults on the server, or create a new vault below.",
+        cls: "setting-item-description",
+      });
+    }
 
     const currentVaultPanel = createPanel(containerEl);
     currentVaultPanel.createEl("div", { text: "Current vault", cls: "obsidian-sync-panel-title" });
@@ -223,7 +272,7 @@ export class SyncSettingTab extends PluginSettingTab {
       "Server registry",
       this.remoteVaults
         ? this.remoteVaults.some((vault) => vault.vault_id === currentVaultId) ? "Loaded" : "Not loaded here"
-        : this.loadingRemoteVaults ? "Loading..." : "Not loaded",
+        : this.loadingRemoteVaults ? "Loading..." : this.remoteVaultsError ? "Unavailable" : "Not loaded",
     );
     const currentVaultActions = currentVaultPanel.createDiv();
     currentVaultActions.style.display = "flex";
