@@ -29,21 +29,21 @@ export function createSettingGroup(
   items.style.display = "grid";
   items.style.gap = "0";
   items.style.border = "1px solid var(--background-modifier-border)";
-  items.style.borderRadius = "12px";
+  items.style.borderRadius = "14px";
   items.style.overflow = "hidden";
-  items.style.background = "var(--background-primary)";
+  items.style.background = "var(--background-secondary)";
   return items;
 }
 
 export function createPanel(container: HTMLElement): HTMLElement {
   const panel = container.createDiv();
-  panel.style.border = "1px solid var(--background-modifier-border)";
-  panel.style.borderRadius = "10px";
-  panel.style.padding = "14px";
-  panel.style.background = "var(--background-secondary)";
+  if (container.childElementCount > 1) {
+    panel.style.borderTop = "1px solid var(--background-modifier-border)";
+  }
+  panel.style.padding = "16px 20px";
+  panel.style.background = "transparent";
   panel.style.display = "grid";
   panel.style.gap = "10px";
-  panel.style.marginBottom = "16px";
   return panel;
 }
 
@@ -55,11 +55,13 @@ export function createCollapsibleSection(
 ): HTMLElement {
   const details = container.createEl("details");
   details.open = open;
-  details.style.marginBottom = "16px";
+  if (container.childElementCount > 1) {
+    details.style.borderTop = "1px solid var(--background-modifier-border)";
+  }
+  details.style.padding = "16px 20px";
 
   const summary = details.createEl("summary");
   summary.style.cursor = "pointer";
-  summary.style.marginBottom = "10px";
   summary.style.fontWeight = "600";
   summary.createSpan({ text: title });
 
@@ -78,8 +80,7 @@ export function createInlineStatus(container: HTMLElement, label: string, value:
     text: `${label}: ${value}`,
     cls: "setting-item-description",
   });
-  statusEl.style.marginTop = "-8px";
-  statusEl.style.marginBottom = "12px";
+  statusEl.style.padding = "0 20px 16px";
   return statusEl;
 }
 
@@ -95,8 +96,7 @@ export function renderQuickActions(
   row.style.display = "flex";
   row.style.flexWrap = "wrap";
   row.style.gap = "8px";
-  row.style.marginTop = "-2px";
-  row.style.marginBottom = "14px";
+  row.style.padding = "0 20px 16px";
 
   for (const action of actions) {
     const button = row.createEl("button", { text: action.label });
