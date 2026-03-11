@@ -38,10 +38,10 @@ export function createPanel(container: HTMLElement): HTMLElement {
   if (container.childElementCount > 1) {
     panel.style.borderTop = "1px solid var(--background-modifier-border)";
   }
-  panel.style.padding = "16px 20px";
+  panel.style.padding = "18px 20px";
   panel.style.background = "transparent";
   panel.style.display = "grid";
-  panel.style.gap = "10px";
+  panel.style.gap = "12px";
   return panel;
 }
 
@@ -56,19 +56,21 @@ export function createCollapsibleSection(
   if (container.childElementCount > 1) {
     details.style.borderTop = "1px solid var(--background-modifier-border)";
   }
-  details.style.padding = "16px 20px";
+  details.style.padding = "18px 20px";
 
   const summary = details.createEl("summary");
   summary.style.cursor = "pointer";
   summary.style.fontWeight = "600";
+  summary.style.lineHeight = "1.4";
   summary.createSpan({ text: title });
 
   const help = details.createEl("div", {
     text: summaryText,
     cls: "setting-item-description",
   });
-  help.style.marginTop = "8px";
-  help.style.marginBottom = "12px";
+  help.style.marginTop = "6px";
+  help.style.marginBottom = "14px";
+  help.style.lineHeight = "1.4";
 
   return details;
 }
@@ -81,7 +83,9 @@ export function createInlineStatus(container: HTMLElement, label: string, value:
   if (container.childElementCount > 1) {
     statusEl.style.borderTop = "1px solid var(--background-modifier-border)";
   }
-  statusEl.style.padding = "14px 20px";
+  statusEl.style.padding = "18px 20px";
+  statusEl.style.lineHeight = "1.4";
+  statusEl.style.color = "var(--text-muted)";
   return statusEl;
 }
 
@@ -99,8 +103,9 @@ export function renderQuickActions(
   }
   row.style.display = "flex";
   row.style.flexWrap = "wrap";
+  row.style.alignItems = "center";
   row.style.gap = "8px";
-  row.style.padding = "14px 20px";
+  row.style.padding = "18px 20px";
 
   for (const action of actions) {
     const button = row.createEl("button", { text: action.label });
