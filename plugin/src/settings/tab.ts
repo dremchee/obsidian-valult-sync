@@ -179,6 +179,7 @@ export class SyncSettingTab extends PluginSettingTab {
   private renderConnectionSection(container: HTMLElement): void {
     const group = createSettingGroup(container, "Connection", "Server, auth, background sync and device identity.");
     let connectionStatus!: HTMLElement;
+    const unlocked = this.isSettingsUnlocked();
 
     new Setting(group)
       .setName("Server URL")
@@ -212,6 +213,10 @@ export class SyncSettingTab extends PluginSettingTab {
         }),
       );
     connectionStatus = createInlineStatus(group, "Connection", "Not checked");
+
+    if (!unlocked) {
+      return;
+    }
 
     new Setting(group)
       .setName("Device ID")
