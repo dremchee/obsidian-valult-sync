@@ -255,9 +255,9 @@ export class SyncSettingTab extends PluginSettingTab {
     ]);
 
     this.renderVaultRegistryState(group, currentVaultId, vaultStatus);
-    this.renderCurrentVaultPanel(group, currentVaultId, vaultStatus);
-    this.renderCreateVaultControl(group, vaultStatus);
-    this.renderJoinServerVaultControl(group, currentVaultId, vaultStatus);
+    const flowPanel = this.renderCurrentVaultPanel(group, currentVaultId, vaultStatus);
+    this.renderCreateVaultControl(flowPanel, vaultStatus);
+    this.renderJoinServerVaultControl(flowPanel, currentVaultId, vaultStatus);
     this.renderRemoteVaultsPanel(group, currentVaultId, vaultStatus);
     this.renderLocalVaultsPanel(group, currentVaultId, knownVaultIds);
     this.renderAdvancedVaultPanel(group, currentVaultId);
@@ -350,19 +350,29 @@ export class SyncSettingTab extends PluginSettingTab {
     container: HTMLElement,
     currentVaultId: string,
     vaultStatus: HTMLElement,
-  ): void {
+  ): HTMLElement {
     const panel = createPanel(container);
-    panel.createEl("div", { text: "Current vault", cls: "obsidian-sync-panel-title" });
-    createKeyValueRow(panel, "Active vault", currentVaultId);
+    panel.createEl("div", { text: "Vault flow", cls: "obsidian-sync-panel-title" });
+
+    const currentVaultBlock = panel.createDiv();
+    currentVaultBlock.style.display = "grid";
+    currentVaultBlock.style.gap = "8px";
+    currentVaultBlock.style.paddingBottom = "10px";
+    currentVaultBlock.style.borderBottom = "1px solid var(--background-modifier-border)";
+    currentVaultBlock.createEl("div", {
+      text: "Current vault",
+      cls: "setting-item-description",
+    });
+    createKeyValueRow(currentVaultBlock, "Active vault", currentVaultId);
     createKeyValueRow(
-      panel,
+      currentVaultBlock,
       "Server registry",
       this.remoteVaults
         ? this.remoteVaults.some((vault) => vault.vault_id === currentVaultId) ? "Loaded" : "Not loaded here"
         : this.loadingRemoteVaults ? "Loading..." : this.remoteVaultsError ? "Unavailable" : "Not loaded",
     );
 
-    const actions = panel.createDiv();
+    const actions = currentVaultBlock.createDiv();
     actions.style.display = "flex";
     actions.style.flexWrap = "wrap";
     actions.style.gap = "8px";
@@ -406,6 +416,8 @@ export class SyncSettingTab extends PluginSettingTab {
       vaultStatus.setText(`Vault registry: Removed local state for ${currentVaultId}.`);
       this.display();
     });
+
+    return panel;
   }
 
   private renderCreateVaultControl(container: HTMLElement, vaultStatus: HTMLElement): void {
