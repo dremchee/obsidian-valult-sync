@@ -7,6 +7,7 @@ import { SyncSettingTab } from "./settings/tab";
 import { PluginStateStore } from "./state/store";
 import { SyncCoordinator } from "./sync/coordinator";
 import { SyncEngine } from "./sync/engine";
+import { FileHistoryModal } from "./ui/file-history-modal";
 import { PluginStatusBar } from "./ui/status-bar";
 import type {
   LegacyPluginDataShape,
@@ -98,6 +99,42 @@ export default class ObsidianSyncPlugin extends Plugin {
       name: "Sync now",
       callback: async () => {
         await this.coordinator.runManualSync();
+      },
+    });
+
+    this.addCommand({
+      id: "show-active-file-server-history",
+      name: "Show active file server history",
+      checkCallback: (checking) => {
+        const activeFile = this.app.workspace.getActiveFile();
+        const trackedState = activeFile ? this.state.files[activeFile.path] : undefined;
+        const available =
+          activeFile instanceof TFile &&
+          !trackedState?.deleted &&
+          typeof trackedState?.version === "number";
+        if (checking) {
+          return available;
+        }
+
+        if (!available || !activeFile || !trackedState) {
+          new Notice("The active file is not tracked by sync yet.", 4000);
+          return false;
+        }
+
+        new FileHistoryModal(
+          this.app,
+          activeFile.path,
+          trackedState.version,
+          async () => (await this.settingsController.getFileHistory(activeFile.path)).versions,
+          async (targetVersion) => {
+            await this.restoreActiveFileToServerVersion(
+              activeFile,
+              trackedState.version,
+              targetVersion,
+            );
+          },
+        ).open();
+        return true;
       },
     });
 
@@ -287,26 +324,38 @@ export default class ObsidianSyncPlugin extends Plugin {
         return;
       }
 
-      const response = await this.settingsController.restoreFile({
-        vault_id: this.settings.vaultId,
-        device_id: this.settings.deviceId,
-        path: activeFile.path,
-        target_version: previousVersion.version,
-        base_version: currentVersion,
-      });
-
-      if (!response.ok) {
-        new Notice("Restore conflicted with a newer server version. Run sync and try again.", 5000);
-        return;
-      }
-
-      this.coordinator.markDirty();
-      await this.coordinator.runManualSync();
-      new Notice(`Restored ${activeFile.path} from server version ${previousVersion.version}.`, 5000);
+      await this.restoreActiveFileToServerVersion(
+        activeFile,
+        currentVersion,
+        previousVersion.version,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       new Notice(`Restore failed: ${message}`, 5000);
     }
+  }
+
+  private async restoreActiveFileToServerVersion(
+    activeFile: TFile,
+    currentVersion: number,
+    targetVersion: number,
+  ): Promise<void> {
+    const response = await this.settingsController.restoreFile({
+      vault_id: this.settings.vaultId,
+      device_id: this.settings.deviceId,
+      path: activeFile.path,
+      target_version: targetVersion,
+      base_version: currentVersion,
+    });
+
+    if (!response.ok) {
+      new Notice("Restore conflicted with a newer server version. Run sync and try again.", 5000);
+      return;
+    }
+
+    this.coordinator.markDirty();
+    await this.coordinator.runManualSync();
+    new Notice(`Restored ${activeFile.path} from server version ${targetVersion}.`, 5000);
   }
 
 }
