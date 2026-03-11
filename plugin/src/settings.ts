@@ -10,11 +10,11 @@ import {
   createInlineStatus,
   createKeyValueRow,
   createPanel,
+  createSettingGroup,
   formatDeviceError,
   formatLastSyncAt,
   formatTimestamp,
   renderQuickActions,
-  renderSectionHeader,
   renderStatusHeader,
 } from "./settings-ui";
 import type { VaultItem } from "./types";
@@ -72,12 +72,12 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private renderOverviewSection(container: HTMLElement): void {
+    const group = createSettingGroup(container, "Overview", "Current vault status and quick health summary.");
     const currentVaultId = this.plugin.settings.vaultId;
     const trackedFilesCount = this.getTrackedFilesCount();
     const deletedFilesCount = this.getDeletedFilesCount();
 
-    renderSectionHeader(container, "Overview", "Current vault status and quick health summary.");
-    renderStatusHeader(container, {
+    renderStatusHeader(group, {
       vaultId: currentVaultId,
       serverUrl: this.plugin.settings.serverUrl,
       trackedFilesCount,
@@ -88,8 +88,8 @@ export class SyncSettingTab extends PluginSettingTab {
       hasSessionPassphrase: this.controller.getE2eePassphrase().trim().length > 0,
     });
 
-    const quickActionsStatus = createInlineStatus(container, "Quick actions", "Ready");
-    renderQuickActions(container, [
+    const quickActionsStatus = createInlineStatus(group, "Quick actions", "Ready");
+    renderQuickActions(group, [
       {
         label: "Sync now",
         cta: true,
@@ -133,9 +133,9 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private renderConnectionSection(container: HTMLElement): void {
-    renderSectionHeader(container, "Connection", "Server, auth, background sync and device identity.");
+    const group = createSettingGroup(container, "Connection", "Server, auth, background sync and device identity.");
 
-    new Setting(container)
+    new Setting(group)
       .setName("Server URL")
       .setDesc("Base URL of the Rust sync server.")
       .addText((text) =>
@@ -151,8 +151,8 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    const connectionStatus = createInlineStatus(container, "Connection", "Not checked");
-    new Setting(container)
+    const connectionStatus = createInlineStatus(group, "Connection", "Not checked");
+    new Setting(group)
       .setName("Connection check")
       .setDesc("Verify the current server URL, auth token, and vault ID against the server.")
       .addButton((button) =>
@@ -168,7 +168,7 @@ export class SyncSettingTab extends PluginSettingTab {
         }),
       );
 
-    new Setting(container)
+    new Setting(group)
       .setName("Device ID")
       .setDesc("Stable identifier for this Obsidian installation.")
       .addText((text) =>
@@ -181,7 +181,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(container)
+    new Setting(group)
       .setName("Auth token")
       .setDesc("Optional bearer token expected by the sync server.")
       .addText((text) =>
@@ -197,7 +197,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(container)
+    new Setting(group)
       .setName("Poll interval")
       .setDesc("How often the plugin polls the server for remote changes.")
       .addText((text) =>
@@ -216,7 +216,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(container)
+    new Setting(group)
       .setName("Auto sync")
       .setDesc("Run the sync loop in the background.")
       .addToggle((toggle) =>
@@ -229,13 +229,12 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private renderVaultSection(container: HTMLElement): void {
+    const group = createSettingGroup(container, "Vault", "Choose which logical vault this client is syncing.");
     const currentVaultId = this.plugin.settings.vaultId;
     const knownVaultIds = this.controller.getKnownVaultIds();
 
-    renderSectionHeader(container, "Vault", "Choose which logical vault this client is syncing.");
-
     const vaultStatus = createInlineStatus(
-      container,
+      group,
       "Vault registry",
       this.loadingRemoteVaults
         ? "Loading..."
@@ -246,7 +245,7 @@ export class SyncSettingTab extends PluginSettingTab {
             : "Not loaded",
     );
 
-    renderQuickActions(container, [
+    renderQuickActions(group, [
       {
         label: "Load vaults",
         onClick: async () => {
@@ -255,13 +254,13 @@ export class SyncSettingTab extends PluginSettingTab {
       },
     ]);
 
-    this.renderVaultRegistryState(container, currentVaultId, vaultStatus);
-    this.renderCurrentVaultPanel(container, currentVaultId, vaultStatus);
-    this.renderCreateVaultControl(container, vaultStatus);
-    this.renderJoinServerVaultControl(container, currentVaultId, vaultStatus);
-    this.renderRemoteVaultsPanel(container, currentVaultId, vaultStatus);
-    this.renderLocalVaultsPanel(container, currentVaultId, knownVaultIds);
-    this.renderAdvancedVaultPanel(container, currentVaultId);
+    this.renderVaultRegistryState(group, currentVaultId, vaultStatus);
+    this.renderCurrentVaultPanel(group, currentVaultId, vaultStatus);
+    this.renderCreateVaultControl(group, vaultStatus);
+    this.renderJoinServerVaultControl(group, currentVaultId, vaultStatus);
+    this.renderRemoteVaultsPanel(group, currentVaultId, vaultStatus);
+    this.renderLocalVaultsPanel(group, currentVaultId, knownVaultIds);
+    this.renderAdvancedVaultPanel(group, currentVaultId);
   }
 
   private renderVaultRegistryState(
@@ -594,13 +593,12 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private renderSyncScopeSection(container: HTMLElement): void {
+    const group = createSettingGroup(container, "Sync Scope", "Control which files are eligible for sync in this vault.");
     const currentVaultId = this.plugin.settings.vaultId;
     const knownVaultIds = this.controller.getKnownVaultIds();
     const otherVaultIds = knownVaultIds.filter((vaultId) => vaultId !== currentVaultId);
 
-    renderSectionHeader(container, "Sync Scope", "Control which files are eligible for sync in this vault.");
-
-    new Setting(container)
+    new Setting(group)
       .setName("Include patterns")
       .setDesc("Optional allow-list. If set, only matching paths are synced. Same pattern syntax as ignore rules.")
       .addTextArea((text) =>
@@ -617,7 +615,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(container)
+    new Setting(group)
       .setName("Ignore patterns")
       .setDesc("One pattern per line. Supports '*', '?', and folder prefixes ending with '/'.")
       .addTextArea((text) =>
@@ -635,7 +633,7 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     let presetTargetVaultId = otherVaultIds[0] ?? "";
-    new Setting(container)
+    new Setting(group)
       .setName("Copy scope preset")
       .setDesc(
         otherVaultIds.length > 0
@@ -669,7 +667,7 @@ export class SyncSettingTab extends PluginSettingTab {
         });
       });
 
-    const syncHealth = createPanel(container);
+    const syncHealth = createPanel(group);
     syncHealth.createEl("div", { text: "Sync health", cls: "obsidian-sync-panel-title" });
     createKeyValueRow(syncHealth, "Vault", currentVaultId);
     createKeyValueRow(syncHealth, "Change cursor", String(this.plugin.state.lastSeq));
@@ -679,7 +677,7 @@ export class SyncSettingTab extends PluginSettingTab {
     createKeyValueRow(syncHealth, "Last issue", formatSyncErrorState(this.plugin.state.lastSyncError));
 
     const currentScope = createCollapsibleSection(
-      container,
+      group,
       "Current sync scope",
       "Preview which files are included or skipped by the current rules.",
       false,
@@ -716,9 +714,9 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private renderDevicesSection(container: HTMLElement): void {
-    renderSectionHeader(container, "Devices", "Inspect the current device registry for this vault.");
+    const group = createSettingGroup(container, "Devices", "Inspect the current device registry for this vault.");
     const section = createCollapsibleSection(
-      container,
+      group,
       "Registered devices",
       "Open to inspect known devices for this vault.",
       false,
@@ -739,9 +737,9 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private renderE2eeSection(container: HTMLElement): void {
-    renderSectionHeader(container, "E2EE", "Manage the session passphrase and fingerprint for this vault.");
+    const group = createSettingGroup(container, "E2EE", "Manage the session passphrase and fingerprint for this vault.");
     const section = createCollapsibleSection(
-      container,
+      group,
       "E2EE controls",
       "Open to manage the session passphrase and this vault fingerprint.",
       false,

@@ -12,9 +12,27 @@ export interface StatusHeaderData {
   hasSessionPassphrase: boolean;
 }
 
-export function renderSectionHeader(container: HTMLElement, title: string, description: string): void {
-  container.createEl("h3", { text: title });
-  container.createEl("p", { text: description, cls: "setting-item-description" });
+export function createSettingGroup(
+  container: HTMLElement,
+  title: string,
+  description: string,
+): HTMLElement {
+  const group = container.createDiv({ cls: "obsidian-sync-setting-group" });
+  group.style.display = "grid";
+  group.style.gap = "12px";
+  group.style.marginBottom = "24px";
+
+  group.createEl("h3", { text: title });
+  group.createEl("p", { text: description, cls: "setting-item-description" });
+
+  const items = group.createDiv({ cls: "obsidian-sync-setting-group-items" });
+  items.style.display = "grid";
+  items.style.gap = "0";
+  items.style.border = "1px solid var(--background-modifier-border)";
+  items.style.borderRadius = "12px";
+  items.style.overflow = "hidden";
+  items.style.background = "var(--background-primary)";
+  return items;
 }
 
 export function createPanel(container: HTMLElement): HTMLElement {
