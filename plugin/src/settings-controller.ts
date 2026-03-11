@@ -149,6 +149,10 @@ export class SettingsController {
     return this.coordinator.runManualSync();
   }
 
+  hasPendingSyncWork(): boolean {
+    return this.coordinator.hasPendingWork();
+  }
+
   restartAutoSync(): void {
     this.coordinator.restartAutoSync();
   }
