@@ -108,13 +108,19 @@ export class SettingsController {
 
   async checkConnection(): Promise<string> {
     const settings = this.getSettings();
+    await this.baseApi().health();
+
+    if (!settings.authToken.trim()) {
+      return "Server is reachable. Enter an Auth token to continue.";
+    }
+
     if (!settings.vaultId.trim()) {
       const response = await this.api().getVaults();
-      return `Connected. ${response.vaults.length} vault(s) available on the server.`;
+      return `Server is reachable. Auth ok. ${response.vaults.length} vault(s) available on the server.`;
     }
 
     const response = await this.api().getDevices(settings.vaultId);
-    return `Connected to ${settings.vaultId}. ${response.devices.length} device(s) registered.`;
+    return `Server is reachable. Connected to ${settings.vaultId}. ${response.devices.length} device(s) registered.`;
   }
 
   async getRemoteVaults(): Promise<VaultItem[]> {
@@ -159,5 +165,9 @@ export class SettingsController {
       throw createSyncError("invalid_settings", "Auth token is required");
     }
     return new SyncApi(settings.serverUrl.replace(/\/+$/, ""), settings.authToken);
+  }
+
+  private baseApi(): SyncApi {
+    return new SyncApi(this.getSettings().serverUrl.replace(/\/+$/, ""), "");
   }
 }
