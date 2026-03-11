@@ -34,7 +34,7 @@ export function createSettingGroup(
 }
 
 export function createPanel(container: HTMLElement): HTMLElement {
-  const panel = container.createDiv();
+  const panel = container.createDiv({ cls: "setting-item" });
   if (container.childElementCount > 1) {
     panel.style.borderTop = "1px solid var(--background-modifier-border)";
   }
@@ -64,7 +64,7 @@ export function createCollapsibleSection(
   summaryText: string,
   open: boolean,
 ): HTMLElement {
-  const details = container.createEl("details");
+  const details = container.createEl("details", { cls: "setting-item" });
   details.open = open;
   if (container.childElementCount > 1) {
     details.style.borderTop = "1px solid var(--background-modifier-border)";
@@ -89,14 +89,15 @@ export function createCollapsibleSection(
 }
 
 export function createInlineStatus(container: HTMLElement, label: string, value: string): HTMLElement {
-  const statusEl = container.createDiv({
+  const row = container.createDiv({ cls: "setting-item" });
+  const statusEl = row.createDiv({
     text: `${label}: ${value}`,
     cls: "setting-item-description",
   });
   if (container.childElementCount > 1) {
-    statusEl.style.borderTop = "1px solid var(--background-modifier-border)";
+    row.style.borderTop = "1px solid var(--background-modifier-border)";
   }
-  statusEl.style.padding = "18px 20px";
+  row.style.padding = "18px 20px";
   statusEl.style.lineHeight = "1.4";
   statusEl.style.color = "var(--text-muted)";
   return statusEl;
@@ -110,7 +111,7 @@ export function renderQuickActions(
     cta?: boolean;
   }>,
 ): void {
-  const row = container.createDiv();
+  const row = container.createDiv({ cls: "setting-item" });
   if (container.childElementCount > 1) {
     row.style.borderTop = "1px solid var(--background-modifier-border)";
   }

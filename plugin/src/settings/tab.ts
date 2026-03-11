@@ -194,7 +194,7 @@ export class SyncSettingTab extends PluginSettingTab {
     let connectionStatus!: HTMLElement;
     const unlocked = this.isSettingsUnlocked();
 
-    new Setting(group)
+    const serverSetting = new Setting(group)
       .setName("Server URL")
       .setDesc("Base URL of the Rust sync server.")
       .addText((text) =>
@@ -225,7 +225,13 @@ export class SyncSettingTab extends PluginSettingTab {
           }
         }),
       );
-    connectionStatus = createInlineStatus(group, "Connection", "Not checked");
+    connectionStatus = serverSetting.descEl.createDiv({
+      text: "Connection: Not checked",
+      cls: "setting-item-description",
+    });
+    connectionStatus.style.marginTop = "8px";
+    connectionStatus.style.lineHeight = "1.4";
+    connectionStatus.style.color = "var(--text-muted)";
 
     new Setting(group)
       .setName("Auth token")
