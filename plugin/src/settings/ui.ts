@@ -17,13 +17,19 @@ export function createSettingGroup(
   title: string,
   _description: string,
 ): HTMLElement {
-  const group = container.createDiv();
+  const group = container.createDiv({ cls: "setting-group" });
   group.style.marginBottom = "24px";
 
-  const titleEl = group.createEl("h3", { text: title });
-  titleEl.style.margin = "0 0 12px";
+  const heading = group.createDiv({ cls: "setting-item setting-item-heading" });
+  heading.style.padding = "0 0 12px";
+  heading.style.background = "transparent";
+  heading.style.border = "none";
+  heading.style.boxShadow = "none";
 
-  const items = group.createDiv();
+  const titleEl = heading.createEl("h3", { text: title });
+  titleEl.style.margin = "0";
+
+  const items = group.createDiv({ cls: "setting-items" });
   items.style.display = "grid";
   items.style.gap = "0";
   items.style.border = "1px solid var(--background-modifier-border)";

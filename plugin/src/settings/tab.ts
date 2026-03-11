@@ -178,11 +178,11 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private renderConnectionSection(container: HTMLElement): void {
-    const section = container.createDiv();
-    section.style.marginBottom = "24px";
-
-    const title = section.createEl("h3", { text: "Connection" });
-    title.style.margin = "0 0 12px";
+    const section = createSettingGroup(
+      container,
+      "Connection",
+      "Server, auth, background sync and device identity.",
+    );
 
     let connectionStatus!: HTMLElement;
     const unlocked = this.isSettingsUnlocked();
