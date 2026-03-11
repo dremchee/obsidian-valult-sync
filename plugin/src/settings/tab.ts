@@ -45,7 +45,6 @@ export class SyncSettingTab extends PluginSettingTab {
     this.maybeLoadRemoteVaults();
     this.renderConnectionSection(containerEl);
     if (!this.isSettingsUnlocked()) {
-      this.renderAuthGateSection(containerEl);
       return;
     }
 
@@ -95,9 +94,8 @@ export class SyncSettingTab extends PluginSettingTab {
     return this.plugin.state.lastSyncError?.code !== "unauthorized";
   }
 
-  private renderAuthGateSection(container: HTMLElement): void {
-    const group = createSettingGroup(container, "Authorization", "");
-    const panel = createCalloutPanel(group, this.plugin.settings.authToken.trim() ? "error" : "warn");
+  private renderConnectionLockState(container: HTMLElement): void {
+    const panel = createCalloutPanel(container, this.plugin.settings.authToken.trim() ? "error" : "warn");
     const topRow = panel.createDiv();
     topRow.style.display = "flex";
     topRow.style.justifyContent = "space-between";
@@ -257,6 +255,7 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     if (!unlocked) {
+      this.renderConnectionLockState(group);
       return;
     }
 
