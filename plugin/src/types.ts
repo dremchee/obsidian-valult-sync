@@ -72,6 +72,14 @@ export interface MutationResponse {
   server_version?: number;
 }
 
+export interface RestoreFileRequest {
+  vault_id: string;
+  device_id: string;
+  path: string;
+  target_version: number;
+  base_version: number;
+}
+
 export interface FileResponse {
   path: string;
   hash: string;
@@ -113,6 +121,20 @@ export interface VaultItem {
 
 export interface VaultsResponse {
   vaults: VaultItem[];
+}
+
+export interface FileVersionItem {
+  version: number;
+  hash: string;
+  payload_hash: string;
+  content_format: ContentFormat;
+  deleted: boolean;
+  created_at: string;
+}
+
+export interface FileHistoryResponse {
+  path: string;
+  versions: FileVersionItem[];
 }
 
 export interface CreateVaultResponse {

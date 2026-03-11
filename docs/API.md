@@ -375,6 +375,100 @@ vault_id=default
 
 ---
 
+## GET /history
+
+### Назначение
+
+Вернуть историю версий для одного файла внутри `vault_id`.
+
+### Query parameters
+
+```text
+vault_id=default&path=notes/test.md
+```
+
+### Успешный response
+
+```json
+{
+  "path": "notes/test.md",
+  "versions": [
+    {
+      "version": 5,
+      "hash": "f2d2b0e86e...",
+      "payload_hash": "f2d2b0e86e...",
+      "content_format": "plain",
+      "deleted": false,
+      "created_at": "2026-03-11T10:00:00Z"
+    },
+    {
+      "version": 4,
+      "hash": "a8c3...",
+      "payload_hash": "a8c3...",
+      "content_format": "plain",
+      "deleted": true,
+      "created_at": "2026-03-11T09:58:00Z"
+    }
+  ]
+}
+```
+
+Важно:
+
+- список отсортирован по `version DESC`
+- restore из истории создаёт новую текущую версию файла, а не “откатывает счётчик версии назад”
+
+---
+
+## POST /restore
+
+### Назначение
+
+Восстановить содержимое файла из одной из исторических версий и создать новую текущую версию.
+
+### Request
+
+```json
+{
+  "vault_id": "default",
+  "device_id": "device_local_desktop",
+  "path": "notes/test.md",
+  "target_version": 4,
+  "base_version": 7
+}
+```
+
+### Поля
+
+- `vault_id: string`
+- `device_id: string`
+- `path: string`
+- `target_version: integer`
+- `base_version: integer`
+
+`base_version` проверяется так же, как в обычном `upload/delete`, чтобы restore не затирал более новую серверную версию.
+
+### Успешный response
+
+```json
+{
+  "ok": true,
+  "version": 8
+}
+```
+
+### Conflict response
+
+```json
+{
+  "ok": false,
+  "conflict": true,
+  "server_version": 9
+}
+```
+
+---
+
 ## POST /vaults
 
 ### Назначение

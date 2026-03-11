@@ -4,5 +4,7 @@ pub mod devices;
 pub mod events;
 pub mod file;
 pub mod health;
+pub mod history;
+pub mod restore;
 pub mod upload;
 pub mod vaults;

@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import { Notice, Plugin, TFile } from "obsidian";
 
 import { SyncApi } from "./api";
 import { E2eeState } from "./e2ee/state";
@@ -98,6 +98,31 @@ export default class ObsidianSyncPlugin extends Plugin {
       name: "Sync now",
       callback: async () => {
         await this.coordinator.runManualSync();
+      },
+    });
+
+    this.addCommand({
+      id: "restore-active-file-to-previous-server-version",
+      name: "Restore active file to previous server version",
+      checkCallback: (checking) => {
+        const activeFile = this.app.workspace.getActiveFile();
+        const trackedState = activeFile ? this.state.files[activeFile.path] : undefined;
+        const available =
+          activeFile instanceof TFile &&
+          !trackedState?.deleted &&
+          typeof trackedState?.version === "number" &&
+          trackedState.version > 1;
+        if (checking) {
+          return available;
+        }
+
+        if (!available || !activeFile) {
+          new Notice("No previous synced server version is available for the active file.", 4000);
+          return false;
+        }
+
+        void this.restoreActiveFileToPreviousServerVersion(activeFile, trackedState.version);
+        return true;
       },
     });
 
@@ -245,6 +270,43 @@ export default class ObsidianSyncPlugin extends Plugin {
     };
     appWithSettings.setting?.open();
     appWithSettings.setting?.openTabById?.(this.manifest.id);
+  }
+
+  private async restoreActiveFileToPreviousServerVersion(
+    activeFile: TFile,
+    currentVersion: number,
+  ): Promise<void> {
+    try {
+      const history = await this.settingsController.getFileHistory(activeFile.path);
+      const previousVersion = history.versions.find(
+        (version) => version.version < currentVersion,
+      );
+
+      if (!previousVersion) {
+        new Notice("No previous server version is available for this file.", 4000);
+        return;
+      }
+
+      const response = await this.settingsController.restoreFile({
+        vault_id: this.settings.vaultId,
+        device_id: this.settings.deviceId,
+        path: activeFile.path,
+        target_version: previousVersion.version,
+        base_version: currentVersion,
+      });
+
+      if (!response.ok) {
+        new Notice("Restore conflicted with a newer server version. Run sync and try again.", 5000);
+        return;
+      }
+
+      this.coordinator.markDirty();
+      await this.coordinator.runManualSync();
+      new Notice(`Restored ${activeFile.path} from server version ${previousVersion.version}.`, 5000);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      new Notice(`Restore failed: ${message}`, 5000);
+    }
   }
 
 }

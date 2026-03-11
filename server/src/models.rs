@@ -33,3 +33,15 @@ pub struct VaultRecord {
     pub updated_at: String,
     pub device_count: i64,
 }
+
+#[derive(Debug, Clone)]
+pub struct FileVersionRecord {
+    pub vault_id: String,
+    pub path: String,
+    pub version: i64,
+    pub hash: String,
+    pub payload_hash: String,
+    pub content_format: String,
+    pub deleted: bool,
+    pub created_at: String,
+}

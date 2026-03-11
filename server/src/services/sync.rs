@@ -6,11 +6,12 @@ use sqlx::{Row, SqlitePool};
 use crate::{
     dto::{
         ChangeItem, ChangesResponse, ContentFormat, CreateVaultRequest, CreateVaultResponse,
-        DeleteRequest, DeviceItem, DevicesResponse, FileResponse, MutationResponse, UploadRequest,
-        VaultItem, VaultsResponse,
+        DeleteRequest, DeviceItem, DevicesResponse, FileHistoryResponse, FileResponse,
+        FileVersionItem, MutationResponse, RestoreFileRequest, UploadRequest, VaultItem,
+        VaultsResponse,
     },
     error::AppError,
-    models::{ChangeRecord, DeviceRecord, FileRecord, VaultRecord},
+    models::{ChangeRecord, DeviceRecord, FileRecord, FileVersionRecord, VaultRecord},
     state::AppState,
     storage,
 };
@@ -48,6 +49,19 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
         .map_err(AppError::internal)?;
 
     let new_version = current_version + 1;
+    store_file_version(
+        state,
+        &vault_id,
+        &safe_path,
+        new_version,
+        &request.hash,
+        &request.payload_hash,
+        request.content_format,
+        false,
+        &now,
+        Some(&data),
+    )
+    .await?;
 
     sqlx::query(
         r#"
@@ -127,6 +141,19 @@ pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<Mutation
     storage::delete_file(state.storage_root(), &vault_id, &safe_path)
         .await
         .map_err(AppError::internal)?;
+    store_file_version(
+        state,
+        &vault_id,
+        &safe_path,
+        new_version,
+        "",
+        "",
+        ContentFormat::Plain,
+        true,
+        &now,
+        None,
+    )
+    .await?;
 
     sqlx::query(
         r#"
@@ -159,6 +186,178 @@ pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<Mutation
     .bind(&safe_path)
     .bind(new_version)
     .bind(now)
+    .execute(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+    state.notify_vault_event(&vault_id, change_result.last_insert_rowid());
+
+    Ok(MutationResponse {
+        ok: true,
+        version: Some(new_version),
+        conflict: None,
+        server_version: None,
+    })
+}
+
+pub async fn get_file_history(
+    state: &AppState,
+    vault_id: String,
+    path: String,
+) -> Result<FileHistoryResponse, AppError> {
+    let vault_id = storage::validate_vault_id(&vault_id)?;
+    let safe_path = storage::validate_relative_path(&path)?;
+    let rows = sqlx::query(
+        r#"
+        SELECT vault_id, path, version, hash, payload_hash, content_format, deleted, created_at
+        FROM file_versions
+        WHERE vault_id = ?1 AND path = ?2
+        ORDER BY version DESC
+        "#,
+    )
+    .bind(&vault_id)
+    .bind(&safe_path)
+    .fetch_all(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+
+    let versions = rows
+        .into_iter()
+        .map(|row| FileVersionRecord {
+            vault_id: row.get("vault_id"),
+            path: row.get("path"),
+            version: row.get("version"),
+            hash: row.get("hash"),
+            payload_hash: row.get("payload_hash"),
+            content_format: row.get("content_format"),
+            deleted: row.get::<i64, _>("deleted") != 0,
+            created_at: row.get("created_at"),
+        })
+        .map(|record| FileVersionItem {
+            version: record.version,
+            hash: record.hash,
+            payload_hash: record.payload_hash,
+            content_format: content_format_from_db(&record.content_format).unwrap_or(ContentFormat::Plain),
+            deleted: record.deleted,
+            created_at: record.created_at,
+        })
+        .collect::<Vec<_>>();
+
+    if versions.is_empty() {
+        return Err(AppError::NotFound);
+    }
+
+    Ok(FileHistoryResponse {
+        path: safe_path,
+        versions,
+    })
+}
+
+pub async fn restore_file(
+    state: &AppState,
+    request: RestoreFileRequest,
+) -> Result<MutationResponse, AppError> {
+    let vault_id = storage::validate_vault_id(&request.vault_id)?;
+    let device_id = storage::validate_device_id(&request.device_id)?;
+    let safe_path = storage::validate_relative_path(&request.path)?;
+    let now = Utc::now().to_rfc3339();
+    touch_vault(state.pool(), &vault_id, &now).await?;
+    touch_device(state.pool(), &vault_id, &device_id, &now).await?;
+
+    let current = get_file_record(state.pool(), &vault_id, &safe_path)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    if request.base_version != current.version {
+        return Ok(MutationResponse {
+            ok: false,
+            version: None,
+            conflict: Some(true),
+            server_version: Some(current.version),
+        });
+    }
+
+    let record = get_file_version_record(state.pool(), &vault_id, &safe_path, request.target_version)
+        .await?
+        .ok_or(AppError::NotFound)?;
+
+    let new_version = current.version + 1;
+
+    if record.deleted {
+        storage::delete_file(state.storage_root(), &vault_id, &safe_path)
+            .await
+            .map_err(AppError::internal)?;
+    } else {
+        let data = storage::read_file_version(state.storage_root(), &vault_id, &safe_path, record.version)
+            .await
+            .map_err(AppError::internal)?;
+        storage::write_file(state.storage_root(), &vault_id, &safe_path, &data)
+            .await
+            .map_err(AppError::internal)?;
+        store_file_version(
+            state,
+            &vault_id,
+            &safe_path,
+            new_version,
+            &record.hash,
+            &record.payload_hash,
+            content_format_from_db(&record.content_format)?,
+            false,
+            &now,
+            Some(&data),
+        )
+        .await?;
+    }
+
+    if record.deleted {
+        store_file_version(
+            state,
+            &vault_id,
+            &safe_path,
+            new_version,
+            "",
+            "",
+            ContentFormat::Plain,
+            true,
+            &now,
+            None,
+        )
+        .await?;
+    }
+
+    sqlx::query(
+        r#"
+        INSERT INTO files (vault_id, path, hash, payload_hash, content_format, version, deleted, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+        ON CONFLICT(vault_id, path) DO UPDATE SET
+          hash = excluded.hash,
+          payload_hash = excluded.payload_hash,
+          content_format = excluded.content_format,
+          version = excluded.version,
+          deleted = excluded.deleted,
+          updated_at = excluded.updated_at
+        "#,
+    )
+    .bind(&vault_id)
+    .bind(&safe_path)
+    .bind(if record.deleted { "" } else { record.hash.as_str() })
+    .bind(if record.deleted { "" } else { record.payload_hash.as_str() })
+    .bind(if record.deleted { "plain" } else { record.content_format.as_str() })
+    .bind(new_version)
+    .bind(if record.deleted { 1 } else { 0 })
+    .bind(&now)
+    .execute(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+
+    let change_result = sqlx::query(
+        "INSERT INTO changes (vault_id, device_id, path, version, deleted, updated_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+    )
+    .bind(&vault_id)
+    .bind(&device_id)
+    .bind(&safe_path)
+    .bind(new_version)
+    .bind(if record.deleted { 1 } else { 0 })
+    .bind(&now)
     .execute(state.pool())
     .await
     .map_err(AppError::internal)?;
@@ -249,6 +448,77 @@ pub async fn get_latest_seq(state: &AppState, vault_id: String) -> Result<i64, A
     .map_err(AppError::internal)?;
 
     Ok(latest_seq)
+}
+
+async fn store_file_version(
+    state: &AppState,
+    vault_id: &str,
+    safe_path: &str,
+    version: i64,
+    hash: &str,
+    payload_hash: &str,
+    content_format: ContentFormat,
+    deleted: bool,
+    created_at: &str,
+    data: Option<&[u8]>,
+) -> Result<(), AppError> {
+    if let Some(bytes) = data {
+        storage::write_file_version(state.storage_root(), vault_id, safe_path, version, bytes)
+            .await
+            .map_err(AppError::internal)?;
+    }
+
+    sqlx::query(
+        r#"
+        INSERT INTO file_versions (vault_id, path, version, hash, payload_hash, content_format, deleted, created_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+        "#,
+    )
+    .bind(vault_id)
+    .bind(safe_path)
+    .bind(version)
+    .bind(hash)
+    .bind(payload_hash)
+    .bind(content_format_to_db(content_format))
+    .bind(if deleted { 1 } else { 0 })
+    .bind(created_at)
+    .execute(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+
+    Ok(())
+}
+
+async fn get_file_version_record(
+    pool: &SqlitePool,
+    vault_id: &str,
+    path: &str,
+    version: i64,
+) -> Result<Option<FileVersionRecord>, AppError> {
+    let row = sqlx::query(
+        r#"
+        SELECT vault_id, path, version, hash, payload_hash, content_format, deleted, created_at
+        FROM file_versions
+        WHERE vault_id = ?1 AND path = ?2 AND version = ?3
+        "#,
+    )
+    .bind(vault_id)
+    .bind(path)
+    .bind(version)
+    .fetch_optional(pool)
+    .await
+    .map_err(AppError::internal)?;
+
+    Ok(row.map(|row| FileVersionRecord {
+        vault_id: row.get("vault_id"),
+        path: row.get("path"),
+        version: row.get("version"),
+        hash: row.get("hash"),
+        payload_hash: row.get("payload_hash"),
+        content_format: row.get("content_format"),
+        deleted: row.get::<i64, _>("deleted") != 0,
+        created_at: row.get("created_at"),
+    }))
 }
 
 pub async fn get_devices(state: &AppState, vault_id: String) -> Result<DevicesResponse, AppError> {

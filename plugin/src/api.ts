@@ -5,8 +5,10 @@ import type {
   CreateVaultResponse,
   DeleteRequest,
   DevicesResponse,
+  FileHistoryResponse,
   FileResponse,
   MutationResponse,
+  RestoreFileRequest,
   UploadRequest,
   VaultsResponse,
 } from "./types";
@@ -51,6 +53,12 @@ export class SyncApi {
     return this.getJson(`/changes?vault_id=${encodedVaultId}&since=${since}`);
   }
 
+  getHistory(vaultId: string, path: string): Promise<FileHistoryResponse> {
+    const encodedVaultId = encodeURIComponent(vaultId);
+    const encodedPath = encodeURIComponent(path);
+    return this.getJson(`/history?vault_id=${encodedVaultId}&path=${encodedPath}`);
+  }
+
   getDevices(vaultId: string): Promise<DevicesResponse> {
     const encodedVaultId = encodeURIComponent(vaultId);
     return this.getJson(`/devices?vault_id=${encodedVaultId}`);
@@ -62,6 +70,10 @@ export class SyncApi {
 
   createVault(vaultId: string): Promise<CreateVaultResponse> {
     return this.sendJson("/vaults", { vault_id: vaultId });
+  }
+
+  restoreFile(payload: RestoreFileRequest): Promise<MutationResponse> {
+    return this.sendJson("/restore", payload);
   }
 
   private async getJson<T>(path: string): Promise<T> {

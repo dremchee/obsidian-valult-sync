@@ -12,6 +12,8 @@ pub fn build_router(state: AppState) -> Router {
         .merge(routes::events::router())
         .merge(routes::delete::router())
         .merge(routes::vaults::router())
+        .merge(routes::history::router())
+        .merge(routes::restore::router())
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_auth,

@@ -70,6 +70,22 @@ pub struct RealtimeEvent {
 }
 
 #[derive(Debug, Serialize)]
+pub struct FileVersionItem {
+    pub version: i64,
+    pub hash: String,
+    pub payload_hash: String,
+    pub content_format: ContentFormat,
+    pub deleted: bool,
+    pub created_at: String,
+}
+
+#[derive(Debug, Serialize)]
+pub struct FileHistoryResponse {
+    pub path: String,
+    pub versions: Vec<FileVersionItem>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct DeviceItem {
     pub device_id: String,
     pub first_seen_at: String,
@@ -84,6 +100,15 @@ pub struct DevicesResponse {
 #[derive(Debug, Deserialize)]
 pub struct CreateVaultRequest {
     pub vault_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct RestoreFileRequest {
+    pub vault_id: String,
+    pub device_id: String,
+    pub path: String,
+    pub target_version: i64,
+    pub base_version: i64,
 }
 
 #[derive(Debug, Serialize)]

@@ -109,12 +109,13 @@ Plugin:
 - download удалённых изменений
 - realtime push с polling fallback
 - conflict copy
+- restore активного файла на предыдущую серверную версию через command palette
 
 Текущие ограничения:
 
 - нет merge содержимого
 - metadata vault/file не скрывается E2EE
-- нет version history / restore
+- нет полноценного history UI
 
 ---
 

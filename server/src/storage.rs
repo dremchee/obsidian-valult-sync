@@ -102,10 +102,64 @@ pub async fn delete_file(storage_root: &Path, vault_id: &str, relative_path: &st
     }
 }
 
+pub async fn write_file_version(
+    storage_root: &Path,
+    vault_id: &str,
+    relative_path: &str,
+    version: i64,
+    data: &[u8],
+) -> Result<()> {
+    let target = resolve_version_path(storage_root, vault_id, relative_path, version)?;
+    if let Some(parent) = target.parent() {
+        fs::create_dir_all(parent).await.context("failed to create history directory")?;
+    }
+
+    let temp_name = format!(
+        ".{}.tmp-{}",
+        target.file_name().and_then(|name| name.to_str()).unwrap_or("history"),
+        unique_suffix()
+    );
+    let temp_path = target.with_file_name(temp_name);
+
+    fs::write(&temp_path, data)
+        .await
+        .context("failed to write temporary history file")?;
+    fs::rename(&temp_path, &target)
+        .await
+        .context("failed to atomically replace history file")?;
+
+    Ok(())
+}
+
+pub async fn read_file_version(
+    storage_root: &Path,
+    vault_id: &str,
+    relative_path: &str,
+    version: i64,
+) -> Result<Vec<u8>> {
+    let path = resolve_version_path(storage_root, vault_id, relative_path, version)?;
+    fs::read(path).await.context("failed to read history file")
+}
+
 fn resolve_path(storage_root: &Path, vault_id: &str, relative_path: &str) -> Result<PathBuf> {
     let path = storage_root.join(vault_id).join(relative_path);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).context("failed to create parent directory")?;
+    }
+    Ok(path)
+}
+
+fn resolve_version_path(
+    storage_root: &Path,
+    vault_id: &str,
+    relative_path: &str,
+    version: i64,
+) -> Result<PathBuf> {
+    let normalized_relative_path = validate_relative_path(relative_path)?;
+    let history_root = storage_root.join(vault_id).join(".history");
+    let path = history_root.join(normalized_relative_path).join(format!("{version}.bin"));
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).context("failed to create history parent directory")?;
     }
     Ok(path)
 }

@@ -437,6 +437,72 @@ async fn delete_creates_tombstone_and_change_event() {
     );
 }
 
+#[tokio::test]
+async fn history_lists_versions_and_restore_recreates_old_content() {
+    let (_tmp_dir, app) = test_app().await;
+
+    let first_upload = upload_file(
+        &app,
+        "vault-a",
+        "device-a",
+        "notes/history.md",
+        "Zmlyc3QK",
+        "b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41",
+        0,
+    )
+    .await;
+    assert_eq!(first_upload.status(), StatusCode::OK);
+    assert_eq!(read_json(first_upload).await, json!({ "ok": true, "version": 1 }));
+
+    let second_upload = upload_file(
+        &app,
+        "vault-a",
+        "device-a",
+        "notes/history.md",
+        "c2Vjb25kCg==",
+        "480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4",
+        1,
+    )
+    .await;
+    assert_eq!(second_upload.status(), StatusCode::OK);
+    assert_eq!(read_json(second_upload).await, json!({ "ok": true, "version": 2 }));
+
+    let history_response = get_history(&app, "vault-a", "notes/history.md").await;
+    assert_eq!(history_response.status(), StatusCode::OK);
+    let history_json = read_json(history_response).await;
+    assert_eq!(history_json["path"], json!("notes/history.md"));
+    let versions = history_json["versions"].as_array().unwrap();
+    assert_eq!(versions.len(), 2);
+    assert_eq!(versions[0]["version"], json!(2));
+    assert_eq!(versions[0]["hash"], json!("480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4"));
+    assert_eq!(versions[0]["content_format"], json!("plain"));
+    assert_eq!(versions[0]["deleted"], json!(false));
+    assert!(versions[0]["created_at"].as_str().unwrap().contains('T'));
+    assert_eq!(versions[1]["version"], json!(1));
+    assert_eq!(versions[1]["hash"], json!("b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41"));
+    assert_eq!(versions[1]["content_format"], json!("plain"));
+    assert_eq!(versions[1]["deleted"], json!(false));
+    assert!(versions[1]["created_at"].as_str().unwrap().contains('T'));
+
+    let restore_response = restore_file(&app, "vault-a", "device-a", "notes/history.md", 1, 2).await;
+    assert_eq!(restore_response.status(), StatusCode::OK);
+    assert_eq!(read_json(restore_response).await, json!({ "ok": true, "version": 3 }));
+
+    let file_response = get_file(&app, "vault-a", "notes/history.md").await;
+    assert_eq!(file_response.status(), StatusCode::OK);
+    assert_eq!(
+        read_json(file_response).await,
+        json!({
+            "path": "notes/history.md",
+            "hash": "b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41",
+            "version": 3,
+            "deleted": false,
+            "content_b64": "Zmlyc3QK",
+            "content_format": "plain"
+        })
+    );
+}
+
 async fn test_app() -> (TempDir, axum::Router) {
     test_app_with_token("").await
 }
@@ -811,6 +877,51 @@ async fn get_devices(app: &axum::Router, vault_id: &str) -> axum::response::Resp
             Request::builder()
                 .uri(format!("/devices?vault_id={vault_id}"))
                 .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+async fn get_history(app: &axum::Router, vault_id: &str, path: &str) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!(
+                    "/history?vault_id={vault_id}&path={}",
+                    encode_query_value(path)
+                ))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+async fn restore_file(
+    app: &axum::Router,
+    vault_id: &str,
+    device_id: &str,
+    path: &str,
+    target_version: i64,
+    base_version: i64,
+) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/restore")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "vault_id": vault_id,
+                        "device_id": device_id,
+                        "path": path,
+                        "target_version": target_version,
+                        "base_version": base_version
+                    })
+                    .to_string(),
+                ))
                 .unwrap(),
         )
         .await

@@ -5,6 +5,9 @@ import { SyncCoordinator } from "../sync/coordinator";
 import type {
   CreateVaultResponse,
   DeviceItem,
+  FileHistoryResponse,
+  MutationResponse,
+  RestoreFileRequest,
   SyncSettings,
   SyncState,
   VaultItem,
@@ -138,6 +141,14 @@ export class SettingsController {
   async getRemoteVaults(): Promise<VaultItem[]> {
     const response = await this.api().getVaults();
     return response.vaults;
+  }
+
+  getFileHistory(path: string, vaultId = this.getSettings().vaultId): Promise<FileHistoryResponse> {
+    return this.api().getHistory(vaultId, path);
+  }
+
+  restoreFile(payload: RestoreFileRequest): Promise<MutationResponse> {
+    return this.api().restoreFile(payload);
   }
 
   async createVault(vaultId: string): Promise<CreateVaultResponse> {
