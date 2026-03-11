@@ -5,17 +5,17 @@ import {
   type App,
 } from "obsidian";
 
-import { ApiError, SyncApi } from "./api";
-import { decryptEnvelope, encryptBytes, parseEnvelope, serializeEnvelope } from "./e2ee";
-import { createSyncError, toSyncErrorState } from "./sync-errors";
-import { shouldSyncPath } from "./sync-scope";
+import { ApiError, SyncApi } from "../api";
+import { decryptEnvelope, encryptBytes, parseEnvelope, serializeEnvelope } from "../e2ee/crypto";
+import { createSyncError, toSyncErrorState } from "./errors";
+import { shouldSyncPath } from "./scope";
 import type {
   ContentFormat,
   FileState,
   LocalFileSnapshot,
   SyncSettings,
   SyncState,
-} from "./types";
+} from "../types";
 
 export class SyncEngine {
   private readonly textEncoder = new TextEncoder();

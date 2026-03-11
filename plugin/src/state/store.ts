@@ -3,7 +3,7 @@ import type {
   SyncSettings,
   SyncState,
   VaultScopeConfig,
-} from "./types";
+} from "../types";
 
 const DEFAULT_STATE: SyncState = {
   vaultId: "default",

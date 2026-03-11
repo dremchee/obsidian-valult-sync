@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { TFile, notices } from "../../test/mocks/obsidian";
 
 import { ApiError, type SyncApi } from "../api";
-import { encryptBytes, serializeEnvelope } from "../e2ee";
-import { SyncEngine } from "../sync-engine";
+import { encryptBytes, serializeEnvelope } from "../e2ee/crypto";
+import { SyncEngine } from "../sync/engine";
 import type { SyncSettings, SyncState } from "../types";
 
 const DEFAULT_SETTINGS: SyncSettings = {

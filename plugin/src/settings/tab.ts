@@ -1,8 +1,8 @@
 import { App, Notice, PluginSettingTab, Setting } from "obsidian";
 
-import { describeSyncScope, normalizePatternList } from "./sync-scope";
-import { formatSyncErrorState } from "./sync-errors";
-import { SettingsController } from "./settings-controller";
+import { describeSyncScope, normalizePatternList } from "../sync/scope";
+import { formatSyncErrorState } from "../sync/errors";
+import { SettingsController } from "./controller";
 import {
   buildE2eeStatusText,
   buildScopePreview,
@@ -16,9 +16,9 @@ import {
   formatTimestamp,
   renderQuickActions,
   renderStatusHeader,
-} from "./settings-ui";
-import type { VaultItem } from "./types";
-import type ObsidianSyncPlugin from "./main";
+} from "./ui";
+import type { VaultItem } from "../types";
+import type ObsidianSyncPlugin from "../main";
 
 export class SyncSettingTab extends PluginSettingTab {
   private remoteVaults: VaultItem[] | null = null;

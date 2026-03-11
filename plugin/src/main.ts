@@ -1,13 +1,13 @@
 import { Plugin } from "obsidian";
 
 import { SyncApi } from "./api";
-import { E2eeState } from "./e2ee-state";
-import { PluginStateStore } from "./plugin-state-store";
-import { SettingsController } from "./settings-controller";
-import { PluginStatusBar } from "./status-bar";
-import { SyncCoordinator } from "./sync-coordinator";
-import { SyncSettingTab } from "./settings";
-import { SyncEngine } from "./sync-engine";
+import { E2eeState } from "./e2ee/state";
+import { SettingsController } from "./settings/controller";
+import { SyncSettingTab } from "./settings/tab";
+import { PluginStateStore } from "./state/store";
+import { SyncCoordinator } from "./sync/coordinator";
+import { SyncEngine } from "./sync/engine";
+import { PluginStatusBar } from "./ui/status-bar";
 import type {
   LegacyPluginDataShape,
   PluginDataShape,

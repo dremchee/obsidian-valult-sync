@@ -7,7 +7,7 @@ import {
   isE2eeEnvelope,
   parseEnvelope,
   serializeEnvelope,
-} from "../e2ee";
+} from "../e2ee/crypto";
 
 describe("E2EE helpers", () => {
   it("round-trips encrypted content", async () => {

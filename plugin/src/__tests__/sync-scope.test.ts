@@ -5,7 +5,7 @@ import {
   matchesSyncPattern,
   normalizePatternList,
   shouldSyncPath,
-} from "../sync-scope";
+} from "../sync/scope";
 
 describe("sync-scope", () => {
   it("normalizes pattern lists from textarea input", () => {

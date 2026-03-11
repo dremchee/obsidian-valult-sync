@@ -1,5 +1,5 @@
-import { buildPassphraseFingerprint } from "./e2ee";
-import { createSyncError } from "./sync-errors";
+import { buildPassphraseFingerprint } from "./crypto";
+import { createSyncError } from "../sync/errors";
 
 export class E2eeState {
   private readonly fingerprintsByVaultId: Record<string, string>;

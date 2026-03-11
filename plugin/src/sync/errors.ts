@@ -1,5 +1,5 @@
-import { ApiError } from "./api";
-import type { SyncErrorCode, SyncErrorState } from "./types";
+import { ApiError } from "../api";
+import type { SyncErrorCode, SyncErrorState } from "../types";
 
 export class SyncError extends Error {
   constructor(

@@ -1,5 +1,5 @@
-import { createSyncError } from "./sync-errors";
-import type { E2eeEnvelope } from "./types";
+import { createSyncError } from "../sync/errors";
+import type { E2eeEnvelope } from "../types";
 
 const PBKDF2_ITERATIONS = 600_000;
 const KEY_LENGTH_BITS = 256;

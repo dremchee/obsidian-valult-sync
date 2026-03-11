@@ -1,7 +1,7 @@
 import { Notice } from "obsidian";
 
-import { toSyncErrorState } from "./sync-errors";
-import type { SyncSettings, SyncState } from "./types";
+import { toSyncErrorState } from "./errors";
+import type { SyncSettings, SyncState } from "../types";
 
 export class SyncCoordinator {
   private intervalId: number | null = null;

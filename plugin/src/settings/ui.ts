@@ -1,5 +1,5 @@
-import { ApiError } from "./api";
-import { shouldSyncPath } from "./sync-scope";
+import { ApiError } from "../api";
+import { shouldSyncPath } from "../sync/scope";
 
 export interface StatusHeaderData {
   vaultId: string;

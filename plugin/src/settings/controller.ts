@@ -1,7 +1,7 @@
-import { SyncApi } from "./api";
-import { E2eeState } from "./e2ee-state";
-import { PluginStateStore } from "./plugin-state-store";
-import { SyncCoordinator } from "./sync-coordinator";
+import { SyncApi } from "../api";
+import { E2eeState } from "../e2ee/state";
+import { PluginStateStore } from "../state/store";
+import { SyncCoordinator } from "../sync/coordinator";
 import type {
   CreateVaultResponse,
   DeviceItem,
@@ -9,7 +9,7 @@ import type {
   SyncState,
   VaultItem,
   VaultScopeConfig,
-} from "./types";
+} from "../types";
 
 export class SettingsController {
   constructor(

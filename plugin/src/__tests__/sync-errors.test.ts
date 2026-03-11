@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "../api";
-import { createSyncError, formatSyncErrorState, toSyncErrorState } from "../sync-errors";
+import { createSyncError, formatSyncErrorState, toSyncErrorState } from "../sync/errors";
 
 describe("sync-errors", () => {
   it("preserves explicit sync error codes", () => {
