@@ -20,7 +20,7 @@ export function createSettingGroup(
   const group = container.createDiv({ cls: "setting-group" });
 
   const heading = group.createDiv({ cls: "setting-item setting-item-heading" });
-  heading.createEl("h3", { text: title });
+  heading.createDiv({ text: title, cls: "setting-item-name" });
 
   return group.createDiv({ cls: "setting-items" });
 }
