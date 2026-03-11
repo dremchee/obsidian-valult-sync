@@ -134,6 +134,7 @@ export class SyncSettingTab extends PluginSettingTab {
 
   private renderConnectionSection(container: HTMLElement): void {
     const group = createSettingGroup(container, "Connection", "Server, auth, background sync and device identity.");
+    let connectionStatus!: HTMLElement;
 
     new Setting(group)
       .setName("Server URL")
@@ -149,12 +150,7 @@ export class SyncSettingTab extends PluginSettingTab {
             await this.plugin.persistData();
             this.display();
           }),
-      );
-
-    const connectionStatus = createInlineStatus(group, "Connection", "Not checked");
-    new Setting(group)
-      .setName("Connection check")
-      .setDesc("Verify the current server URL, auth token, and vault ID against the server.")
+      )
       .addButton((button) =>
         button.setButtonText("Check").onClick(async () => {
           connectionStatus.setText("Connection: Checking...");
@@ -167,6 +163,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }
         }),
       );
+    connectionStatus = createInlineStatus(group, "Connection", "Not checked");
 
     new Setting(group)
       .setName("Device ID")
