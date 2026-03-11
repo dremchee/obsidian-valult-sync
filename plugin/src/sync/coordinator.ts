@@ -1,7 +1,7 @@
 import { Notice } from "obsidian";
 
 import { RealtimeSyncClient } from "./realtime";
-import { toSyncErrorState } from "./errors";
+import { formatSyncErrorState, toSyncErrorState } from "./errors";
 import type { SyncSettings, SyncState } from "../types";
 
 export class SyncCoordinator {
@@ -46,7 +46,11 @@ export class SyncCoordinator {
       this.intervalId = null;
     }
 
-    if (!this.getSettings().autoSync || !this.getSettings().vaultId.trim()) {
+    if (
+      !this.getSettings().autoSync
+      || !this.getSettings().vaultId.trim()
+      || !this.getSettings().authToken.trim()
+    ) {
       this.realtime.stop();
       return;
     }
@@ -90,7 +94,9 @@ export class SyncCoordinator {
       await this.setLastSyncError(null);
       new Notice("Sync completed", 3000);
     } catch (error) {
-      await this.setLastSyncError(toSyncErrorState(error));
+      const syncError = toSyncErrorState(error);
+      await this.setLastSyncError(syncError);
+      new Notice(formatSyncErrorState(syncError), 5000);
     } finally {
       this.syncing = false;
     }

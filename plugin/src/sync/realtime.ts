@@ -20,7 +20,7 @@ export class RealtimeSyncClient {
     this.stop();
 
     const settings = this.getSettings();
-    if (!settings.autoSync || !settings.serverUrl.trim()) {
+    if (!settings.autoSync || !settings.serverUrl.trim() || !settings.authToken.trim()) {
       return;
     }
 
@@ -40,7 +40,7 @@ export class RealtimeSyncClient {
   private async connect(generation: number): Promise<void> {
     const settings = this.getSettings();
     const serverUrl = settings.serverUrl.trim().replace(/\/+$/, "");
-    if (!serverUrl) {
+    if (!serverUrl || !settings.authToken.trim()) {
       return;
     }
 
