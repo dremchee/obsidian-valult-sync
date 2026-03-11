@@ -12,6 +12,7 @@ export class SyncSettingTab extends PluginSettingTab {
   private createVaultDraft = "";
   private loadingRemoteVaults = false;
   private remoteVaultsError: string | null = null;
+  private confirmForgetVaultId: string | null = null;
 
   constructor(
     app: App,
@@ -329,7 +330,18 @@ export class SyncSettingTab extends PluginSettingTab {
 
     const forgetButton = currentVaultActions.createEl("button", { text: "Forget local state" });
     forgetButton.addClass("mod-warning");
+    if (this.confirmForgetVaultId === currentVaultId) {
+      forgetButton.setText("Confirm forget");
+    }
     forgetButton.addEventListener("click", async () => {
+      if (this.confirmForgetVaultId !== currentVaultId) {
+        this.confirmForgetVaultId = currentVaultId;
+        vaultStatus.setText(`Vault registry: Click "Confirm forget" to remove local state for ${currentVaultId}.`);
+        this.display();
+        return;
+      }
+
+      this.confirmForgetVaultId = null;
       vaultStatus.setText(`Vault registry: Removing local state for ${currentVaultId}...`);
       await this.controller.forgetVault("default", currentVaultId);
       vaultStatus.setText(`Vault registry: Removed local state for ${currentVaultId}.`);
