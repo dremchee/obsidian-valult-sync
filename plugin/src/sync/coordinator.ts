@@ -9,6 +9,7 @@ export class SyncCoordinator {
   private dirty = false;
   private dirtyVersion = 0;
   private syncing = false;
+  private stoppedByUnauthorized = false;
   private readonly realtime: RealtimeSyncClient;
 
   constructor(
@@ -41,6 +42,7 @@ export class SyncCoordinator {
   }
 
   restartAutoSync(): void {
+    this.stoppedByUnauthorized = false;
     if (this.intervalId !== null) {
       window.clearInterval(this.intervalId);
       this.intervalId = null;
@@ -95,6 +97,9 @@ export class SyncCoordinator {
       new Notice("Sync completed", 3000);
     } catch (error) {
       const syncError = toSyncErrorState(error);
+      if (syncError.code === "unauthorized") {
+        this.stopBackgroundSyncUntilRestart();
+      }
       await this.setLastSyncError(syncError);
       new Notice(formatSyncErrorState(syncError), 5000);
     } finally {
@@ -103,7 +108,7 @@ export class SyncCoordinator {
   }
 
   async runBackgroundSync(): Promise<void> {
-    if (!this.getSettings().vaultId.trim()) {
+    if (!this.getSettings().vaultId.trim() || this.stoppedByUnauthorized) {
       return;
     }
 
@@ -120,7 +125,11 @@ export class SyncCoordinator {
       this.clearDirtyIfUnchanged(startedDirtyVersion);
       await this.setLastSyncError(null);
     } catch (error) {
-      await this.setLastSyncError(toSyncErrorState(error));
+      const syncError = toSyncErrorState(error);
+      if (syncError.code === "unauthorized") {
+        this.stopBackgroundSyncUntilRestart();
+      }
+      await this.setLastSyncError(syncError);
     } finally {
       this.syncing = false;
     }
@@ -136,5 +145,14 @@ export class SyncCoordinator {
     if (this.dirtyVersion === startedDirtyVersion) {
       this.dirty = false;
     }
+  }
+
+  private stopBackgroundSyncUntilRestart(): void {
+    this.stoppedByUnauthorized = true;
+    if (this.intervalId !== null) {
+      window.clearInterval(this.intervalId);
+      this.intervalId = null;
+    }
+    this.realtime.stop();
   }
 }

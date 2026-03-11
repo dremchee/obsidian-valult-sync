@@ -96,10 +96,12 @@ export class RealtimeSyncClient {
         return;
       }
 
-      const retryDelayMs =
-        error instanceof ApiError && error.status === 401
-          ? 30_000
-          : 5_000;
+      if (error instanceof ApiError && error.status === 401) {
+        console.warn("obsidian-sync: realtime authorization failed", error);
+        return;
+      }
+
+      const retryDelayMs = 5_000;
       console.warn("obsidian-sync: realtime stream disconnected", error);
       this.scheduleReconnect(generation, retryDelayMs);
     }

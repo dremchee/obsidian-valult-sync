@@ -61,6 +61,8 @@ export class SyncSettingTab extends PluginSettingTab {
       || this.loadingRemoteVaults
       || !this.plugin.settings.serverUrl.trim()
       || !this.plugin.settings.authToken.trim()
+      || this.remoteVaultsError === "auth failed"
+      || this.plugin.state.lastSyncError?.code === "unauthorized"
     ) {
       return;
     }

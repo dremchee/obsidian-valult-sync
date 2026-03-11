@@ -52,4 +52,42 @@ describe("sync realtime", () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("does not schedule reconnect after unauthorized realtime response", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "unauthorized", message: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+    const client = new RealtimeSyncClient(
+      () => ({
+        serverUrl: "http://127.0.0.1:3000",
+        vaultId: "default",
+        includePatterns: [],
+        ignorePatterns: [],
+        deviceId: "device-local",
+        authToken: "bad-token",
+        pollIntervalSecs: 2,
+        autoSync: true,
+      } satisfies SyncSettings),
+      () => ({
+        vaultId: "default",
+        files: {},
+        lastSeq: 0,
+        lastSyncAt: null,
+        lastSyncError: null,
+      } satisfies SyncState),
+      async () => {},
+    );
+
+    client.restart();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    expect(timeoutSpy).not.toHaveBeenCalled();
+  });
 });
