@@ -17,13 +17,13 @@ export function createSettingGroup(
   title: string,
   _description: string,
 ): HTMLElement {
-  const group = container.createDiv({ cls: "obsidian-sync-setting-group" });
+  const group = container.createDiv();
   group.style.marginBottom = "24px";
 
   const titleEl = group.createEl("h3", { text: title });
   titleEl.style.margin = "0 0 12px";
 
-  const items = group.createDiv({ cls: "obsidian-sync-setting-group-items" });
+  const items = group.createDiv();
   items.style.display = "grid";
   items.style.gap = "0";
   items.style.border = "1px solid var(--background-modifier-border)";
@@ -167,7 +167,9 @@ export function renderStatusHeader(container: HTMLElement, status: StatusHeaderD
   copy.style.display = "grid";
   copy.style.gap = "6px";
   copy.style.flex = "1 1 280px";
-  copy.createEl("div", { text: "Sync status", cls: "obsidian-sync-panel-title" });
+  const title = copy.createEl("div", { text: "Sync status" });
+  title.style.fontWeight = "600";
+  title.style.lineHeight = "1.4";
   copy.createEl("div", {
     text: buildOverviewSummary(status),
     cls: "setting-item-description",

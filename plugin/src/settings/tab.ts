@@ -427,7 +427,9 @@ export class SyncSettingTab extends PluginSettingTab {
     vaultStatus: HTMLElement,
   ): HTMLElement {
     const panel = createPanel(container);
-    panel.createEl("div", { text: "Vault flow", cls: "obsidian-sync-panel-title" });
+    const panelTitle = panel.createEl("div", { text: "Vault flow" });
+    panelTitle.style.fontWeight = "600";
+    panelTitle.style.lineHeight = "1.4";
 
     const currentVaultBlock = panel.createDiv();
     currentVaultBlock.style.display = "grid";
@@ -604,7 +606,9 @@ export class SyncSettingTab extends PluginSettingTab {
       true,
     );
     const list = createPanel(panel);
-    list.createEl("div", { text: "Server vaults", cls: "obsidian-sync-panel-title" });
+    const title = list.createEl("div", { text: "Server vaults" });
+    title.style.fontWeight = "600";
+    title.style.lineHeight = "1.4";
 
     if (this.remoteVaults.length === 0) {
       list.createEl("div", {
@@ -691,7 +695,9 @@ export class SyncSettingTab extends PluginSettingTab {
       );
 
     const syncHealth = createPanel(group);
-    syncHealth.createEl("div", { text: "Sync health", cls: "obsidian-sync-panel-title" });
+    const healthTitle = syncHealth.createEl("div", { text: "Sync health" });
+    healthTitle.style.fontWeight = "600";
+    healthTitle.style.lineHeight = "1.4";
     createKeyValueRow(syncHealth, "Vault", currentVaultId || "Not connected");
     createKeyValueRow(syncHealth, "Change cursor", String(this.plugin.state.lastSeq));
     createKeyValueRow(syncHealth, "Files tracked", String(this.getTrackedFilesCount()));
@@ -705,7 +711,9 @@ export class SyncSettingTab extends PluginSettingTab {
       "Preview which files are included or skipped by the current rules.",
       false,
     );
-    currentScope.createEl("div", { text: "Current sync scope", cls: "obsidian-sync-panel-title" });
+    const scopeTitle = currentScope.createEl("div", { text: "Current sync scope" });
+    scopeTitle.style.fontWeight = "600";
+    scopeTitle.style.lineHeight = "1.4";
     const scopeList = currentScope.createEl("div");
     scopeList.style.display = "grid";
     scopeList.style.gap = "6px";
@@ -750,7 +758,9 @@ export class SyncSettingTab extends PluginSettingTab {
       false,
     );
     const devicesStatus = createPanel(section);
-    devicesStatus.createEl("div", { text: "Loading devices...", cls: "obsidian-sync-panel-title" });
+    const loadingTitle = devicesStatus.createEl("div", { text: "Loading devices..." });
+    loadingTitle.style.fontWeight = "600";
+    loadingTitle.style.lineHeight = "1.4";
 
     new Setting(section)
       .setName("Refresh devices")
@@ -864,7 +874,9 @@ export class SyncSettingTab extends PluginSettingTab {
 
   private async renderDevices(container: HTMLElement): Promise<void> {
     container.empty();
-    container.createEl("div", { text: "Devices", cls: "obsidian-sync-panel-title" });
+    const devicesTitle = container.createEl("div", { text: "Devices" });
+    devicesTitle.style.fontWeight = "600";
+    devicesTitle.style.lineHeight = "1.4";
     container.createEl("div", { text: "Loading devices...", cls: "setting-item-description" });
 
     try {
@@ -880,7 +892,9 @@ export class SyncSettingTab extends PluginSettingTab {
         return left.device_id.localeCompare(right.device_id);
       });
       container.empty();
-      container.createEl("div", { text: "Devices", cls: "obsidian-sync-panel-title" });
+      const devicesTitle = container.createEl("div", { text: "Devices" });
+      devicesTitle.style.fontWeight = "600";
+      devicesTitle.style.lineHeight = "1.4";
 
       if (sortedDevices.length === 0) {
         container.createEl("div", {
@@ -909,7 +923,9 @@ export class SyncSettingTab extends PluginSettingTab {
       }
     } catch (error) {
       container.empty();
-      container.createEl("div", { text: "Devices", cls: "obsidian-sync-panel-title" });
+      const devicesTitle = container.createEl("div", { text: "Devices" });
+      devicesTitle.style.fontWeight = "600";
+      devicesTitle.style.lineHeight = "1.4";
       container.createEl("div", {
         text: `Failed to load devices: ${formatDeviceError(error)}`,
         cls: "setting-item-description",
