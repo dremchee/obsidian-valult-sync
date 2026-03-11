@@ -10,6 +10,7 @@ import type ObsidianSyncPlugin from "./main";
 export class SyncSettingTab extends PluginSettingTab {
   private remoteVaults: VaultItem[] | null = null;
   private createVaultDraft = "";
+  private loadingRemoteVaults = false;
 
   constructor(
     app: App,
@@ -28,6 +29,22 @@ export class SyncSettingTab extends PluginSettingTab {
     const otherVaultIds = knownVaultIds.filter((vaultId) => vaultId !== currentVaultId);
     const trackedFilesCount = Object.values(this.plugin.state.files).filter((file) => !file.deleted).length;
     const deletedFilesCount = Object.values(this.plugin.state.files).filter((file) => file.deleted).length;
+
+    if (!this.remoteVaults && !this.loadingRemoteVaults && this.plugin.settings.serverUrl.trim()) {
+      this.loadingRemoteVaults = true;
+      void this.controller
+        .getRemoteVaults()
+        .then((vaults) => {
+          this.remoteVaults = vaults;
+        })
+        .catch(() => {
+          this.remoteVaults = [];
+        })
+        .finally(() => {
+          this.loadingRemoteVaults = false;
+          this.display();
+        });
+    }
 
     renderSectionHeader(containerEl, "Overview", "Current vault status and quick health summary.");
     renderStatusHeader(containerEl, {
@@ -176,7 +193,11 @@ export class SyncSettingTab extends PluginSettingTab {
     const vaultStatus = createInlineStatus(
       containerEl,
       "Vault registry",
-      this.remoteVaults ? `${this.remoteVaults.length} vault(s) loaded` : "Not loaded",
+      this.loadingRemoteVaults
+        ? "Loading..."
+        : this.remoteVaults
+          ? `${this.remoteVaults.length} vault(s) loaded`
+          : "Not loaded",
     );
     renderQuickActions(containerEl, [
       {
@@ -197,7 +218,13 @@ export class SyncSettingTab extends PluginSettingTab {
     const currentVaultPanel = createPanel(containerEl);
     currentVaultPanel.createEl("div", { text: "Current vault", cls: "obsidian-sync-panel-title" });
     createKeyValueRow(currentVaultPanel, "Active vault", currentVaultId);
-    createKeyValueRow(currentVaultPanel, "Known locally", String(knownVaultIds.length));
+    createKeyValueRow(
+      currentVaultPanel,
+      "Server registry",
+      this.remoteVaults
+        ? this.remoteVaults.some((vault) => vault.vault_id === currentVaultId) ? "Loaded" : "Not loaded here"
+        : this.loadingRemoteVaults ? "Loading..." : "Not loaded",
+    );
     const currentVaultActions = currentVaultPanel.createDiv();
     currentVaultActions.style.display = "flex";
     currentVaultActions.style.flexWrap = "wrap";
@@ -259,20 +286,43 @@ export class SyncSettingTab extends PluginSettingTab {
         }),
       );
 
+    let remoteJoinVaultId =
+      this.remoteVaults?.find((vault) => vault.vault_id !== currentVaultId)?.vault_id ?? "";
     new Setting(containerEl)
-      .setName("Join known vault")
-      .setDesc("Switch to another vault that is already known on this device.")
+      .setName("Join server vault")
+      .setDesc(
+        this.remoteVaults
+          ? "Switch to a vault discovered on the server."
+          : this.loadingRemoteVaults
+            ? "Loading vaults from the server..."
+            : "Load vaults from the server first.",
+      )
       .addDropdown((dropdown) => {
-        for (const vaultId of knownVaultIds) {
-          dropdown.addOption(vaultId, vaultId);
+        if (!this.remoteVaults || this.remoteVaults.length === 0) {
+          dropdown.addOption("", this.loadingRemoteVaults ? "Loading..." : "No loaded vaults");
+          dropdown.setValue("");
+          return;
         }
 
-        dropdown
-          .setValue(currentVaultId)
-          .onChange(async (value) => {
-            await this.controller.activateVault(value);
-            this.display();
-          });
+        for (const vault of this.remoteVaults) {
+          dropdown.addOption(vault.vault_id, vault.vault_id);
+        }
+
+        dropdown.setValue(remoteJoinVaultId || currentVaultId).onChange((value) => {
+          remoteJoinVaultId = value;
+        });
+      })
+      .addButton((button) => {
+        if (!this.remoteVaults || this.remoteVaults.length === 0 || !remoteJoinVaultId || remoteJoinVaultId === currentVaultId) {
+          button.setButtonText("Join").setDisabled(true);
+          return;
+        }
+
+        button.setButtonText("Join").onClick(async () => {
+          vaultStatus.setText(`Vault registry: Joining ${remoteJoinVaultId}...`);
+          await this.controller.activateVault(remoteJoinVaultId);
+          this.display();
+        });
       });
 
     if (this.remoteVaults) {
@@ -319,6 +369,24 @@ export class SyncSettingTab extends PluginSettingTab {
             });
           }
         }
+      }
+    }
+
+    if (knownVaultIds.length > 1) {
+      const localVaultsPanel = createCollapsibleSection(
+        containerEl,
+        "Recent local vaults",
+        "Vaults remembered on this device, even if they were not loaded from the server in this session.",
+        false,
+      );
+      const localVaultsList = createPanel(localVaultsPanel);
+      localVaultsList.createEl("div", { text: "Local vault history", cls: "obsidian-sync-panel-title" });
+      for (const vaultId of knownVaultIds) {
+        createKeyValueRow(
+          localVaultsList,
+          vaultId,
+          vaultId === currentVaultId ? "Current vault" : "Available locally",
+        );
       }
     }
 
