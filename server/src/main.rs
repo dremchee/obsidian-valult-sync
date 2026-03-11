@@ -3,7 +3,7 @@ use obsidian_sync_server::{app, config, db, state};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let _ = dotenvy::dotenv();
+    let _ = dotenvy::from_filename("server/.env").or_else(|_| dotenvy::dotenv());
     init_tracing();
 
     let config = config::Config::from_env()?;

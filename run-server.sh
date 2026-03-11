@@ -4,7 +4,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_DIR="$ROOT_DIR/server"
-ENV_FILE="$ROOT_DIR/.env"
+ENV_FILE="$SERVER_DIR/.env"
 
 if [[ ! -d "$SERVER_DIR" ]]; then
   echo "Server directory not found: $SERVER_DIR" >&2

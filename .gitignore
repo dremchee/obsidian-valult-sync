@@ -1,6 +1,5 @@
 # OS / editor
 .DS_Store
-.env
 
 # Local vaults used for manual testing
 vaults/
@@ -14,6 +13,7 @@ plugin/main.js
 
 # Server local runtime artifacts
 data/
+server/.env
 server/target/
 
 # Accidental nested repositories created by tooling

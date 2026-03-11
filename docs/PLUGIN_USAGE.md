@@ -130,10 +130,10 @@ Plugin:
 
 ## Запуск сервера
 
-Можно создать `.env` в корне проекта:
+Можно создать `server/.env`:
 
 ```bash
-cp .env.example .env
+cp server/.env.example server/.env
 ```
 
 И указать в нём:

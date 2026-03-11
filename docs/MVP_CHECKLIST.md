@@ -30,7 +30,7 @@
 ### Сервер
 
 ```bash
-cp .env.example .env
+cp server/.env.example server/.env
 ./run-server.sh
 ```
 
