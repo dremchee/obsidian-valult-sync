@@ -97,11 +97,6 @@ export class SyncSettingTab extends PluginSettingTab {
       text: this.getAuthGateMessage(),
       cls: "setting-item-description",
     });
-    hint.style.marginTop = "8px";
-    hint.style.lineHeight = "1.4";
-    hint.style.color = this.plugin.settings.authToken.trim()
-      ? "var(--text-error)"
-      : "var(--text-muted)";
   }
 
   private getAuthGateMessage(): string {
@@ -222,9 +217,6 @@ export class SyncSettingTab extends PluginSettingTab {
       text: "Connection: Not checked",
       cls: "setting-item-description",
     });
-    connectionStatus.style.marginTop = "8px";
-    connectionStatus.style.lineHeight = "1.4";
-    connectionStatus.style.color = "var(--text-muted)";
 
     const authSetting = new Setting(section)
       .setName("Auth token")
@@ -325,10 +317,6 @@ export class SyncSettingTab extends PluginSettingTab {
     vaultStatus: HTMLElement,
   ): void {
     const block = container.createDiv();
-    block.style.display = "grid";
-    block.style.gap = "10px";
-    block.style.paddingTop = "6px";
-    block.style.borderTop = "1px solid var(--background-modifier-border)";
 
     if (this.loadingRemoteVaults) {
       block.createEl("div", {
@@ -348,9 +336,6 @@ export class SyncSettingTab extends PluginSettingTab {
         cls: "setting-item-description",
       });
       const actions = block.createDiv();
-      actions.style.display = "flex";
-      actions.style.flexWrap = "wrap";
-      actions.style.gap = "8px";
       const button = actions.createEl("button", { text: "Load vaults" });
       button.addEventListener("click", async () => {
         await this.reloadRemoteVaults(vaultStatus);
@@ -392,9 +377,6 @@ export class SyncSettingTab extends PluginSettingTab {
         });
 
         const actions = block.createDiv();
-        actions.style.display = "flex";
-        actions.style.flexWrap = "wrap";
-        actions.style.gap = "8px";
 
         const button = actions.createEl("button", {
           text: "Create current vault on server",
@@ -416,9 +398,6 @@ export class SyncSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
     const actions = block.createDiv();
-    actions.style.display = "flex";
-    actions.style.flexWrap = "wrap";
-    actions.style.gap = "8px";
     const button = actions.createEl("button", { text: "Load vaults" });
     button.addEventListener("click", async () => {
       await this.reloadRemoteVaults(vaultStatus);
@@ -432,14 +411,8 @@ export class SyncSettingTab extends PluginSettingTab {
   ): HTMLElement {
     const panel = createPanel(container);
     const panelTitle = panel.createEl("div", { text: "Vault flow" });
-    panelTitle.style.fontWeight = "600";
-    panelTitle.style.lineHeight = "1.4";
 
     const currentVaultBlock = panel.createDiv();
-    currentVaultBlock.style.display = "grid";
-    currentVaultBlock.style.gap = "8px";
-    currentVaultBlock.style.paddingBottom = "10px";
-    currentVaultBlock.style.borderBottom = "1px solid var(--background-modifier-border)";
     currentVaultBlock.createEl("div", {
       text: "Current folder binding",
       cls: "setting-item-description",
@@ -456,9 +429,6 @@ export class SyncSettingTab extends PluginSettingTab {
     );
 
     const actions = currentVaultBlock.createDiv();
-    actions.style.display = "flex";
-    actions.style.flexWrap = "wrap";
-    actions.style.gap = "8px";
 
     const disconnectButton = actions.createEl("button", {
       text: this.confirmDisconnectVaultId === currentVaultId ? "Confirm disconnect" : "Disconnect",
@@ -611,8 +581,6 @@ export class SyncSettingTab extends PluginSettingTab {
     );
     const list = createPanel(panel);
     const title = list.createEl("div", { text: "Server vaults" });
-    title.style.fontWeight = "600";
-    title.style.lineHeight = "1.4";
 
     if (this.remoteVaults.length === 0) {
       list.createEl("div", {
@@ -624,15 +592,8 @@ export class SyncSettingTab extends PluginSettingTab {
 
     for (const vault of this.remoteVaults) {
       const row = list.createDiv();
-      row.style.display = "flex";
-      row.style.justifyContent = "space-between";
-      row.style.alignItems = "flex-start";
-      row.style.gap = "12px";
-      row.style.padding = "6px 0";
 
       const meta = row.createDiv();
-      meta.style.display = "grid";
-      meta.style.gap = "4px";
       meta.createEl("div", { text: vault.vault_id });
       meta.createEl("div", {
         text: `${vault.device_count} device(s), updated ${formatTimestamp(vault.updated_at)}`,
@@ -700,8 +661,6 @@ export class SyncSettingTab extends PluginSettingTab {
 
     const syncHealth = createPanel(group);
     const healthTitle = syncHealth.createEl("div", { text: "Sync health" });
-    healthTitle.style.fontWeight = "600";
-    healthTitle.style.lineHeight = "1.4";
     createKeyValueRow(syncHealth, "Vault", currentVaultId || "Not connected");
     createKeyValueRow(syncHealth, "Change cursor", String(this.plugin.state.lastSeq));
     createKeyValueRow(syncHealth, "Files tracked", String(this.getTrackedFilesCount()));
@@ -716,11 +675,7 @@ export class SyncSettingTab extends PluginSettingTab {
       false,
     );
     const scopeTitle = currentScope.createEl("div", { text: "Current sync scope" });
-    scopeTitle.style.fontWeight = "600";
-    scopeTitle.style.lineHeight = "1.4";
     const scopeList = currentScope.createEl("div");
-    scopeList.style.display = "grid";
-    scopeList.style.gap = "6px";
     for (const line of describeSyncScope(
       this.plugin.settings.includePatterns,
       this.plugin.settings.ignorePatterns,
@@ -740,8 +695,6 @@ export class SyncSettingTab extends PluginSettingTab {
     );
     if (preview.sampleLines.length > 0) {
       const previewList = currentScope.createEl("div");
-      previewList.style.display = "grid";
-      previewList.style.gap = "6px";
       for (const line of preview.sampleLines) {
         previewList.createEl("div", { text: line, cls: "setting-item-description" });
       }
@@ -763,8 +716,6 @@ export class SyncSettingTab extends PluginSettingTab {
     );
     const devicesStatus = createPanel(section);
     const loadingTitle = devicesStatus.createEl("div", { text: "Loading devices..." });
-    loadingTitle.style.fontWeight = "600";
-    loadingTitle.style.lineHeight = "1.4";
 
     new Setting(section)
       .setName("Refresh devices")
@@ -879,8 +830,6 @@ export class SyncSettingTab extends PluginSettingTab {
   private async renderDevices(container: HTMLElement): Promise<void> {
     container.empty();
     const devicesTitle = container.createEl("div", { text: "Devices" });
-    devicesTitle.style.fontWeight = "600";
-    devicesTitle.style.lineHeight = "1.4";
     container.createEl("div", { text: "Loading devices...", cls: "setting-item-description" });
 
     try {
@@ -897,8 +846,6 @@ export class SyncSettingTab extends PluginSettingTab {
       });
       container.empty();
       const devicesTitle = container.createEl("div", { text: "Devices" });
-      devicesTitle.style.fontWeight = "600";
-      devicesTitle.style.lineHeight = "1.4";
 
       if (sortedDevices.length === 0) {
         container.createEl("div", {
@@ -928,8 +875,6 @@ export class SyncSettingTab extends PluginSettingTab {
     } catch (error) {
       container.empty();
       const devicesTitle = container.createEl("div", { text: "Devices" });
-      devicesTitle.style.fontWeight = "600";
-      devicesTitle.style.lineHeight = "1.4";
       container.createEl("div", {
         text: `Failed to load devices: ${formatDeviceError(error)}`,
         cls: "setting-item-description",
