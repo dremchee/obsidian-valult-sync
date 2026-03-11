@@ -18,25 +18,11 @@ export function createSettingGroup(
   _description: string,
 ): HTMLElement {
   const group = container.createDiv({ cls: "setting-group" });
-  group.style.marginBottom = "24px";
 
   const heading = group.createDiv({ cls: "setting-item setting-item-heading" });
-  heading.style.padding = "0 0 12px";
-  heading.style.background = "transparent";
-  heading.style.border = "none";
-  heading.style.boxShadow = "none";
+  heading.createEl("h3", { text: title });
 
-  const titleEl = heading.createEl("h3", { text: title });
-  titleEl.style.margin = "0";
-
-  const items = group.createDiv({ cls: "setting-items" });
-  items.style.display = "grid";
-  items.style.gap = "0";
-  items.style.border = "1px solid var(--background-modifier-border)";
-  items.style.borderRadius = "14px";
-  items.style.overflow = "hidden";
-  items.style.background = "var(--background-secondary)";
-  return items;
+  return group.createDiv({ cls: "setting-items" });
 }
 
 export function createPanel(container: HTMLElement): HTMLElement {
