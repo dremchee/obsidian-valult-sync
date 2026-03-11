@@ -184,17 +184,10 @@ export class SyncSettingTab extends PluginSettingTab {
     const title = section.createEl("h3", { text: "Connection" });
     title.style.margin = "0 0 12px";
 
-    const card = section.createDiv();
-    card.style.display = "block";
-    card.style.border = "1px solid var(--background-modifier-border)";
-    card.style.borderRadius = "14px";
-    card.style.overflow = "hidden";
-    card.style.background = "var(--background-secondary)";
-
     let connectionStatus!: HTMLElement;
     const unlocked = this.isSettingsUnlocked();
 
-    const serverSetting = new Setting(card)
+    const serverSetting = new Setting(section)
       .setName("Server URL")
       .setDesc("Base URL of the Rust sync server.")
       .addText((text) =>
@@ -233,7 +226,7 @@ export class SyncSettingTab extends PluginSettingTab {
     connectionStatus.style.lineHeight = "1.4";
     connectionStatus.style.color = "var(--text-muted)";
 
-    const authSetting = new Setting(card)
+    const authSetting = new Setting(section)
       .setName("Auth token")
       .setDesc("Bearer token required by the sync server.")
       .addText((text) =>
@@ -255,13 +248,12 @@ export class SyncSettingTab extends PluginSettingTab {
             this.display();
           }),
       );
-
     if (!unlocked) {
       this.renderConnectionLockState(authSetting.descEl);
       return;
     }
 
-    new Setting(card)
+    new Setting(section)
       .setName("Device ID")
       .setDesc("Stable identifier for this Obsidian installation.")
       .addText((text) =>
@@ -274,7 +266,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(card)
+    new Setting(section)
       .setName("Poll interval")
       .setDesc("How often the plugin polls the server for remote changes.")
       .addText((text) =>
@@ -293,7 +285,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(card)
+    new Setting(section)
       .setName("Auto sync")
       .setDesc("Run the sync loop in the background.")
       .addToggle((toggle) =>
