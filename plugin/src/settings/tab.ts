@@ -227,23 +227,6 @@ export class SyncSettingTab extends PluginSettingTab {
       );
     connectionStatus = createInlineStatus(group, "Connection", "Not checked");
 
-    if (!unlocked) {
-      return;
-    }
-
-    new Setting(group)
-      .setName("Device ID")
-      .setDesc("Stable identifier for this Obsidian installation.")
-      .addText((text) =>
-        text
-          .setPlaceholder("device_local_desktop")
-          .setValue(this.plugin.settings.deviceId)
-          .onChange(async (value) => {
-            this.plugin.settings.deviceId = value.trim();
-            await this.plugin.persistData();
-          }),
-      );
-
     new Setting(group)
       .setName("Auth token")
       .setDesc("Bearer token required by the sync server.")
@@ -264,6 +247,23 @@ export class SyncSettingTab extends PluginSettingTab {
             await this.plugin.persistData();
             this.controller.restartAutoSync();
             this.display();
+          }),
+      );
+
+    if (!unlocked) {
+      return;
+    }
+
+    new Setting(group)
+      .setName("Device ID")
+      .setDesc("Stable identifier for this Obsidian installation.")
+      .addText((text) =>
+        text
+          .setPlaceholder("device_local_desktop")
+          .setValue(this.plugin.settings.deviceId)
+          .onChange(async (value) => {
+            this.plugin.settings.deviceId = value.trim();
+            await this.plugin.persistData();
           }),
       );
 
