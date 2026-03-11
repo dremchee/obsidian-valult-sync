@@ -107,20 +107,8 @@ export class SettingsController {
   }
 
   async checkConnection(): Promise<string> {
-    const settings = this.getSettings();
     await this.baseApi().health();
-
-    if (!settings.authToken.trim()) {
-      return "Server is reachable. Enter an Auth token to continue.";
-    }
-
-    if (!settings.vaultId.trim()) {
-      const response = await this.api().getVaults();
-      return `Server is reachable. Auth ok. ${response.vaults.length} vault(s) available on the server.`;
-    }
-
-    const response = await this.api().getDevices(settings.vaultId);
-    return `Server is reachable. Connected to ${settings.vaultId}. ${response.devices.length} device(s) registered.`;
+    return "Server is reachable.";
   }
 
   async getRemoteVaults(): Promise<VaultItem[]> {
