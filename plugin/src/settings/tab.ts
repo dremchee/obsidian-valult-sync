@@ -41,8 +41,13 @@ export class SyncSettingTab extends PluginSettingTab {
     containerEl.empty();
 
     this.maybeLoadRemoteVaults();
-    this.renderOverviewSection(containerEl);
     this.renderConnectionSection(containerEl);
+    if (!this.isSettingsUnlocked()) {
+      this.renderAuthGateSection(containerEl);
+      return;
+    }
+
+    this.renderOverviewSection(containerEl);
     this.renderVaultSection(containerEl);
     this.renderSyncScopeSection(containerEl);
     this.renderDevicesSection(containerEl);
@@ -50,7 +55,12 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private maybeLoadRemoteVaults(): void {
-    if (this.remoteVaults || this.loadingRemoteVaults || !this.plugin.settings.serverUrl.trim()) {
+    if (
+      this.remoteVaults
+      || this.loadingRemoteVaults
+      || !this.plugin.settings.serverUrl.trim()
+      || !this.plugin.settings.authToken.trim()
+    ) {
       return;
     }
 
@@ -69,6 +79,40 @@ export class SyncSettingTab extends PluginSettingTab {
         this.loadingRemoteVaults = false;
         this.display();
       });
+  }
+
+  private isSettingsUnlocked(): boolean {
+    if (!this.plugin.settings.authToken.trim()) {
+      return false;
+    }
+
+    if (this.remoteVaultsError === "auth failed") {
+      return false;
+    }
+
+    return this.plugin.state.lastSyncError?.code !== "unauthorized";
+  }
+
+  private renderAuthGateSection(container: HTMLElement): void {
+    const group = createSettingGroup(container, "Authorization", "");
+    const panel = createPanel(group);
+    panel.createEl("div", { text: "Settings are locked", cls: "obsidian-sync-panel-title" });
+    panel.createEl("div", {
+      text: this.getAuthGateMessage(),
+      cls: "setting-item-description",
+    });
+  }
+
+  private getAuthGateMessage(): string {
+    if (!this.plugin.settings.authToken.trim()) {
+      return "Enter a valid Auth token to unlock vault, sync scope, device and E2EE settings.";
+    }
+
+    if (this.remoteVaultsError === "auth failed" || this.plugin.state.lastSyncError?.code === "unauthorized") {
+      return "The current Auth token was rejected by the server. Update the token and run Check again.";
+    }
+
+    return "Authorize this plugin to unlock the rest of the sync settings.";
   }
 
   private renderOverviewSection(container: HTMLElement): void {
@@ -147,6 +191,9 @@ export class SyncSettingTab extends PluginSettingTab {
             this.plugin.settings.serverUrl = value.trim();
             this.remoteVaults = null;
             this.remoteVaultsError = null;
+            if (this.plugin.state.lastSyncError?.code === "unauthorized") {
+              this.plugin.state.lastSyncError = null;
+            }
             await this.plugin.persistData();
             this.controller.restartAutoSync();
             this.display();
@@ -190,6 +237,12 @@ export class SyncSettingTab extends PluginSettingTab {
             this.plugin.settings.authToken = value.trim();
             this.remoteVaults = null;
             this.remoteVaultsError = null;
+            if (
+              this.plugin.state.lastSyncError?.code === "unauthorized"
+              || this.plugin.state.lastSyncError?.code === "invalid_settings"
+            ) {
+              this.plugin.state.lastSyncError = null;
+            }
             await this.plugin.persistData();
             this.controller.restartAutoSync();
             this.display();
