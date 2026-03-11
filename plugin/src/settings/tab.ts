@@ -6,10 +6,12 @@ import { SettingsController } from "./controller";
 import {
   buildE2eeStatusText,
   buildScopePreview,
+  createCalloutPanel,
   createCollapsibleSection,
   createInlineStatus,
   createKeyValueRow,
   createPanel,
+  createStatusBadge,
   createSettingGroup,
   formatDeviceError,
   formatLastSyncAt,
@@ -95,8 +97,19 @@ export class SyncSettingTab extends PluginSettingTab {
 
   private renderAuthGateSection(container: HTMLElement): void {
     const group = createSettingGroup(container, "Authorization", "");
-    const panel = createPanel(group);
-    panel.createEl("div", { text: "Settings are locked", cls: "obsidian-sync-panel-title" });
+    const panel = createCalloutPanel(group, this.plugin.settings.authToken.trim() ? "error" : "warn");
+    const topRow = panel.createDiv();
+    topRow.style.display = "flex";
+    topRow.style.justifyContent = "space-between";
+    topRow.style.alignItems = "center";
+    topRow.style.gap = "12px";
+    topRow.style.flexWrap = "wrap";
+    topRow.createEl("div", { text: "Settings are locked", cls: "obsidian-sync-panel-title" });
+    createStatusBadge(
+      topRow,
+      this.plugin.settings.authToken.trim() ? "Auth failed" : "Locked",
+      this.plugin.settings.authToken.trim() ? "error" : "warn",
+    );
     panel.createEl("div", {
       text: this.getAuthGateMessage(),
       cls: "setting-item-description",

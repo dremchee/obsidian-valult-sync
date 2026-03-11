@@ -45,6 +45,19 @@ export function createPanel(container: HTMLElement): HTMLElement {
   return panel;
 }
 
+export function createCalloutPanel(
+  container: HTMLElement,
+  tone: "warn" | "error",
+): HTMLElement {
+  const panel = createPanel(container);
+  panel.style.borderLeft = `3px solid ${tone === "warn" ? "var(--color-orange)" : "var(--color-red)"}`;
+  panel.style.background =
+    tone === "warn"
+      ? "color-mix(in srgb, var(--background-secondary) 88%, var(--color-orange) 12%)"
+      : "color-mix(in srgb, var(--background-secondary) 88%, var(--color-red) 12%)";
+  return panel;
+}
+
 export function createCollapsibleSection(
   container: HTMLElement,
   title: string,
@@ -209,6 +222,14 @@ function createBadge(
   } else {
     badge.style.background = "var(--background-primary-alt)";
   }
+}
+
+export function createStatusBadge(
+  container: HTMLElement,
+  text: string,
+  tone: "ok" | "warn" | "error" | "muted",
+): void {
+  createBadge(container, text, tone);
 }
 
 function buildOverviewSummary(status: {
