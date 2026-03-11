@@ -178,11 +178,23 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private renderConnectionSection(container: HTMLElement): void {
-    const group = createSettingGroup(container, "Connection", "Server, auth, background sync and device identity.");
+    const section = container.createDiv();
+    section.style.marginBottom = "24px";
+
+    const title = section.createEl("h3", { text: "Connection" });
+    title.style.margin = "0 0 12px";
+
+    const card = section.createDiv();
+    card.style.display = "block";
+    card.style.border = "1px solid var(--background-modifier-border)";
+    card.style.borderRadius = "14px";
+    card.style.overflow = "hidden";
+    card.style.background = "var(--background-secondary)";
+
     let connectionStatus!: HTMLElement;
     const unlocked = this.isSettingsUnlocked();
 
-    const serverSetting = new Setting(group)
+    const serverSetting = new Setting(card)
       .setName("Server URL")
       .setDesc("Base URL of the Rust sync server.")
       .addText((text) =>
@@ -221,7 +233,7 @@ export class SyncSettingTab extends PluginSettingTab {
     connectionStatus.style.lineHeight = "1.4";
     connectionStatus.style.color = "var(--text-muted)";
 
-    const authSetting = new Setting(group)
+    const authSetting = new Setting(card)
       .setName("Auth token")
       .setDesc("Bearer token required by the sync server.")
       .addText((text) =>
@@ -249,7 +261,7 @@ export class SyncSettingTab extends PluginSettingTab {
       return;
     }
 
-    new Setting(group)
+    new Setting(card)
       .setName("Device ID")
       .setDesc("Stable identifier for this Obsidian installation.")
       .addText((text) =>
@@ -262,7 +274,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(group)
+    new Setting(card)
       .setName("Poll interval")
       .setDesc("How often the plugin polls the server for remote changes.")
       .addText((text) =>
@@ -281,7 +293,7 @@ export class SyncSettingTab extends PluginSettingTab {
           }),
       );
 
-    new Setting(group)
+    new Setting(card)
       .setName("Auto sync")
       .setDesc("Run the sync loop in the background.")
       .addToggle((toggle) =>
