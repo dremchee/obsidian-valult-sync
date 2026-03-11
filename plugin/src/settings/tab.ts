@@ -241,18 +241,8 @@ export class SyncSettingTab extends PluginSettingTab {
             ? `${this.remoteVaults.length} vault(s) loaded`
             : "Not loaded",
     );
-
-    renderQuickActions(group, [
-      {
-        label: "Load vaults",
-        onClick: async () => {
-          await this.reloadRemoteVaults(vaultStatus);
-        },
-      },
-    ]);
-
-    this.renderVaultRegistryState(group, currentVaultId, vaultStatus);
     const flowPanel = this.renderCurrentVaultPanel(group, currentVaultId, vaultStatus);
+    this.renderVaultRegistryHint(flowPanel, currentVaultId, vaultStatus);
     this.renderCreateVaultControl(flowPanel, vaultStatus);
     this.renderJoinServerVaultControl(flowPanel, currentVaultId, vaultStatus);
     this.renderRemoteVaultsPanel(group, currentVaultId, vaultStatus);
@@ -260,16 +250,19 @@ export class SyncSettingTab extends PluginSettingTab {
     this.renderAdvancedVaultPanel(group, currentVaultId);
   }
 
-  private renderVaultRegistryState(
+  private renderVaultRegistryHint(
     container: HTMLElement,
     currentVaultId: string,
     vaultStatus: HTMLElement,
   ): void {
-    const panel = createPanel(container);
-    panel.createEl("div", { text: "Vault registry", cls: "obsidian-sync-panel-title" });
+    const block = container.createDiv();
+    block.style.display = "grid";
+    block.style.gap = "10px";
+    block.style.paddingTop = "6px";
+    block.style.borderTop = "1px solid var(--background-modifier-border)";
 
     if (this.loadingRemoteVaults) {
-      panel.createEl("div", {
+      block.createEl("div", {
         text: "Loading vaults from the server. You will be able to join an existing vault as soon as the list arrives.",
         cls: "setting-item-description",
       });
@@ -277,23 +270,31 @@ export class SyncSettingTab extends PluginSettingTab {
     }
 
     if (this.remoteVaultsError) {
-      panel.createEl("div", {
+      block.createEl("div", {
         text: `Vault list is unavailable: ${this.remoteVaultsError}`,
         cls: "setting-item-description",
       });
-      panel.createEl("div", {
+      block.createEl("div", {
         text: "Check server URL and auth token, then use Load vaults again. You can still create a vault if the server is reachable.",
         cls: "setting-item-description",
+      });
+      const actions = block.createDiv();
+      actions.style.display = "flex";
+      actions.style.flexWrap = "wrap";
+      actions.style.gap = "8px";
+      const button = actions.createEl("button", { text: "Load vaults" });
+      button.addEventListener("click", async () => {
+        await this.reloadRemoteVaults(vaultStatus);
       });
       return;
     }
 
     if (this.remoteVaults && this.remoteVaults.length === 0) {
-      panel.createEl("div", {
+      block.createEl("div", {
         text: "No vaults exist on the server yet.",
         cls: "setting-item-description",
       });
-      panel.createEl("div", {
+      block.createEl("div", {
         text: "Create a vault below to start syncing this device.",
         cls: "setting-item-description",
       });
@@ -302,22 +303,22 @@ export class SyncSettingTab extends PluginSettingTab {
 
     if (this.remoteVaults) {
       const currentVaultOnServer = this.remoteVaults.some((vault) => vault.vault_id === currentVaultId);
-      panel.createEl("div", {
+      block.createEl("div", {
         text: `Loaded ${this.remoteVaults.length} vault(s) from the server. Join one below or create a new vault.`,
         cls: "setting-item-description",
       });
 
       if (!currentVaultOnServer) {
-        panel.createEl("div", {
+        block.createEl("div", {
           text: `The current vault "${currentVaultId}" is only local so far.`,
           cls: "setting-item-description",
         });
-        panel.createEl("div", {
+        block.createEl("div", {
           text: "Create it on the server to start syncing this vault, or join another existing vault below.",
           cls: "setting-item-description",
         });
 
-        const actions = panel.createDiv();
+        const actions = block.createDiv();
         actions.style.display = "flex";
         actions.style.flexWrap = "wrap";
         actions.style.gap = "8px";
@@ -333,13 +334,21 @@ export class SyncSettingTab extends PluginSettingTab {
       return;
     }
 
-    panel.createEl("div", {
+    block.createEl("div", {
       text: "Vault list has not been loaded yet.",
       cls: "setting-item-description",
     });
-    panel.createEl("div", {
+    block.createEl("div", {
       text: "Use Load vaults to discover existing vaults on the server, or create a new vault below.",
       cls: "setting-item-description",
+    });
+    const actions = block.createDiv();
+    actions.style.display = "flex";
+    actions.style.flexWrap = "wrap";
+    actions.style.gap = "8px";
+    const button = actions.createEl("button", { text: "Load vaults" });
+    button.addEventListener("click", async () => {
+      await this.reloadRemoteVaults(vaultStatus);
     });
   }
 
