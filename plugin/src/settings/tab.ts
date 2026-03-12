@@ -3,6 +3,7 @@ import { App, PluginSettingTab, Setting } from "obsidian";
 import { describeSyncScope, normalizePatternList } from "../sync/scope";
 import { formatSyncErrorState } from "../sync/errors";
 import { SettingsController } from "./controller";
+import { CreateVaultModal, type CreateVaultModalResult } from "../ui/create-vault-modal";
 import {
   buildE2eeStatusText,
   buildScopePreview,
@@ -407,7 +408,11 @@ export class SyncSettingTab extends PluginSettingTab {
         });
         button.addClass("mod-cta");
         button.addEventListener("click", async () => {
-          await this.createAndJoinVault(currentVaultId, vaultStatus);
+          const createVault = await this.requestCreateVault(currentVaultId);
+          if (!createVault) {
+            return;
+          }
+          await this.createAndJoinVault(createVault.vaultId, createVault.passphrase, vaultStatus);
         });
       }
       return;
@@ -512,22 +517,13 @@ export class SyncSettingTab extends PluginSettingTab {
     new Setting(container)
       .setName("Create vault")
       .setDesc(currentVaultId ? "Create a new vault on the server and reconnect this folder to it." : "Create a new vault on the server and connect this folder to it.")
-      .addText((text) =>
-        text
-          .setPlaceholder("team_notes")
-          .setValue(this.createVaultDraft)
-          .onChange((value) => {
-            this.createVaultDraft = value.trim();
-          }),
-      )
       .addButton((button) =>
-        button.setButtonText("Create & join").setCta().onClick(async () => {
-          const nextVaultId = this.createVaultDraft.trim();
-          if (!nextVaultId) {
-            vaultStatus.setText("Vault registry: Enter a vault ID first.");
+        button.setButtonText("Create vault").setCta().onClick(async () => {
+          const createVault = await this.requestCreateVault("");
+          if (!createVault) {
             return;
           }
-          await this.createAndJoinVault(nextVaultId, vaultStatus);
+          await this.createAndJoinVault(createVault.vaultId, createVault.passphrase, vaultStatus);
         }),
       );
   }
@@ -814,14 +810,15 @@ export class SyncSettingTab extends PluginSettingTab {
       );
   }
 
-  private async createAndJoinVault(vaultId: string, vaultStatus: HTMLElement): Promise<void> {
+  private async createAndJoinVault(vaultId: string, passphrase: string, vaultStatus: HTMLElement): Promise<void> {
     this.confirmDisconnectVaultId = null;
     this.confirmForgetVaultId = null;
     vaultStatus.setText(`Vault registry: Creating ${vaultId}...`);
     try {
+      this.controller.setE2eePassphrase(passphrase, vaultId);
       const response = await this.controller.createVault(vaultId);
       await this.controller.bindVault(response.vault.vault_id);
-      this.createVaultDraft = "";
+      await this.controller.rememberCurrentE2eePassphrase();
       this.remoteVaults = await this.controller.getRemoteVaults();
       this.remoteVaultsError = null;
       vaultStatus.setText(
@@ -830,11 +827,18 @@ export class SyncSettingTab extends PluginSettingTab {
           : `Vault registry: Joined existing vault ${response.vault.vault_id}.`,
       );
     } catch (error) {
+      this.controller.setE2eePassphrase("", vaultId);
       this.remoteVaults = null;
       this.remoteVaultsError = formatDeviceError(error);
       vaultStatus.setText(`Vault registry: ${this.remoteVaultsError}`);
     }
     this.display();
+  }
+
+  private requestCreateVault(initialVaultId: string): Promise<CreateVaultModalResult | null> {
+    return new Promise((resolve) => {
+      new CreateVaultModal(this.app, initialVaultId, resolve).open();
+    });
   }
 
   private async reloadRemoteVaults(vaultStatus: HTMLElement): Promise<void> {
