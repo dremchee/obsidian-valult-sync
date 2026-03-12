@@ -1,12 +1,10 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 
-import { describeSyncScope, normalizePatternList } from "../sync/scope";
+import { normalizePatternList } from "../sync/scope";
 import { formatSyncErrorState } from "../sync/errors";
 import { SettingsController } from "./controller";
 import { CreateVaultModal, type CreateVaultModalResult } from "../ui/create-vault-modal";
 import {
-  buildE2eeStatusText,
-  buildScopePreview,
   createCollapsibleSection,
   createInlineStatus,
   createKeyValueRow,
@@ -23,7 +21,6 @@ import type ObsidianSyncPlugin from "../main";
 
 export class SyncSettingTab extends PluginSettingTab {
   private remoteVaults: VaultItem[] | null = null;
-  private createVaultDraft = "";
   private authTokenDraft: string | null = null;
   private loadingRemoteVaults = false;
   private remoteVaultsError: string | null = null;
@@ -52,8 +49,6 @@ export class SyncSettingTab extends PluginSettingTab {
     this.renderOverviewSection(containerEl);
     this.renderVaultSection(containerEl);
     this.renderSyncScopeSection(containerEl);
-    this.renderDevicesSection(containerEl);
-    this.renderE2eeSection(containerEl);
   }
 
   private maybeLoadRemoteVaults(): void {
@@ -269,19 +264,6 @@ export class SyncSettingTab extends PluginSettingTab {
       this.renderConnectionLockState(authSetting.descEl);
       return;
     }
-
-    new Setting(section)
-      .setName("Device ID")
-      .setDesc("Stable identifier for this Obsidian installation.")
-      .addText((text) =>
-        text
-          .setPlaceholder("device_local_desktop")
-          .setValue(this.plugin.settings.deviceId)
-          .onChange(async (value) => {
-            this.plugin.settings.deviceId = value.trim();
-            await this.plugin.persistData();
-          }),
-      );
 
     new Setting(section)
       .setName("Poll interval")
@@ -643,7 +625,6 @@ export class SyncSettingTab extends PluginSettingTab {
 
   private renderSyncScopeSection(container: HTMLElement): void {
     const group = createSettingGroup(container, "Sync Scope", "Control which files are eligible for sync in this vault.");
-    const currentVaultId = this.plugin.settings.vaultId;
 
     new Setting(group)
       .setName("Include patterns")
@@ -677,136 +658,6 @@ export class SyncSettingTab extends PluginSettingTab {
             await this.plugin.persistData();
             this.display();
           }),
-      );
-
-    const syncHealth = createPanel(group);
-    const healthTitle = syncHealth.createEl("div", { text: "Sync health" });
-    createKeyValueRow(syncHealth, "Vault", currentVaultId || "Not connected");
-    createKeyValueRow(syncHealth, "Change cursor", String(this.plugin.state.lastSeq));
-    createKeyValueRow(syncHealth, "Files tracked", String(this.getTrackedFilesCount()));
-    createKeyValueRow(syncHealth, "Deletes tracked", String(this.getDeletedFilesCount()));
-    createKeyValueRow(syncHealth, "Last successful sync", formatLastSyncAt(this.plugin.state.lastSyncAt));
-    createKeyValueRow(syncHealth, "Last issue", formatSyncErrorState(this.plugin.state.lastSyncError));
-
-    const currentScope = createCollapsibleSection(
-      group,
-      "Current sync scope",
-      "Preview which files are included or skipped by the current rules.",
-      false,
-    );
-    const scopeTitle = currentScope.createEl("div", { text: "Current sync scope" });
-    const scopeList = currentScope.createEl("div");
-    for (const line of describeSyncScope(
-      this.plugin.settings.includePatterns,
-      this.plugin.settings.ignorePatterns,
-    )) {
-      scopeList.createEl("div", { text: line });
-    }
-
-    const preview = buildScopePreview(
-      this.plugin.app.vault.getFiles().map((file) => file.path),
-      this.plugin.settings.includePatterns,
-      this.plugin.settings.ignorePatterns,
-    );
-    createKeyValueRow(
-      currentScope,
-      "Preview",
-      `${preview.syncedCount} included, ${preview.skippedCount} skipped`,
-    );
-    if (preview.sampleLines.length > 0) {
-      const previewList = currentScope.createEl("div");
-      for (const line of preview.sampleLines) {
-        previewList.createEl("div", { text: line, cls: "setting-item-description" });
-      }
-    }
-  }
-
-  private renderDevicesSection(container: HTMLElement): void {
-    const group = createSettingGroup(container, "Devices", "Inspect the current device registry for this vault.");
-    if (!this.plugin.settings.vaultId.trim()) {
-      createInlineStatus(group, "Devices", "Connect this folder to a vault to view registered devices.");
-      return;
-    }
-
-    const section = createCollapsibleSection(
-      group,
-      "Registered devices",
-      "Open to inspect known devices for this vault.",
-      false,
-    );
-    const devicesStatus = createPanel(section);
-    const loadingTitle = devicesStatus.createEl("div", { text: "Loading devices..." });
-
-    new Setting(section)
-      .setName("Refresh devices")
-      .setDesc("Fetch the current device registry for this vault from the server.")
-      .addButton((button) =>
-        button.setButtonText("Refresh").onClick(async () => {
-          await this.renderDevices(devicesStatus);
-        }),
-      );
-
-    void this.renderDevices(devicesStatus);
-  }
-
-  private renderE2eeSection(container: HTMLElement): void {
-    const group = createSettingGroup(container, "E2EE", "Manage the session passphrase and fingerprint for this vault.");
-    if (!this.plugin.settings.vaultId.trim()) {
-      createInlineStatus(group, "E2EE", "Connect this folder to a vault before enabling E2EE.");
-      return;
-    }
-
-    const section = createCollapsibleSection(
-      group,
-      "E2EE controls",
-      "Open to manage the session passphrase and this vault fingerprint.",
-      false,
-    );
-
-    new Setting(section)
-      .setName("E2EE passphrase")
-      .setDesc("Optional passphrase for encrypting file contents locally before upload. Kept only in memory for the current Obsidian session.")
-      .addText((text) =>
-        text
-          .setPlaceholder("correct horse battery staple")
-          .setValue(this.controller.getE2eePassphrase())
-          .onChange((value) => {
-            this.controller.setE2eePassphrase(value);
-          }),
-      );
-
-    const status = createInlineStatus(
-      section,
-      "E2EE",
-      buildE2eeStatusText(
-        this.controller.getE2eeFingerprint(),
-        this.controller.getE2eePassphrase(),
-      ),
-    );
-
-    new Setting(section)
-      .setName("Passphrase validation")
-      .setDesc("Check the session passphrase against the stored fingerprint for this vault.")
-      .addButton((button) =>
-        button.setButtonText("Validate").onClick(async () => {
-          try {
-            const message = await this.controller.validateCurrentE2eePassphrase();
-            status.setText(`E2EE: ${message}`);
-          } catch (error) {
-            status.setText(`E2EE: ${formatDeviceError(error)}`);
-          }
-        }),
-      )
-      .addButton((button) =>
-        button.setButtonText("Forget fingerprint").onClick(async () => {
-          await this.controller.clearCurrentE2eeFingerprint();
-          status.setText(
-            buildE2eeStatusText(
-              this.controller.getE2eeFingerprint(),
-              this.controller.getE2eePassphrase(),
-            ),
-          );
-        }),
       );
   }
 
@@ -853,61 +704,6 @@ export class SyncSettingTab extends PluginSettingTab {
       vaultStatus.setText(`Vault registry: ${this.remoteVaultsError}`);
     }
     this.display();
-  }
-
-  private async renderDevices(container: HTMLElement): Promise<void> {
-    container.empty();
-    const devicesTitle = container.createEl("div", { text: "Devices" });
-    container.createEl("div", { text: "Loading devices...", cls: "setting-item-description" });
-
-    try {
-      const currentDeviceId = this.plugin.settings.deviceId.trim();
-      const devices = await this.controller.getRegisteredDevices();
-      const sortedDevices = [...devices].sort((left, right) => {
-        if (left.device_id === currentDeviceId && right.device_id !== currentDeviceId) {
-          return -1;
-        }
-        if (right.device_id === currentDeviceId && left.device_id !== currentDeviceId) {
-          return 1;
-        }
-        return left.device_id.localeCompare(right.device_id);
-      });
-      container.empty();
-      const devicesTitle = container.createEl("div", { text: "Devices" });
-
-      if (sortedDevices.length === 0) {
-        container.createEl("div", {
-          text: "No devices registered for this vault yet.",
-          cls: "setting-item-description",
-        });
-        return;
-      }
-
-      const currentDevice = sortedDevices.find((device) => device.device_id === currentDeviceId);
-      container.createEl("div", {
-        text: currentDevice
-          ? `This device is registered. Last seen ${formatTimestamp(currentDevice.last_seen_at)}.`
-          : "This device is not registered yet. Run sync to add it to the registry.",
-        cls: "setting-item-description",
-      });
-
-      for (const device of sortedDevices) {
-        const lastSeen = formatTimestamp(device.last_seen_at);
-        const firstSeen = formatTimestamp(device.first_seen_at);
-        const label =
-          device.device_id === currentDeviceId
-            ? `${device.device_id} (this device)`
-            : device.device_id;
-        createKeyValueRow(container, label, `Last seen ${lastSeen}. First seen ${firstSeen}.`);
-      }
-    } catch (error) {
-      container.empty();
-      const devicesTitle = container.createEl("div", { text: "Devices" });
-      container.createEl("div", {
-        text: `Failed to load devices: ${formatDeviceError(error)}`,
-        cls: "setting-item-description",
-      });
-    }
   }
 
   private getTrackedFilesCount(): number {
