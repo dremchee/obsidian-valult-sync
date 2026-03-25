@@ -1,5 +1,5 @@
 import type {
-  LegacyPluginDataShape,
+  PluginDataShape,
   SyncSettings,
   SyncState,
   VaultScopeConfig,
@@ -22,7 +22,7 @@ export class PluginStateStore {
   state: SyncState = structuredClone(DEFAULT_STATE);
   scope: VaultScopeConfig = structuredClone(DEFAULT_SCOPE);
 
-  load(raw: LegacyPluginDataShape | null, activeVaultId: string): SyncState {
+  load(raw: PluginDataShape | null, activeVaultId: string): SyncState {
     this.state = this.normalizePersistedState(raw, activeVaultId);
     this.scope = this.normalizePersistedScope(raw, activeVaultId);
     return structuredClone(this.state);
@@ -75,7 +75,7 @@ export class PluginStateStore {
   }
 
   private normalizePersistedState(
-    raw: LegacyPluginDataShape | null,
+    raw: PluginDataShape | null,
     activeVaultId: string,
   ): SyncState {
     const persistedCurrentState = raw?.state;
@@ -91,19 +91,6 @@ export class PluginStateStore {
       };
     }
 
-    const legacyMappedState = raw?.statesByVaultId?.[activeVaultId];
-    if (legacyMappedState) {
-      return {
-        ...DEFAULT_STATE,
-        ...legacyMappedState,
-        vaultId: activeVaultId,
-        files: {
-          ...DEFAULT_STATE.files,
-          ...legacyMappedState.files,
-        },
-      };
-    }
-
     return {
       ...DEFAULT_STATE,
       vaultId: activeVaultId,
@@ -111,8 +98,8 @@ export class PluginStateStore {
   }
 
   private normalizePersistedScope(
-    raw: LegacyPluginDataShape | null,
-    activeVaultId: string,
+    raw: PluginDataShape | null,
+    _activeVaultId: string,
   ): VaultScopeConfig {
     if (raw?.scope) {
       return {
@@ -121,17 +108,6 @@ export class PluginStateStore {
       };
     }
 
-    const legacyScope = raw?.vaultScopesById?.[activeVaultId];
-    if (legacyScope) {
-      return {
-        includePatterns: [...(legacyScope.includePatterns ?? [])],
-        ignorePatterns: [...(legacyScope.ignorePatterns ?? [])],
-      };
-    }
-
-    return {
-      includePatterns: [...(raw?.settings?.includePatterns ?? [])],
-      ignorePatterns: [...(raw?.settings?.ignorePatterns ?? [])],
-    };
+    return structuredClone(DEFAULT_SCOPE);
   }
 }

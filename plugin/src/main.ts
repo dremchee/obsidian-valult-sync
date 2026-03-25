@@ -10,7 +10,6 @@ import { SyncEngine } from "./sync/engine";
 import { FileHistoryModal } from "./ui/file-history-modal";
 import { PluginStatusBar } from "./ui/status-bar";
 import type {
-  LegacyPluginDataShape,
   PluginDataShape,
   SyncSettings,
   SyncState,
@@ -215,21 +214,18 @@ export default class ObsidianSyncPlugin extends Plugin {
   }
 
   private async loadPluginData(): Promise<void> {
-    const raw = (await this.loadData()) as LegacyPluginDataShape | null;
-    const rawSettings = raw?.settings ? stripLegacySecrets(raw.settings) : undefined;
+    const raw = (await this.loadData()) as PluginDataShape | null;
     this.settings = {
       ...DEFAULT_SETTINGS,
-      ...rawSettings,
+      ...raw?.settings,
     };
     if (!this.settings.deviceId) {
       this.settings.deviceId = this.generateDeviceId();
     }
     this.e2eeState.replaceFingerprints(
-      raw?.e2eeFingerprintsByVaultId
-        ? { ...raw.e2eeFingerprintsByVaultId }
-        : raw?.e2eeFingerprint && this.settings.vaultId
-          ? { [this.settings.vaultId]: raw.e2eeFingerprint }
-          : {},
+      raw?.e2eeFingerprint && this.settings.vaultId
+        ? { [this.settings.vaultId]: raw.e2eeFingerprint }
+        : {},
     );
     this.state = this.stateStore.load(raw, this.settings.vaultId);
     this.stateStore.applyScope(this.settings);
@@ -355,9 +351,4 @@ export default class ObsidianSyncPlugin extends Plugin {
     new Notice(`Restored ${activeFile.path} from server version ${targetVersion}.`, 5000);
   }
 
-}
-
-function stripLegacySecrets(settings: Partial<SyncSettings> & { e2eePassphrase?: string }): Partial<SyncSettings> {
-  const { e2eePassphrase: _ignored, ...safeSettings } = settings;
-  return safeSettings;
 }

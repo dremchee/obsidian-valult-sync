@@ -38,16 +38,6 @@ export interface PluginDataShape {
   e2eeFingerprint: string | null;
 }
 
-export interface LegacyPluginDataShape {
-  settings?: Partial<SyncSettings>;
-  state?: Partial<SyncState>;
-  scope?: Partial<VaultScopeConfig>;
-  e2eeFingerprint?: string | null;
-  statesByVaultId?: Record<string, Partial<SyncState>>;
-  vaultScopesById?: Record<string, Partial<VaultScopeConfig>>;
-  e2eeFingerprintsByVaultId?: Record<string, string>;
-}
-
 export interface UploadRequest {
   vault_id: string;
   device_id: string;
