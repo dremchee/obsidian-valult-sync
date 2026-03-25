@@ -11,6 +11,7 @@
     "types": ["obsidian"],
     "resolveJsonModule": true,
     "skipLibCheck": true,
+    "verbatimModuleSyntax": true
   },
-  "include": ["src/**/*.ts", "main.ts"]
+  "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.svelte", "main.ts"]
 }
