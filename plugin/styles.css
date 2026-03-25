@@ -155,3 +155,24 @@
   align-items: center;
   gap: 6px;
 }
+
+.obsidian-sync-field-controls {
+  display: grid;
+  gap: 8px;
+  min-width: min(420px, 100%);
+}
+
+.obsidian-sync-button-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.obsidian-sync-textarea-control {
+  min-width: min(420px, 100%);
+}
+
+.obsidian-sync-textarea-control textarea {
+  width: min(420px, 100%);
+  min-height: 120px;
+}
