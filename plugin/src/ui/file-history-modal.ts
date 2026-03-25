@@ -1,8 +1,15 @@
-import { Modal, Setting } from "obsidian";
+import { Modal } from "obsidian";
 
 import type { FileVersionItem } from "../types";
+import type { HistoryState } from "./file-history-types";
+import FileHistoryModalView from "./components/FileHistoryModal.svelte";
+import { destroyComponent, mountComponent, type MountedSvelteComponent } from "./svelte";
 
 export class FileHistoryModal extends Modal {
+  private component: MountedSvelteComponent | null = null;
+  private state: HistoryState = { kind: "loading" };
+  private restoringVersion: number | null = null;
+
   constructor(
     app: Modal["app"],
     private readonly path: string,
@@ -16,79 +23,50 @@ export class FileHistoryModal extends Modal {
   onOpen(): void {
     this.modalEl.addClass("obsidian-sync-file-history-modal");
     this.titleEl.setText(`Server history: ${this.path}`);
+    this.contentEl.empty();
+    this.renderView();
     void this.render();
   }
 
   private async render(): Promise<void> {
-    const { contentEl } = this;
-    contentEl.empty();
-    contentEl.createEl("p", {
-      text: "Loading server history...",
-      cls: "setting-item-description",
-    });
+    this.state = { kind: "loading" };
+    this.renderView();
 
     try {
       const versions = await this.loadHistory();
-      contentEl.empty();
-
-      if (versions.length === 0) {
-        contentEl.createEl("p", {
-          text: "No server history is available for this file yet.",
-          cls: "setting-item-description",
-        });
-        return;
-      }
-
-      for (const version of versions) {
-        const description = buildVersionDescription(version, this.currentVersion);
-        new Setting(contentEl)
-          .setName(`Version ${version.version}`)
-          .setDesc(description)
-          .addButton((button) => {
-            if (version.version === this.currentVersion) {
-              button.setButtonText("Current").setDisabled(true);
-              return;
-            }
-
-            button.setButtonText("Restore").onClick(async () => {
-              button.setDisabled(true);
-              try {
-                await this.restoreVersion(version.version);
-                this.close();
-              } finally {
-                button.setDisabled(false);
-              }
-            });
-          });
-      }
+      this.state = { kind: "loaded", versions };
     } catch (error) {
-      contentEl.empty();
-      contentEl.createEl("p", {
-        text: `Failed to load server history: ${error instanceof Error ? error.message : String(error)}`,
-        cls: "setting-item-description",
-      });
+      this.state = {
+        kind: "error",
+        message: error instanceof Error ? error.message : String(error),
+      };
     }
-  }
-}
-
-function buildVersionDescription(version: FileVersionItem, currentVersion: number): string {
-  const parts = [
-    version.created_at ? formatTimestamp(version.created_at) : "Unknown time",
-    version.deleted ? "tombstone" : version.content_format,
-  ];
-
-  if (version.version === currentVersion) {
-    parts.unshift("Current version");
+    this.renderView();
   }
 
-  return parts.join(" • ");
-}
-
-function formatTimestamp(value: string): string {
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return value;
+  async onClose(): Promise<void> {
+    await destroyComponent(this.component);
+    this.component = null;
+    this.contentEl.empty();
   }
 
-  return parsed.toLocaleString();
+  private renderView(): void {
+    void destroyComponent(this.component);
+    this.component = mountComponent(FileHistoryModalView, this.contentEl, {
+      currentVersion: this.currentVersion,
+      state: this.state,
+      restoringVersion: this.restoringVersion,
+      onRestore: async (targetVersion: number) => {
+        this.restoringVersion = targetVersion;
+        this.renderView();
+        try {
+          await this.restoreVersion(targetVersion);
+          this.close();
+        } finally {
+          this.restoringVersion = null;
+          this.renderView();
+        }
+      },
+    });
+  }
 }

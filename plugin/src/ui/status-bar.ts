@@ -1,4 +1,7 @@
-import { Menu, setIcon } from "obsidian";
+import { Menu } from "obsidian";
+
+import StatusBarView from "./components/StatusBar.svelte";
+import { destroyComponent, mountComponent, type MountedSvelteComponent } from "./svelte";
 
 export type StatusBarState = "ok" | "pending" | "syncing" | "error" | "disabled";
 
@@ -12,6 +15,7 @@ export interface StatusBarSnapshot {
 
 export class PluginStatusBar {
   private intervalId: number | null = null;
+  private component: MountedSvelteComponent | null = null;
 
   constructor(
     private readonly statusBarEl: HTMLElement,
@@ -34,6 +38,8 @@ export class PluginStatusBar {
       this.intervalId = null;
     }
     this.statusBarEl.removeEventListener("click", this.handleClick);
+    void destroyComponent(this.component);
+    this.component = null;
   }
 
   private readonly handleClick = (evt: MouseEvent): void => {
@@ -61,40 +67,12 @@ export class PluginStatusBar {
   private render(): void {
     const snapshot = this.getSnapshot();
     this.statusBarEl.empty();
-
-    const iconEl = this.statusBarEl.createSpan({ cls: "obsidian-sync-status-icon" });
-    setIcon(iconEl, iconForState(snapshot.state));
-
-    const titleLines = [
-      `Status: ${snapshot.statusText}`,
-      `Vault: ${snapshot.vaultId}`,
-      `Last sync: ${formatLastSync(snapshot.lastSyncAt)}`,
-    ];
-    if (snapshot.lastError) {
-      titleLines.push(`Last issue: ${snapshot.lastError}`);
-    }
-
-    this.statusBarEl.title = titleLines.join("\n");
     this.statusBarEl.style.display = "inline-flex";
     this.statusBarEl.style.alignItems = "center";
     this.statusBarEl.style.gap = "6px";
+    void destroyComponent(this.component);
+    this.component = mountComponent(StatusBarView, this.statusBarEl, { snapshot });
   }
-}
-
-function iconForState(state: StatusBarState): string {
-  if (state === "syncing") {
-    return "refresh-cw";
-  }
-  if (state === "pending") {
-    return "clock-3";
-  }
-  if (state === "error") {
-    return "alert-triangle";
-  }
-  if (state === "disabled") {
-    return "pause-circle";
-  }
-  return "check-circle";
 }
 
 function formatLastSync(value: number | null): string {

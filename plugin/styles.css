@@ -119,3 +119,39 @@
 .obsidian-sync-badge-muted {
   background: var(--background-primary-alt);
 }
+
+.obsidian-sync-modal-copy {
+  margin-bottom: 12px;
+}
+
+.obsidian-sync-form-row {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.obsidian-sync-form-label {
+  font-weight: 600;
+}
+
+.obsidian-sync-modal-error {
+  min-height: 1.4em;
+  color: var(--text-error);
+}
+
+.obsidian-sync-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.obsidian-sync-history-list {
+  display: grid;
+}
+
+.obsidian-sync-status-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
