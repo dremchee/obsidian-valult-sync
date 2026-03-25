@@ -5,14 +5,10 @@ import { formatSyncErrorState } from "../sync/errors";
 import { SettingsController } from "./controller";
 import { CreateVaultModal, type CreateVaultModalResult } from "../ui/create-vault-modal";
 import {
-  createCollapsibleSection,
   createInlineStatus,
-  createKeyValueRow,
-  createPanel,
   createSettingGroup,
   formatDeviceError,
   formatLastSyncAt,
-  formatTimestamp,
   renderQuickActions,
   renderStatusHeader,
 } from "./ui";
@@ -22,6 +18,7 @@ import type ObsidianSyncPlugin from "../main";
 export class SyncSettingTab extends PluginSettingTab {
   private remoteVaults: VaultItem[] | null = null;
   private authTokenDraft: string | null = null;
+  private editingAuthToken = false;
   private loadingRemoteVaults = false;
   private remoteVaultsError: string | null = null;
   private confirmForgetVaultId: string | null = null;
@@ -224,45 +221,68 @@ export class SyncSettingTab extends PluginSettingTab {
       cls: "setting-item-description",
     });
 
-    const authSetting = new Setting(section)
-      .setName("Auth token")
-      .setDesc("Bearer token required by the sync server.")
-      .addText((text) =>
-        text
-          .setPlaceholder("secret-token")
-          .setValue(this.authTokenDraft ?? "")
-          .onChange((value) => {
-            this.authTokenDraft = value.trim();
+    if (!unlocked || this.editingAuthToken) {
+      const authSetting = new Setting(section)
+        .setName("Auth token")
+        .setDesc("Bearer token required by the sync server.")
+        .addText((text) =>
+          text
+            .setPlaceholder("secret-token")
+            .setValue(this.editingAuthToken ? "" : (this.authTokenDraft ?? ""))
+            .onChange((value) => {
+              this.authTokenDraft = value.trim();
+            }),
+        )
+        .addButton((button) =>
+          button.setButtonText("Authorize").setCta().onClick(async () => {
+            await this.authorizeToken(connectionStatus);
           }),
-      )
-      .addButton((button) =>
-        button.setButtonText("Authorize").setCta().onClick(async () => {
-          this.plugin.settings.authToken = (this.authTokenDraft ?? "").trim();
-          this.remoteVaults = null;
-          this.remoteVaultsError = null;
-          if (
-            this.plugin.state.lastSyncError?.code === "unauthorized"
-            || this.plugin.state.lastSyncError?.code === "invalid_settings"
-          ) {
-            this.plugin.state.lastSyncError = null;
-          }
-          await this.plugin.persistData();
-          this.controller.restartAutoSync();
+        );
 
-          connectionStatus.setText("Connection: Checking...");
-          try {
-            const message = await this.controller.checkConnection();
-            connectionStatus.setText(`Connection: ${message}`);
-          } catch (error) {
-            connectionStatus.setText(`Connection: ${formatDeviceError(error)}`);
-          }
+      if (this.editingAuthToken) {
+        authSetting.addButton((button) =>
+          button.setButtonText("Cancel").onClick(() => {
+            this.editingAuthToken = false;
+            this.authTokenDraft = this.plugin.settings.authToken;
+            this.display();
+          }),
+        );
+      }
 
-          this.display();
-        }),
-      );
-    if (!unlocked) {
-      this.renderConnectionLockState(authSetting.descEl);
-      return;
+      if (!unlocked) {
+        this.renderConnectionLockState(authSetting.descEl);
+        return;
+      }
+    } else {
+      new Setting(section)
+        .setName("Authorization")
+        .setDesc("Authorized with the current server token.")
+        .addButton((button) =>
+          button.setButtonText("Change token").onClick(() => {
+            this.editingAuthToken = true;
+            this.authTokenDraft = "";
+            this.display();
+          }),
+        )
+        .addButton((button) =>
+          button.setButtonText("Sign out").onClick(async () => {
+            this.editingAuthToken = false;
+            this.authTokenDraft = "";
+            this.plugin.settings.authToken = "";
+            this.remoteVaults = null;
+            this.remoteVaultsError = null;
+            if (
+              this.plugin.state.lastSyncError?.code === "unauthorized"
+              || this.plugin.state.lastSyncError?.code === "invalid_settings"
+            ) {
+              this.plugin.state.lastSyncError = null;
+            }
+            await this.plugin.persistData();
+            this.controller.restartAutoSync();
+            connectionStatus.setText("Connection: Not authorized");
+            this.display();
+          }),
+        );
     }
 
     new Setting(section)
@@ -311,187 +331,123 @@ export class SyncSettingTab extends PluginSettingTab {
             ? `${this.remoteVaults.length} vault(s) loaded`
             : "Not loaded",
     );
-    const flowPanel = this.renderCurrentVaultPanel(group, currentVaultId, vaultStatus);
-    this.renderVaultRegistryHint(flowPanel, currentVaultId, vaultStatus);
-    this.renderCreateVaultControl(flowPanel, vaultStatus);
-    this.renderJoinServerVaultControl(flowPanel, currentVaultId, vaultStatus);
-    this.renderRemoteVaultsPanel(group, currentVaultId, vaultStatus);
-  }
-
-  private renderVaultRegistryHint(
-    container: HTMLElement,
-    currentVaultId: string,
-    vaultStatus: HTMLElement,
-  ): void {
-    const block = container.createDiv();
-
-    if (this.loadingRemoteVaults) {
-      block.createEl("div", {
-        text: "Loading vaults from the server. You will be able to join an existing vault as soon as the list arrives.",
-        cls: "setting-item-description",
-      });
-      return;
-    }
-
-    if (this.remoteVaultsError) {
-      block.createEl("div", {
-        text: `Vault list is unavailable: ${this.remoteVaultsError}`,
-        cls: "setting-item-description",
-      });
-      block.createEl("div", {
-        text: "Check server URL and auth token, then use Load vaults again. You can still create a vault if the server is reachable.",
-        cls: "setting-item-description",
-      });
-      const actions = block.createDiv();
-      const button = actions.createEl("button", { text: "Load vaults" });
-      button.addEventListener("click", async () => {
-        await this.reloadRemoteVaults(vaultStatus);
-      });
-      return;
-    }
-
-    if (this.remoteVaults && this.remoteVaults.length === 0) {
-      block.createEl("div", {
-        text: "No vaults exist on the server yet.",
-        cls: "setting-item-description",
-      });
-      block.createEl("div", {
-        text: "Create a vault below to start syncing this device.",
-        cls: "setting-item-description",
-      });
-      return;
-    }
-
-    if (this.remoteVaults) {
-      const currentVaultOnServer = this.remoteVaults.some((vault) => vault.vault_id === currentVaultId);
-      block.createEl("div", {
-        text: `Loaded ${this.remoteVaults.length} vault(s) from the server. Join one below or create a new vault.`,
-        cls: "setting-item-description",
-      });
-
-      if (!currentVaultOnServer) {
-        block.createEl("div", {
-          text: currentVaultId
-            ? `This folder is connected to "${currentVaultId}", but that vault is not in the current server registry.`
-            : "This folder is not connected to a vault yet.",
-          cls: "setting-item-description",
-        });
-        block.createEl("div", {
-          text: currentVaultId
-            ? "Create this vault on the server or reconnect this folder to another existing vault below."
-            : "Create a new vault for this folder or connect it to an existing vault below.",
-          cls: "setting-item-description",
-        });
-
-        const actions = block.createDiv();
-
-        const button = actions.createEl("button", {
-          text: "Create current vault on server",
-        });
-        button.addClass("mod-cta");
-        button.addEventListener("click", async () => {
-          const createVault = await this.requestCreateVault(currentVaultId);
-          if (!createVault) {
-            return;
-          }
-          await this.createAndJoinVault(createVault.vaultId, createVault.passphrase, vaultStatus);
-        });
-      }
-      return;
-    }
-
-    block.createEl("div", {
-      text: "Vault list has not been loaded yet.",
-      cls: "setting-item-description",
-    });
-    block.createEl("div", {
-      text: "Use Load vaults to discover existing vaults on the server, or create a new vault below.",
-      cls: "setting-item-description",
-    });
-    const actions = block.createDiv();
-    const button = actions.createEl("button", { text: "Load vaults" });
-    button.addEventListener("click", async () => {
-      await this.reloadRemoteVaults(vaultStatus);
-    });
+    this.renderCurrentVaultPanel(group, currentVaultId, vaultStatus);
+    this.renderVaultRegistryControl(group, currentVaultId, vaultStatus);
+    this.renderCreateVaultControl(group, vaultStatus);
+    this.renderJoinServerVaultControl(group, currentVaultId, vaultStatus);
   }
 
   private renderCurrentVaultPanel(
     container: HTMLElement,
     currentVaultId: string,
     vaultStatus: HTMLElement,
-  ): HTMLElement {
-    const panel = createPanel(container);
-    const panelTitle = panel.createEl("div", { text: "Vault flow" });
-
-    const currentVaultBlock = panel.createDiv();
-    currentVaultBlock.createEl("div", {
-      text: "Current folder binding",
-      cls: "setting-item-description",
-    });
-    createKeyValueRow(currentVaultBlock, "Connected vault", currentVaultId || "Not connected");
-    createKeyValueRow(
-      currentVaultBlock,
-      "Server registry",
+  ): void {
+    const serverRegistryStatus =
       !currentVaultId
         ? "Not connected"
         : this.remoteVaults
         ? this.remoteVaults.some((vault) => vault.vault_id === currentVaultId) ? "Loaded" : "Not loaded here"
-        : this.loadingRemoteVaults ? "Loading..." : this.remoteVaultsError ? "Unavailable" : "Not loaded",
-    );
+        : this.loadingRemoteVaults ? "Loading..." : this.remoteVaultsError ? "Unavailable" : "Not loaded";
 
-    const actions = currentVaultBlock.createDiv();
+    new Setting(container)
+      .setName("Current vault")
+      .setDesc(`Connected vault: ${currentVaultId || "Not connected"}. Server registry: ${serverRegistryStatus}.`)
+      .addButton((button) => {
+        button.setButtonText(
+          this.confirmDisconnectVaultId === currentVaultId ? "Confirm disconnect" : "Disconnect",
+        );
+        button.setDisabled(!currentVaultId);
+        button.onClick(async () => {
+          if (!currentVaultId) {
+            return;
+          }
 
-    const disconnectButton = actions.createEl("button", {
-      text: this.confirmDisconnectVaultId === currentVaultId ? "Confirm disconnect" : "Disconnect",
-    });
-    disconnectButton.disabled = !currentVaultId;
-    disconnectButton.addEventListener("click", async () => {
-      if (!currentVaultId) {
-        return;
-      }
+          const needsConfirm = this.controller.hasPendingSyncWork() || this.plugin.state.lastSyncError !== null;
+          if (needsConfirm && this.confirmDisconnectVaultId !== currentVaultId) {
+            this.confirmDisconnectVaultId = currentVaultId;
+            vaultStatus.setText(`Vault registry: Click "Confirm disconnect" to leave ${currentVaultId}. Pending work or sync issues may still exist locally.`);
+            this.display();
+            return;
+          }
 
-      const needsConfirm = this.controller.hasPendingSyncWork() || this.plugin.state.lastSyncError !== null;
-      if (needsConfirm && this.confirmDisconnectVaultId !== currentVaultId) {
-        this.confirmDisconnectVaultId = currentVaultId;
-        vaultStatus.setText(`Vault registry: Click "Confirm disconnect" to leave ${currentVaultId}. Pending work or sync issues may still exist locally.`);
-        this.display();
-        return;
-      }
+          this.confirmDisconnectVaultId = null;
+          this.confirmForgetVaultId = null;
+          vaultStatus.setText(`Vault registry: Disconnecting ${currentVaultId}...`);
+          await this.controller.disconnectVault();
+          vaultStatus.setText(`Vault registry: This folder is no longer connected to ${currentVaultId}.`);
+          this.display();
+        });
+      })
+      .addButton((button) => {
+        button.setButtonText(
+          this.confirmForgetVaultId === currentVaultId ? "Confirm forget" : "Forget local state",
+        );
+        button.setWarning();
+        button.setDisabled(!currentVaultId);
+        button.onClick(async () => {
+          if (!currentVaultId) {
+            return;
+          }
 
-      this.confirmDisconnectVaultId = null;
-      this.confirmForgetVaultId = null;
-      vaultStatus.setText(`Vault registry: Disconnecting ${currentVaultId}...`);
-      await this.controller.disconnectVault();
-      vaultStatus.setText(`Vault registry: This folder is no longer connected to ${currentVaultId}.`);
-      this.display();
-    });
+          if (this.confirmForgetVaultId !== currentVaultId) {
+            this.confirmForgetVaultId = currentVaultId;
+            this.confirmDisconnectVaultId = null;
+            vaultStatus.setText(`Vault registry: Click "Confirm forget" to remove local state for ${currentVaultId}.`);
+            this.display();
+            return;
+          }
 
-    const forgetButton = actions.createEl("button", {
-      text: this.confirmForgetVaultId === currentVaultId ? "Confirm forget" : "Forget local state",
-    });
-    forgetButton.addClass("mod-warning");
-    forgetButton.disabled = !currentVaultId;
-    forgetButton.addEventListener("click", async () => {
-      if (!currentVaultId) {
-        return;
-      }
+          this.confirmForgetVaultId = null;
+          vaultStatus.setText(`Vault registry: Removing local state for ${currentVaultId}...`);
+          await this.controller.forgetLocalState();
+          vaultStatus.setText(`Vault registry: Removed local state for ${currentVaultId}.`);
+          this.display();
+        });
+      });
+  }
 
-      if (this.confirmForgetVaultId !== currentVaultId) {
-        this.confirmForgetVaultId = currentVaultId;
-        this.confirmDisconnectVaultId = null;
-        vaultStatus.setText(`Vault registry: Click "Confirm forget" to remove local state for ${currentVaultId}.`);
-        this.display();
-        return;
-      }
+  private renderVaultRegistryControl(
+    container: HTMLElement,
+    currentVaultId: string,
+    vaultStatus: HTMLElement,
+  ): void {
+    const description = this.loadingRemoteVaults
+      ? "Loading vaults from the server..."
+      : this.remoteVaultsError
+        ? `Vault list is unavailable: ${this.remoteVaultsError}`
+        : this.remoteVaults
+          ? this.remoteVaults.length === 0
+            ? "No vaults exist on the server yet."
+            : currentVaultId && !this.remoteVaults.some((vault) => vault.vault_id === currentVaultId)
+              ? `Loaded ${this.remoteVaults.length} vault(s). The current vault is not in the server registry.`
+              : `Loaded ${this.remoteVaults.length} vault(s) from the server.`
+          : "Load vaults from the server to join an existing one.";
 
-      this.confirmForgetVaultId = null;
-      vaultStatus.setText(`Vault registry: Removing local state for ${currentVaultId}...`);
-      await this.controller.forgetLocalState();
-      vaultStatus.setText(`Vault registry: Removed local state for ${currentVaultId}.`);
-      this.display();
-    });
+    new Setting(container)
+      .setName("Server vaults")
+      .setDesc(description)
+      .addButton((button) =>
+        button
+          .setButtonText("Load vaults")
+          .setDisabled(this.loadingRemoteVaults)
+          .onClick(async () => {
+            await this.reloadRemoteVaults(vaultStatus);
+          }),
+      )
+      .addButton((button) => {
+        if (!currentVaultId || !this.remoteVaults || this.remoteVaults.some((vault) => vault.vault_id === currentVaultId)) {
+          button.setButtonText("Create current").setDisabled(true);
+          return;
+        }
 
-    return panel;
+        button.setButtonText("Create current").setCta().onClick(async () => {
+          const createVault = await this.requestCreateVault(currentVaultId);
+          if (!createVault) {
+            return;
+          }
+          await this.createAndJoinVault(createVault.vaultId, createVault.passphrase, vaultStatus);
+        });
+      });
   }
 
   private renderCreateVaultControl(container: HTMLElement, vaultStatus: HTMLElement): void {
@@ -564,65 +520,6 @@ export class SyncSettingTab extends PluginSettingTab {
       });
   }
 
-  private renderRemoteVaultsPanel(
-    container: HTMLElement,
-    currentVaultId: string,
-    vaultStatus: HTMLElement,
-  ): void {
-    if (!this.remoteVaults) {
-      return;
-    }
-
-    const panel = createCollapsibleSection(
-      container,
-      "Available vaults",
-      currentVaultId
-        ? "Vaults loaded from the server. Reconnect this folder to one of them if needed."
-        : "Vaults loaded from the server. Connect this folder to one of them.",
-      true,
-    );
-    const list = createPanel(panel);
-    const title = list.createEl("div", { text: "Server vaults" });
-
-    if (this.remoteVaults.length === 0) {
-      list.createEl("div", {
-        text: "No vaults found on the server yet.",
-        cls: "setting-item-description",
-      });
-      return;
-    }
-
-    for (const vault of this.remoteVaults) {
-      const row = list.createDiv();
-
-      const meta = row.createDiv();
-      meta.createEl("div", { text: vault.vault_id });
-      meta.createEl("div", {
-        text: `${vault.device_count} device(s), updated ${formatTimestamp(vault.updated_at)}`,
-        cls: "setting-item-description",
-      });
-
-      const joinButton = row.createEl("button", {
-        text: vault.vault_id === currentVaultId ? "Current" : "Join",
-      });
-      if (vault.vault_id === currentVaultId) {
-        joinButton.disabled = true;
-      } else {
-        joinButton.addEventListener("click", async () => {
-          this.confirmDisconnectVaultId = null;
-          this.confirmForgetVaultId = null;
-          vaultStatus.setText(
-            currentVaultId
-              ? `Vault registry: Reconnecting this folder to ${vault.vault_id}...`
-              : `Vault registry: Joining ${vault.vault_id}...`,
-          );
-          await this.controller.bindVault(vault.vault_id);
-          this.display();
-        });
-      }
-    }
-  }
-
   private renderSyncScopeSection(container: HTMLElement): void {
     const group = createSettingGroup(container, "Sync Scope", "Control which files are eligible for sync in this vault.");
 
@@ -690,6 +587,32 @@ export class SyncSettingTab extends PluginSettingTab {
     return new Promise((resolve) => {
       new CreateVaultModal(this.app, initialVaultId, resolve).open();
     });
+  }
+
+  private async authorizeToken(connectionStatus: HTMLElement): Promise<void> {
+    this.plugin.settings.authToken = (this.authTokenDraft ?? "").trim();
+    this.remoteVaults = null;
+    this.remoteVaultsError = null;
+    if (
+      this.plugin.state.lastSyncError?.code === "unauthorized"
+      || this.plugin.state.lastSyncError?.code === "invalid_settings"
+    ) {
+      this.plugin.state.lastSyncError = null;
+    }
+    await this.plugin.persistData();
+    this.controller.restartAutoSync();
+
+    connectionStatus.setText("Connection: Checking...");
+    try {
+      const message = await this.controller.checkConnection();
+      this.editingAuthToken = false;
+      this.authTokenDraft = this.plugin.settings.authToken;
+      connectionStatus.setText(`Connection: ${message}`);
+    } catch (error) {
+      connectionStatus.setText(`Connection: ${formatDeviceError(error)}`);
+    }
+
+    this.display();
   }
 
   private async reloadRemoteVaults(vaultStatus: HTMLElement): Promise<void> {
