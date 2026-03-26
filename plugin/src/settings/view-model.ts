@@ -7,6 +7,7 @@ export interface SettingsConnectionViewModel {
   authTokenDraft: string;
   editingAuthToken: boolean;
   connectionStatusText: string;
+  showDeviceId: boolean;
   deviceId: string;
   pollIntervalSecs: number;
   autoSync: boolean;

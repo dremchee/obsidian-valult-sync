@@ -105,6 +105,12 @@ export class SettingsSession {
     Object.values(this.host.state.files).filter((file) => file.deleted).length,
   );
 
+  private readonly showDeviceId = computed(() => (
+    this.host.state.lastSyncError !== null
+    || this.state.remoteVaultsError !== null
+    || this.hasConnectionCheckError()
+  ));
+
   constructor(
     private readonly app: App,
     private readonly host: SettingsSessionHost,
@@ -160,6 +166,15 @@ export class SettingsSession {
     }
   }
 
+  private hasConnectionCheckError(): boolean {
+    return ![
+      t("settings.connection.serverUrl.statusNotChecked"),
+      t("settings.connection.serverUrl.statusChecking"),
+      t("settings.connection.serverUrl.statusReady"),
+      t("settings.connection.serverUrl.statusNotAuthorized"),
+    ].includes(this.state.connectionStatusText);
+  }
+
   private buildViewModel(): SettingsViewModel {
     return {
       connection: {
@@ -169,6 +184,7 @@ export class SettingsSession {
         authTokenDraft: this.state.editingAuthToken ? "" : (this.state.authTokenDraft ?? ""),
         editingAuthToken: this.state.editingAuthToken,
         connectionStatusText: this.state.connectionStatusText,
+        showDeviceId: this.showDeviceId.value,
         deviceId: this.host.settings.deviceId,
         pollIntervalSecs: this.host.settings.pollIntervalSecs,
         autoSync: this.host.settings.autoSync,

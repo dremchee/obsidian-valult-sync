@@ -32,6 +32,7 @@ describe("SettingsSession", () => {
     expect(session.model.connection.unlocked).toBe(false);
     expect(session.model.connection.authTokenDraft).toBe("");
     expect(session.model.connection.authGateMessage.length).toBeGreaterThan(0);
+    expect(session.model.connection.showDeviceId).toBe(false);
   });
 
   it("loads remote vaults reactively when credentials are present", async () => {
@@ -60,6 +61,41 @@ describe("SettingsSession", () => {
     expect(session.model.vault.remoteVaults).toEqual(vaults);
     expect(session.model.vault.loadingRemoteVaults).toBe(false);
     expect(session.model.vault.vaultStatusText).toContain("1");
+    expect(session.model.connection.showDeviceId).toBe(false);
+  });
+
+  it("shows device id when sync state contains an error", () => {
+    const host = createHost({
+      state: {
+        lastSyncError: {
+          code: "invalid_settings",
+          message: "bad device id",
+        },
+      },
+    });
+    const session = new SettingsSession({} as never, host, createControllerStub());
+
+    session.sync();
+
+    expect(session.model.connection.showDeviceId).toBe(true);
+  });
+
+  it("shows device id when loading remote vaults fails", async () => {
+    const host = createHost({
+      settings: {
+        authToken: "secret-token",
+      },
+    });
+    const controller = createControllerStub({
+      getRemoteVaults: vi.fn().mockRejectedValue(new Error("network failed")),
+    });
+    const session = new SettingsSession({} as never, host, controller);
+
+    session.sync();
+    await flushPromises();
+
+    expect(session.model.vault.remoteVaultsError).toContain("network failed");
+    expect(session.model.connection.showDeviceId).toBe(true);
   });
 
   it("signs out through actions and updates the reactive model without remount assumptions", async () => {
