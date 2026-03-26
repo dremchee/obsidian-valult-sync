@@ -2,15 +2,27 @@
 
 ## Что это
 
-`plugin/` это MVP Obsidian plugin, который синхронизирует текущий vault с нашим Rust-сервером через HTTP API.
+`plugin/` это актуальный Obsidian plugin для синхронизации локальной папки с Rust-сервером
+из `server/`.
+
+На текущем этапе plugin умеет не только базовый sync, но и:
+
+- реестр vault на сервере
+- регистрацию устройств
+- include/ignore scope
+- E2EE контента
+- realtime SSE с polling fallback
+- просмотр server history для активного файла
+- restore активного файла на выбранную серверную версию
 
 ---
 
-## Что нужно перед запуском
+## Предварительные требования
 
-- запущенный sync-сервер из `server/`
+- запущенный сервер из `server/`
 - собранный plugin из `plugin/`
 - локальный Obsidian vault
+- одинаковый `Auth token` на сервере и в plugin
 
 ---
 
@@ -22,27 +34,38 @@ npm install
 npm run build
 ```
 
-После сборки в папке `plugin/` должны быть:
+Полезные команды:
 
-- `main.js`
-- `manifest.json`
+```bash
+npm run typecheck
+npm test
+npm run dev
+```
+
+Для локальной dev-сборки под Obsidian:
+
+```bash
+./dev-plugin.sh
+```
 
 ---
 
 ## Установка в Obsidian
 
-Скопировать файлы plugin в папку plugins внутри vault:
+Собранные артефакты нужно положить в:
 
 ```text
 <vault>/.obsidian/plugins/obsidian-sync-plugin/
 ```
 
-Нужны файлы:
+Минимально нужны:
 
 - `plugin/main.js`
 - `plugin/manifest.json`
 
-Опционально можно положить туда и весь каталог `plugin/`, но для Obsidian критичны именно собранные артефакты.
+Если используется UI со стилями, имеет смысл положить и:
+
+- `plugin/styles.css`
 
 ---
 
@@ -54,34 +77,83 @@ npm run build
 
 ---
 
-## Настройки plugin
+## Базовая настройка
 
-Основной пользовательский сценарий от установки plugin до подключения vault описан в `docs/PLUGIN_UX_FLOW.md`.
+### 1. Connection
 
-В настройках plugin доступны:
+В секции `Connection` задаются:
 
 - `Server URL`
-- `Vault ID`
-- `Device ID`
 - `Auth token`
+- `Device ID`
 - `Poll interval`
 - `Auto sync`
 
-Минимальная настройка:
+Минимальная конфигурация:
 
 - `Server URL = http://127.0.0.1:3000`
-- `Vault ID = общий идентификатор логического vault`
-- `Auth token = bearer token, заданный на сервере через AUTH_TOKEN или AUTH_TOKENS`
+- `Auth token = secret-token`
+- `Device ID = уникальный и стабильный идентификатор этой установки`
 
-`Auth token` обязателен. Если сервер использует `AUTH_TOKEN`, в plugin должен быть указан такой же токен.
+`Device ID` генерируется автоматически, если его ещё нет в plugin data.
 
-Если сервер использует `AUTH_TOKENS`, в plugin должен быть указан один из разрешённых bearer tokens.
+Пока `Auth token` не введён или отвергнут сервером, остальные секции настроек остаются
+логически заблокированными.
 
-`Device ID` должен быть уникален для каждой установки Obsidian, но оставаться стабильным между перезапусками.
+### 2. Vault
 
-Для двух локальных Obsidian vault, которые должны синхронизироваться между собой, `Vault ID` должен быть одинаковым.
+После успешной авторизации plugin умеет:
 
-Для двух независимых sync-пространств `Vault ID` должен отличаться.
+- загрузить реестр vault с сервера
+- создать новый vault
+- присоединить текущую папку к существующему vault
+- отключить текущую папку от vault
+- забыть локальный sync state для текущего vault
+
+Одна локальная папка должна быть привязана только к одному `vaultId` одновременно.
+
+### 3. Sync Scope
+
+Можно ограничить набор синхронизируемых файлов:
+
+- `Include patterns` это allow-list
+- `Ignore patterns` это исключения после include
+
+Поддерживаются:
+
+- `*`
+- `?`
+- префиксы каталогов, оканчивающиеся на `/`
+
+Примеры:
+
+```text
+Include:
+Notes/
+*.md
+
+Ignore:
+.obsidian/
+Templates/
+*.canvas
+```
+
+### 4. E2EE
+
+Plugin поддерживает content-only E2EE:
+
+- шифруется содержимое файла
+- `path`, `vault_id`, `device_id`, версии и tombstone-метаданные остаются видимыми серверу
+
+Текущая модель хранения секрета:
+
+- passphrase живёт только в памяти текущей сессии Obsidian
+- в persisted plugin data сохраняется только fingerprint
+- fingerprint используется для проверки, что пользователь ввёл тот же ключ
+
+Создание vault в текущем UI требует ввода E2EE passphrase.
+При присоединении к существующему vault plugin попросит passphrase и, если на сервере уже есть
+encrypted content, попробует её проверить.
 
 ---
 
@@ -89,70 +161,125 @@ npm run build
 
 Plugin:
 
-- сканирует vault
-- загружает локальные изменения
-- отправляет удаления
-- держит realtime SSE-подписку на сервер
-- читает change feed сервера
-- пропускает change events, которые сам же и создал через тот же `Device ID`
+- сканирует локальный vault
+- применяет include/ignore scope
+- загружает новые и изменённые файлы
+- отправляет удаления как tombstone
+- читает `GET /changes`
+- держит SSE-подписку на `GET /events`
+- после SSE-сигнала дочитывает `GET /changes`
+- пропускает свои собственные change events по `device_id`
 - скачивает удалённые изменения
-- создаёт conflict copies при расхождении локального и удалённого состояния
+- создаёт conflict copy, если локальное содержимое уже разошлось с сервером
 
-Команда `Sync now` доступна из command palette.
-
----
-
-## Текущее состояние MVP
-
-Уже работает:
-
-- upload новых файлов
-- upload изменений
-- delete через tombstones
-- download удалённых изменений
-- realtime push с polling fallback
-- conflict copy
-- restore активного файла на предыдущую серверную версию через command palette
-
-Текущие ограничения:
-
-- нет merge содержимого
-- metadata vault/file не скрывается E2EE
-- нет полноценного history UI
+Rename не моделируется отдельно и фактически трактуется как `delete + create`.
 
 ---
 
-## Ручная проверка MVP
+## Команды plugin
 
-Финальный e2e-чеклист для закрытия MVP находится в `docs/MVP_CHECKLIST.md`.
+В command palette доступны:
+
+- `Sync now`
+- `Show active file server history`
+- `Restore active file to previous server version`
+
+Команда истории открывает модальное окно с версиями файла на сервере и позволяет сделать restore
+на конкретную версию.
+
+---
+
+## Что показывает UI
+
+### Status bar
+
+Status bar показывает:
+
+- текущее состояние sync
+- активный vault
+- время последнего успешного sync
+- последнюю ошибку, если она есть
+
+Возможные состояния:
+
+- `Up to date`
+- `Pending changes`
+- `Syncing`
+- `Needs attention`
+- `Auto sync off`
+- `No vault connected`
+
+### Overview
+
+В overview можно быстро:
+
+- запустить `Sync now`
+- проверить соединение с сервером
+- обновить список устройств
+
+---
+
+## Первый запуск и привязка папки
+
+Рекомендуемый flow описан в [PLUGIN_UX_FLOW.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/PLUGIN_UX_FLOW.md).
+
+Коротко:
+
+1. Ввести `Server URL` и `Auth token`
+2. Нажать `Check`
+3. Либо создать новый vault, либо присоединиться к существующему
+4. При необходимости настроить scope
+5. Запустить `Sync now`
+
+Если локальная папка уже содержит syncable-файлы и серверный vault тоже не пустой, plugin
+попросит выбрать стратегию первого sync:
+
+- скачать vault с сервера и перезаписать локальные syncable-файлы
+- выполнить обычный sync, где возможны conflict copies
 
 ---
 
 ## Запуск сервера
 
-Можно создать `server/.env`:
+Есть два типовых варианта.
+
+Через `.env`:
 
 ```bash
 cp server/.env.example server/.env
+./run-server.sh
 ```
 
-И указать в нём:
+Минимальное содержимое `server/.env`:
 
 ```bash
 AUTH_TOKEN=secret-token
 ```
 
-После этого сервер можно запускать так:
-
-```bash
-./run-server.sh
-```
-
-Или без `.env`, передав токен через env прямо в команду:
+Или напрямую через env:
 
 ```bash
 cd server
 AUTH_TOKEN=secret-token cargo run
 ```
 
-После этого plugin может подключаться к `http://127.0.0.1:3000`.
+По умолчанию сервер слушает `http://127.0.0.1:3000`.
+
+---
+
+## Ограничения текущей реализации
+
+- E2EE скрывает только содержимое файла, но не структуру vault
+- merge содержимого отсутствует, вместо него используются conflict copies
+- отдельной модели rename нет
+- selective sync работает только через include/ignore patterns на клиенте
+- device revoke / approval ещё не реализованы
+
+---
+
+## Связанные документы
+
+- API: [API.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/API.md)
+- E2EE: [E2EE.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/E2EE.md)
+- UX flow: [PLUGIN_UX_FLOW.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/PLUGIN_UX_FLOW.md)
+- Регрессионная проверка: [MVP_CHECKLIST.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/MVP_CHECKLIST.md)

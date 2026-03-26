@@ -2,9 +2,9 @@
 
 ## Назначение
 
-Этот документ фиксирует контракт MVP sync-сервера. Он должен быть единственным источником истины для клиента и сервера, пока протокол не изменён отдельным решением.
-
-Все примеры ниже относятся к первой версии API.
+Этот документ описывает актуальный HTTP-контракт sync-сервера в текущем репозитории.
+Если поведение в коде и в этом файле расходится, источником истины считаются маршруты и DTO
+в `server/src/`.
 
 ---
 
@@ -13,61 +13,78 @@
 ### Transport
 
 - протокол: `HTTP/JSON`
-- кодировка содержимого файла: `base64`
-- сервер отвечает `application/json`
-- сервер требует `Authorization: Bearer <token>`
-- `AUTH_TOKENS` может содержать несколько токенов через запятую
-- должен быть задан хотя бы один env: `AUTH_TOKEN` или `AUTH_TOKENS`
-- для локального запуска сервер подхватывает `server/.env`
+- сервер отвечает `application/json`, кроме `GET /events`, который использует `text/event-stream`
+- все защищённые маршруты требуют `Authorization: Bearer <token>`
+- токены берутся из `AUTH_TOKEN` или `AUTH_TOKENS`
+- `GET /health` не требует авторизации
 
-### Идентификация файла
+### Идентификаторы
 
-- каждый файл принадлежит логическому `vault_id`
-- файл идентифицируется по `path`
+- `vault_id` и `device_id` должны содержать только `a-z`, `A-Z`, `0-9`, `_`, `-`
 - `path` это относительный путь внутри vault
-- путь должен использовать `/`
-- путь не должен позволять выход за пределы storage root
+- `path` не может быть абсолютным, не может содержать `..` и нормализуется к `/`
 
-Пример корректного пути:
+Корректный пример:
 
 ```text
 notes/daily/2026-03-10.md
 ```
 
-Пример некорректного пути:
+Некорректный пример:
 
 ```text
 ../../etc/passwd
 ```
 
-### Versioning
+### Версионирование и конфликты
 
-- сервер хранит монотонно растущую `version` для каждого файла
-- версии изолированы внутри одного `vault_id`
+- каждая запись файла версионируется внутри одного `vault_id`
 - клиент отправляет `base_version`
-- если `base_version` не совпадает с текущей серверной версией, запись отклоняется как conflict
+- если `base_version` устарел, сервер не пишет данные и отвечает:
 
-### Deletions
+```json
+{
+  "ok": false,
+  "conflict": true,
+  "server_version": 5
+}
+```
 
-- удаление считается отдельным событием
-- удаление повышает `version`
-- удаление отражается в `changes`
+Для конфликтов сервер использует `200 OK`, а не `409 Conflict`.
+
+### Формат содержимого
+
+- `content_b64` всегда содержит base64-строку
+- `content_format`:
+  - `plain`
+  - `e2ee-envelope-v1`
+- `hash` это hash логического содержимого файла
+- `payload_hash` это hash фактического загружаемого payload
+
+Для plaintext:
+
+- `hash == payload_hash`
+- `content_format = plain`
+
+Для E2EE:
+
+- `hash` относится к plaintext
+- `payload_hash` относится к сериализованному зашифрованному envelope
+- `content_format = e2ee-envelope-v1`
 
 ---
 
 ## Error model
 
-### Общие HTTP коды
+### HTTP коды
 
-- `200 OK` для успешных `GET`
-- `201 Created` не используем, достаточно `200 OK`
-- `400 Bad Request` для невалидного payload или path
-- `404 Not Found` если файла не существует
-- `409 Conflict` не используем как основной transport для stale write
+- `200 OK` для успешных `GET` и `POST`
+- `400 Bad Request` для невалидных идентификаторов, путей и payload
+- `401 Unauthorized` для отсутствующего или неверного bearer token
+- `404 Not Found` если файл или версия отсутствуют
+- `500 Internal Server Error` для внутренних ошибок
 
-Для конфликтов в MVP сервер возвращает `200 OK` и JSON с `conflict: true`, чтобы упростить клиентскую обработку.
-
-### Общий формат ошибки
+### Формат ошибки
 
 ```json
 {
@@ -76,22 +93,23 @@ notes/daily/2026-03-10.md
 }
 ```
 
-Рекомендуемые значения `error`:
+Типовые `error`:
 
+- `unauthorized`
 - `invalid_path`
+- `invalid_vault_id`
+- `invalid_device_id`
+- `invalid_payload`
 - `invalid_base64`
 - `hash_mismatch`
 - `not_found`
-- `unauthorized`
 - `internal_error`
 
 ---
 
 ## GET /health
 
-### Назначение
-
-Проверка, что сервер запущен.
+Публичная проверка доступности сервера.
 
 ### Response
 
@@ -103,11 +121,74 @@ notes/daily/2026-03-10.md
 
 ---
 
+## GET /vaults
+
+Вернуть серверный реестр vault.
+
+### Response
+
+```json
+{
+  "vaults": [
+    {
+      "vault_id": "product_docs",
+      "created_at": "2026-03-26T12:00:00Z",
+      "updated_at": "2026-03-26T12:05:00Z",
+      "device_count": 2,
+      "e2ee_fingerprint": "ab12cd34..."
+    }
+  ]
+}
+```
+
+### Примечания
+
+- `device_count` считается по таблице устройств
+- `e2ee_fingerprint` может быть `null`
+- upload/delete автоматически создают vault в реестре, даже если он не был создан через `POST /vaults`
+
+---
+
+## POST /vaults
+
+Создать vault или зарегистрировать его в серверном реестре.
+
+### Request
+
+```json
+{
+  "vault_id": "product_docs",
+  "e2ee_fingerprint": "ab12cd34..."
+}
+```
+
+### Response
+
+```json
+{
+  "ok": true,
+  "created": true,
+  "vault": {
+    "vault_id": "product_docs",
+    "created_at": "2026-03-26T12:00:00Z",
+    "updated_at": "2026-03-26T12:00:00Z",
+    "device_count": 0,
+    "e2ee_fingerprint": "ab12cd34..."
+  }
+}
+```
+
+### Примечания
+
+- при повторном вызове сервер не создаёт дубль и вернёт `created: false`
+- если vault уже существует без fingerprint, сервер может сохранить переданный fingerprint
+- если fingerprint уже есть, существующее значение не затирается
+
+---
+
 ## POST /upload
 
-### Назначение
-
-Создать новую версию файла или загрузить новый файл.
+Создать новую версию файла.
 
 ### Request
 
@@ -123,28 +204,6 @@ notes/daily/2026-03-10.md
   "base_version": 3
 }
 ```
-
-### Поля
-
-- `path: string`
-- `vault_id: string`
-- `device_id: string`
-- `content_b64: string`
-- `hash: string`
-- `payload_hash: string`
-- `content_format: "plain" | "e2ee-envelope-v1"`
-- `base_version: integer`
-
-Для E2EE upload:
-
-- `hash` это hash plaintext содержимого
-- `payload_hash` это hash фактически загружаемого payload
-- `content_format` должен быть `e2ee-envelope-v1`
-
-Для plaintext upload:
-
-- `hash == payload_hash`
-- `content_format` должен быть `plain`
 
 ### Успешный response
 
@@ -165,32 +224,70 @@ notes/daily/2026-03-10.md
 }
 ```
 
-### Ошибки
+### Примечания
 
-`400 Bad Request`
+- сервер валидирует `payload_hash` по фактически декодированному `content_b64`
+- после upload сервер:
+  - обновляет актуальную запись в `files`
+  - сохраняет слепок в `file_versions`
+  - пишет событие в `changes`
+  - обновляет `devices` и `vaults`
+
+---
+
+## POST /delete
+
+Создать tombstone для файла.
+
+### Request
 
 ```json
 {
-  "error": "hash_mismatch",
-  "message": "provided hash does not match content"
+  "vault_id": "default",
+  "device_id": "device_local_desktop",
+  "path": "notes/test.md",
+  "base_version": 4
 }
 ```
+
+### Успешный response
+
+```json
+{
+  "ok": true,
+  "version": 5
+}
+```
+
+### Conflict response
+
+```json
+{
+  "ok": false,
+  "conflict": true,
+  "server_version": 6
+}
+```
+
+### Примечания
+
+- удаление требует, чтобы файл уже существовал
+- tombstone попадает в `changes` и `file_versions`
+- для tombstone сервер хранит пустые `hash` и `payload_hash`
 
 ---
 
 ## GET /file
 
-### Назначение
+Вернуть актуальное состояние файла.
 
-Вернуть актуальную серверную версию файла.
-
-### Query parameters
+### Query
 
 ```text
 vault_id=default&path=notes/test.md
 ```
 
-### Успешный response
+### Response для живого файла
 
 ```json
 {
@@ -216,217 +313,154 @@ vault_id=default&path=notes/test.md
 }
 ```
 
-### Ошибки
-
-`404 Not Found`
-
-```json
-{
-  "error": "not_found",
-  "message": "file not found"
-}
-```
-
 ---
 
 ## GET /changes
 
-### Назначение
+Вернуть change feed по vault.
 
-Вернуть список изменений, произошедших после указанного `seq`.
-
-### Query parameters
+### Query
 
 ```text
 vault_id=default&since=42
 ```
 
-### Успешный response
+`since` опционален. Если он не передан, сервер использует `0`.
+
+### Response
 
 ```json
 {
   "changes": [
     {
       "seq": 43,
-      "device_id": "device_local_desktop",
+      "device_id": "device_a",
       "path": "notes/test.md",
       "version": 5,
       "deleted": false
-    },
-    {
-      "seq": 44,
-      "path": "notes/old.md",
-      "version": 3,
-      "deleted": true
     }
   ],
-  "latest_seq": 44
+  "latest_seq": 43
 }
 ```
 
-### Поля `changes[]`
+### Примечания
 
-- `seq: integer`
-- `device_id: string`
-- `path: string`
-- `version: integer`
-- `deleted: boolean`
-
-### Поведение
-
-- сервер возвращает события в порядке возрастания `seq`
-- если новых изменений нет, `changes` возвращается пустым массивом
-- `latest_seq` должен возвращаться всегда
-
-Пример без новых изменений:
-
-```json
-{
-  "changes": [],
-  "latest_seq": 44
-}
-```
+- feed изолирован внутри одного `vault_id`
+- `latest_seq` возвращается всегда, даже если `changes` пустой
+- клиент может пропускать события от собственного `device_id`
 
 ---
 
 ## GET /events
 
-### Назначение
+SSE-поток для realtime-уведомлений по vault.
 
-SSE stream для realtime push. Клиент подписывается на `vault_id` и получает hint, что в change feed появился новый `latest_seq`.
-
-### Query parameters
+### Query
 
 ```text
-vault_id=default&since=44
+vault_id=default&since=42
 ```
 
-- `vault_id: string`
-- `since: integer`, опционально. Если на сервере уже есть более новый `latest_seq`, сервер сразу отправит initial event после подключения.
+### Поведение
 
-### Response
+- сервер подписывает клиента на изменения одного `vault_id`
+- если на момент подключения `latest_seq > since`, сервер сразу отправляет событие
+- keepalive отправляется каждые `15` секунд
+- payload содержит только новый `latest_seq`, а не полный список изменений
 
-- `Content-Type: text/event-stream`
-- событие `change`
-
-Пример payload:
+### SSE event
 
 ```text
 event: change
-data: {"latest_seq":45}
+data: {"latest_seq":43}
 ```
 
-Важно:
+### Примечания
 
-- это не замена `GET /changes`, а realtime hint поверх него
-- после push-события клиент всё равно должен читать `GET /changes?since=...`
-- polling остаётся допустимым fallback transport
+- после получения события клиент должен вызвать `GET /changes`
+- при лагах broadcast-канала сервер восстанавливает поток по текущему `latest_seq`
 
 ---
 
 ## GET /devices
 
-### Назначение
+Вернуть список устройств, замеченных в указанном vault.
 
-Вернуть список устройств, которые уже отправляли изменения в указанный `vault_id`.
-
-Это минимальная device model для последующего UI и управления устройствами.
-
-### Query parameters
+### Query
 
 ```text
 vault_id=default
 ```
 
-### Успешный response
+### Response
 
 ```json
 {
   "devices": [
     {
-      "device_id": "device_local_desktop",
-      "first_seen_at": "2026-03-10T12:00:00+00:00",
-      "last_seen_at": "2026-03-10T12:05:00+00:00"
+      "device_id": "device_a",
+      "first_seen_at": "2026-03-26T12:00:00Z",
+      "last_seen_at": "2026-03-26T12:05:00Z"
     }
   ]
 }
 ```
 
----
+### Примечания
 
-## GET /vaults
-
-### Назначение
-
-Вернуть список известных vault-ов на сервере.
-
-### Успешный response
-
-```json
-{
-  "vaults": [
-    {
-      "vault_id": "default",
-      "created_at": "2026-03-10T12:00:00Z",
-      "updated_at": "2026-03-10T12:05:00Z",
-      "device_count": 2
-    }
-  ]
-}
-```
+- устройства регистрируются автоматически во время upload/delete/restore
+- список сортируется по `last_seen_at DESC`, затем по `device_id ASC`
 
 ---
 
 ## GET /history
 
-### Назначение
+Вернуть историю версий конкретного файла.
 
-Вернуть историю версий для одного файла внутри `vault_id`.
-
-### Query parameters
+### Query
 
 ```text
 vault_id=default&path=notes/test.md
 ```
 
-### Успешный response
+### Response
 
 ```json
 {
   "path": "notes/test.md",
   "versions": [
     {
-      "version": 5,
-      "hash": "f2d2b0e86e...",
-      "payload_hash": "f2d2b0e86e...",
+      "version": 3,
+      "hash": "480c2336...",
+      "payload_hash": "480c2336...",
       "content_format": "plain",
       "deleted": false,
-      "created_at": "2026-03-11T10:00:00Z"
+      "created_at": "2026-03-26T12:05:00Z"
     },
     {
-      "version": 4,
-      "hash": "a8c3...",
-      "payload_hash": "a8c3...",
+      "version": 2,
+      "hash": "",
+      "payload_hash": "",
       "content_format": "plain",
       "deleted": true,
-      "created_at": "2026-03-11T09:58:00Z"
+      "created_at": "2026-03-26T12:04:00Z"
     }
   ]
 }
 ```
 
-Важно:
+### Примечания
 
-- список отсортирован по `version DESC`
-- restore из истории создаёт новую текущую версию файла, а не “откатывает счётчик версии назад”
+- история сортируется по `version DESC`
+- для tombstone-версий `deleted = true`
+- если история отсутствует, сервер вернёт `404`
 
 ---
 
 ## POST /restore
 
-### Назначение
-
-Восстановить содержимое файла из одной из исторических версий и создать новую текущую версию.
+Создать новую текущую версию на основе выбранной исторической версии.
 
 ### Request
 
@@ -435,94 +469,7 @@ vault_id=default&path=notes/test.md
   "vault_id": "default",
   "device_id": "device_local_desktop",
   "path": "notes/test.md",
-  "target_version": 4,
-  "base_version": 7
-}
-```
-
-### Поля
-
-- `vault_id: string`
-- `device_id: string`
-- `path: string`
-- `target_version: integer`
-- `base_version: integer`
-
-`base_version` проверяется так же, как в обычном `upload/delete`, чтобы restore не затирал более новую серверную версию.
-
-### Успешный response
-
-```json
-{
-  "ok": true,
-  "version": 8
-}
-```
-
-### Conflict response
-
-```json
-{
-  "ok": false,
-  "conflict": true,
-  "server_version": 9
-}
-```
-
----
-
-## POST /vaults
-
-### Назначение
-
-Явно создать vault в registry до первого sync.
-
-### Request
-
-```json
-{
-  "vault_id": "team_notes"
-}
-```
-
-### Успешный response
-
-```json
-{
-  "ok": true,
-  "created": true,
-  "vault": {
-    "vault_id": "team_notes",
-    "created_at": "2026-03-10T12:00:00Z",
-    "updated_at": "2026-03-10T12:00:00Z",
-    "device_count": 0
-  }
-}
-```
-
-Если vault уже существует, сервер возвращает `200 OK` с `created: false`.
-
-### Поля `devices[]`
-
-- `device_id: string`
-- `first_seen_at: string`
-- `last_seen_at: string`
-
----
-
-## POST /delete
-
-### Назначение
-
-Удалить файл через tombstone и повысить его версию.
-
-### Request
-
-```json
-{
-  "vault_id": "default",
-  "device_id": "device_local_desktop",
-  "path": "notes/test.md",
+  "target_version": 2,
   "base_version": 5
 }
 ```
@@ -546,52 +493,27 @@ vault_id=default&path=notes/test.md
 }
 ```
 
-### Ошибки
+### Поведение
 
-`404 Not Found`
-
-```json
-{
-  "error": "not_found",
-  "message": "file not found"
-}
-```
+- restore тоже требует актуальный `base_version`
+- если `target_version` указывает на живую версию, сервер поднимает её как новую текущую
+- если `target_version` указывает на tombstone, текущая версия после restore тоже становится tombstone
+- restore пишет запись в `changes`, обновляет `files`, `file_versions`, `devices` и `vaults`
 
 ---
 
-## Ожидаемое поведение клиента
+## Совместимость клиента
 
-### Upload flow
+Текущий Obsidian plugin использует весь набор маршрутов:
 
-1. клиент считает `hash`
-2. клиент берёт локальный `version`
-3. клиент отправляет `POST /upload`
-4. при `ok: true` сохраняет новую версию
-5. при `conflict: true` запускает conflict handling
-
-### Download flow
-
-1. клиент читает `last_seq`
-2. делает `GET /changes`
-3. по каждому изменению сравнивает локальную и удалённую версию
-4. если `deleted = true`, применяет удаление
-5. иначе скачивает `/file`
-6. после успешного применения обновляет `last_seq`
-
-### Conflict flow
-
-1. клиент получает `conflict: true`
-2. запрашивает актуальную серверную версию через `GET /file`
-3. сохраняет локальную копию как conflict file
-4. серверную версию записывает как основную
-
----
-
-## Версионирование API
-
-В MVP отдельный version prefix не вводим.
-
-Если протокол начнёт ломать обратную совместимость, следующий шаг:
-
-- либо `/v1/...`
-- либо явная миграция клиента и сервера в одном релизном цикле
+- `GET /health`
+- `GET /vaults`
+- `POST /vaults`
+- `POST /upload`
+- `POST /delete`
+- `GET /file`
+- `GET /changes`
+- `GET /events`
+- `GET /devices`
+- `GET /history`
+- `POST /restore`

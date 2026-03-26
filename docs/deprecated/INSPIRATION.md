@@ -1,3 +1,21 @@
+# DEPRECATED: INSPIRATION
+
+## Статус документа
+
+Deprecated.
+
+Этот файл содержит архитектурные идеи и product/design-размышления.
+Он не является актуальной спецификацией текущего репозитория.
+
+Использовать его как источник истины для реализации не нужно.
+Для актуального состояния проекта см.:
+
+- [API.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/API.md)
+- [PLUGIN_USAGE.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/PLUGIN_USAGE.md)
+- [MVP.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/MVP.md)
+
+---
+
 Я подготовлю **более подробную архитектурную версию** — почти как **дизайн-документ системы синхронизации** (как это пишут в Dropbox / Google). Разберём:
 
 1. Полный pipeline синхронизации

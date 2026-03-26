@@ -1,27 +1,31 @@
 # E2EE
 
-## Цель
+## Статус
 
-Добавить end-to-end encryption без изменения базовой sync-модели:
+Content-only E2EE уже реализован в текущем plugin и серверном API.
+
+Это означает:
 
 - сервер остаётся blob-store и change-feed
 - ключевой материал не уходит на сервер
-- конфликтная модель `base_version` сохраняется
+- конфликтная модель `base_version` не меняется
+- шифруется только содержимое файла
 
-На первом этапе E2EE шифруется только содержимое файла. `path`, `vault_id`, `device_id`,
-`version` и tombstone-метаданные остаются видимыми серверу.
+Сервер по-прежнему видит:
 
-Это осознанный компромисс:
-
-- внедрение не ломает текущие индексы и `GET /file?path=...`
-- selective sync и conflict handling продолжают работать почти без изменений
-- сервер всё ещё видит структуру vault, но не видит содержимое заметок
+- `vault_id`
+- `device_id`
+- `path`
+- версии
+- частоту изменений
+- факт удаления файла
 
 ---
 
-## Формат encrypted payload
+## Формат payload
 
-Содержимое файла перед upload сериализуется как JSON envelope:
+Зашифрованное содержимое передаётся как JSON envelope, сериализованный в UTF-8 и затем
+закодированный в `content_b64`.
 
 ```json
 {
@@ -35,78 +39,120 @@
 }
 ```
 
-Затем весь envelope кодируется как UTF-8 и уже в таком виде идёт в существующее поле
-`content_b64`.
-
-### Поля
-
-- `v`: версия envelope
-- `alg`: алгоритм симметричного шифрования
-- `kdf`: derivation для ключа из passphrase
-- `iterations`: параметр PBKDF2
-- `salt_b64`: случайная соль
-- `iv_b64`: nonce для AES-GCM
-- `ciphertext_b64`: шифротекст вместе с GCM tag
+`content_format` для такого payload всегда равен `e2ee-envelope-v1`.
 
 ---
 
 ## Криптография v1
 
 - шифрование: `AES-GCM-256`
-- derivation: `PBKDF2-HMAC-SHA-256`
+- KDF: `PBKDF2-HMAC-SHA-256`
+- итерации: `600000`
 - соль: `16` байт
-- nonce/IV: `12` байт
-- итерации PBKDF2: `600000`
+- IV: `12` байт
 
-Passphrase вводится пользователем на клиенте. Из неё локально выводится content key.
-В текущей реализации passphrase хранится только в памяти текущей Obsidian session и не
-пишется в persisted plugin data.
-Для каждого `vault_id` клиент может хранить только fingerprint passphrase, чтобы:
-
-- не сохранять сам секрет
-- уметь явно отличать `missing passphrase` от `wrong passphrase`
-- быстрее валидировать, что пользователь ввёл тот же ключ, что и раньше
+Passphrase задаётся пользователем на клиенте. Из неё локально выводится content key.
 
 ---
 
-## Интеграция по шагам
+## Hash-модель
 
-### Шаг 1
+Текущий протокол различает два хэша:
 
-- зафиксировать envelope format
-- добавить plugin-side encrypt/decrypt helpers
-- покрыть round-trip тестами
+- `hash` это hash plaintext содержимого
+- `payload_hash` это hash фактически отправляемого encrypted envelope
 
-### Шаг 2
+Это позволяет:
 
-- добавить plugin setting для E2EE passphrase
-- при upload шифровать содержимое перед `content_b64`
-- при download распознавать envelope и расшифровывать локально
-- расширить API полями `content_format` и `payload_hash`, чтобы сервер мог
-  валидировать ciphertext, а клиент продолжал жить на plaintext hash
+- не раскрывать plaintext серверу
+- сохранить устойчивую клиентскую логику по содержимому
+- отдельно валидировать, что ciphertext доехал без искажений
 
-### Шаг 3
-
-- добавить UI для wrong passphrase / missing passphrase
-- сохранить fingerprint derived key локально для более явной валидации
-
-### Шаг 4
-
-- решить, нужен ли второй режим со скрытием `path`
-- если нужен, это уже отдельная server-side protocol change
+Для plaintext-файлов `hash == payload_hash`.
 
 ---
 
-## Ограничения v1
+## Fingerprint passphrase
 
-- сервер видит `path` и частоту изменений
-- hash в текущем протоколе должен стать hash от plaintext, если хотим локально
-  сохранять стабильную идентичность содержимого для conflict logic
-- разные устройства должны использовать одну и ту же passphrase
+Plugin не сохраняет саму passphrase в persisted plugin data.
+
+Вместо этого используется fingerprint:
+
+- fingerprint вычисляется как `SHA-256("obsidian-sync:e2ee-fingerprint:v1:{vaultId}\n{passphrase}")`
+- fingerprint сохраняется локально
+- сама passphrase живёт только в памяти текущей Obsidian session
+
+Это даёт три полезных свойства:
+
+- секрет не пишется на диск в plugin data
+- можно отличить `passphrase не введена` от `введена неверная passphrase`
+- можно валидировать, что устройство использует тот же ключ для конкретного `vault_id`
 
 ---
 
-## Решение для текущего репозитория
+## Серверная сторона
 
-В этом репозитории E2EE начинается с content-only модели. Это самый дешёвый путь к
-практической защите данных без переписывания storage и change feed.
+Сервер не расшифровывает payload и не знает passphrase.
+
+Сервер:
+
+- принимает encrypted payload как blob
+- валидирует только `payload_hash`
+- хранит `content_format`
+- сохраняет историю версий и умеет restore без расшифровки
+
+Restore работает и для encrypted-файлов, потому что сервер оперирует сохранёнными байтами
+версии, не трогая их содержимое.
+
+---
+
+## UX-сценарии
+
+### Создание vault
+
+В текущем UI создание vault требует E2EE passphrase.
+Plugin:
+
+- вычисляет fingerprint
+- отправляет его в `POST /vaults`
+- сохраняет passphrase в памяти текущей сессии
+
+### Join существующего vault
+
+Plugin просит E2EE passphrase при присоединении.
+
+Если в vault уже есть encrypted content, plugin:
+
+- скачивает один из зашифрованных файлов
+- пытается локально его расшифровать
+- в случае ошибки не завершает join
+
+Если encrypted content ещё нет, join возможен без такой проверки.
+
+### Первый encrypted sync
+
+Если fingerprint ещё не сохранён, plugin запоминает его после первой успешной валидации
+или первой успешной encrypted sync-операции.
+
+---
+
+## Ограничения текущей версии
+
+- сервер видит структуру vault и пути файлов
+- tombstone не шифруются
+- для всех устройств одного vault нужна одна и та же passphrase
+- автоматическая ротация ключа не реализована
+- отдельного server-side режима со скрытием `path` пока нет
+
+---
+
+## Что важно для совместимости
+
+Клиент и сервер должны согласованно использовать:
+
+- `content_format = e2ee-envelope-v1`
+- `hash = plaintext hash`
+- `payload_hash = ciphertext hash`
+
+Если один клиент будет слать encrypted payload, а другой ожидать plaintext, sync корректно
+не сойдётся.
