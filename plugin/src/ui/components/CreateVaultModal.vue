@@ -3,8 +3,11 @@ import { onMounted, shallowRef, useTemplateRef } from "vue";
 
 const props = defineProps<{
   initialVaultId: string;
-  onSubmit: (result: { vaultId: string; passphrase: string }) => void;
-  onCancel: () => void;
+}>();
+
+const emit = defineEmits<{
+  submit: [result: { vaultId: string; passphrase: string }];
+  cancel: [];
 }>();
 
 const vaultId = shallowRef(props.initialVaultId);
@@ -40,7 +43,7 @@ function submit(): void {
     return;
   }
 
-  props.onSubmit({
+  emit("submit", {
     vaultId: normalizedVaultId,
     passphrase: passphrase.value,
   });
@@ -103,7 +106,7 @@ function submit(): void {
   <div class="setting-item-description obsidian-sync-modal-error">{{ error }}</div>
 
   <div class="obsidian-sync-modal-actions">
-    <button type="button" @click="props.onCancel">Cancel</button>
+    <button type="button" @click="emit('cancel')">Cancel</button>
     <button type="button" class="mod-cta" @click="submit">Create vault</button>
   </div>
 </template>
