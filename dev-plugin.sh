@@ -11,4 +11,4 @@ if [[ ! -d "$PLUGIN_DIR" ]]; then
 fi
 
 cd "$PLUGIN_DIR"
-npm run deploy:obsidian
+npm run dev:obsidian
