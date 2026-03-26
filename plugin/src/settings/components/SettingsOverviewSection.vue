@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import { buildE2eeStatusText, formatLastSyncAt } from "../ui";
 import type { SettingsActions, SettingsViewModel } from "../view-model";
 

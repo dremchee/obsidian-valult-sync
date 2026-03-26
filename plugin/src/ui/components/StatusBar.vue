@@ -2,7 +2,7 @@
 import { computed, onMounted, useTemplateRef, watch } from "vue";
 import { setIcon } from "obsidian";
 
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 import type { StatusBarSnapshot, StatusBarState } from "../status-bar";
 
 const props = defineProps<{

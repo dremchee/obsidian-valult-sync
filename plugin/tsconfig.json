@@ -10,6 +10,9 @@
     "noEmit": true,
     "types": ["obsidian"],
     "resolveJsonModule": true,
+    "paths": {
+      "@/*": ["./src/*"]
+    },
     "skipLibCheck": true,
     "verbatimModuleSyntax": true
   },

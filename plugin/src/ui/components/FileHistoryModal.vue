@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import type { FileVersionItem } from "../../types";
-import { t } from "../../i18n";
+import { t } from "@/i18n";
+import type { FileVersionItem } from "@/types";
 import type { HistoryState } from "../file-history-types";
 
 const props = defineProps<{

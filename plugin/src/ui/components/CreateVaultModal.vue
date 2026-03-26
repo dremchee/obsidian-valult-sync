@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, shallowRef, useTemplateRef } from "vue";
 
-import { t } from "../../i18n";
+import { t } from "@/i18n";
 
 const props = defineProps<{
   initialVaultId: string;
