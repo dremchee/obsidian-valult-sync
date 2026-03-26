@@ -6,15 +6,20 @@ interface RealtimePayload {
   latest_seq: number;
 }
 
+export interface RealtimeSyncHandlers {
+  onRemoteChange: (latestSeq: number) => Promise<void>;
+  onUnauthorized: () => void;
+}
+
 export class RealtimeSyncClient {
   private abortController: AbortController | null = null;
-  private reconnectTimeoutId: number | null = null;
+  private reconnectTimeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
   private generation = 0;
 
   constructor(
     private readonly getSettings: () => SyncSettings,
     private readonly getState: () => SyncState,
-    private readonly onRemoteChange: (latestSeq: number) => Promise<void>,
+    private readonly handlers: RealtimeSyncHandlers,
   ) {}
 
   restart(): void {
@@ -33,7 +38,7 @@ export class RealtimeSyncClient {
     this.abortController?.abort();
     this.abortController = null;
     if (this.reconnectTimeoutId !== null) {
-      window.clearTimeout(this.reconnectTimeoutId);
+      globalThis.clearTimeout(this.reconnectTimeoutId);
       this.reconnectTimeoutId = null;
     }
   }
@@ -81,14 +86,14 @@ export class RealtimeSyncClient {
         buffer = parsed.remainder;
 
         for (const event of parsed.events) {
-          await this.onRemoteChange(event.latest_seq);
+          await this.handlers.onRemoteChange(event.latest_seq);
         }
       }
 
       buffer += decoder.decode();
       const parsed = parseRealtimeSseBuffer(buffer);
       for (const event of parsed.events) {
-        await this.onRemoteChange(event.latest_seq);
+        await this.handlers.onRemoteChange(event.latest_seq);
       }
 
       this.scheduleReconnect(generation, 1000);
@@ -99,6 +104,7 @@ export class RealtimeSyncClient {
 
       if (error instanceof ApiError && error.status === 401) {
         console.warn("obsidian-sync: realtime authorization failed", error);
+        this.handlers.onUnauthorized();
         return;
       }
 
@@ -113,7 +119,7 @@ export class RealtimeSyncClient {
       return;
     }
 
-    this.reconnectTimeoutId = window.setTimeout(() => {
+    this.reconnectTimeoutId = globalThis.setTimeout(() => {
       if (generation !== this.generation) {
         return;
       }

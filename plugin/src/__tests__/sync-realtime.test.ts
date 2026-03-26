@@ -45,7 +45,10 @@ describe("sync realtime", () => {
         lastSyncAt: null,
         lastSyncError: null,
       } satisfies SyncState),
-      async () => {},
+      {
+        onRemoteChange: async () => {},
+        onUnauthorized: () => {},
+      },
     );
 
     client.restart();
@@ -80,7 +83,10 @@ describe("sync realtime", () => {
         lastSyncAt: null,
         lastSyncError: null,
       } satisfies SyncState),
-      async () => {},
+      {
+        onRemoteChange: async () => {},
+        onUnauthorized: () => {},
+      },
     );
 
     client.restart();

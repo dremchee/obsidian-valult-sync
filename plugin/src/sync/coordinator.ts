@@ -5,8 +5,15 @@ import { RealtimeSyncClient } from "./realtime";
 import { formatSyncErrorState, toSyncErrorState } from "./errors";
 import type { SyncSettings, SyncState } from "../types";
 
+type RealtimeSyncFactory = (
+  getSettings: () => SyncSettings,
+  getState: () => SyncState,
+  onRemoteChange: () => Promise<void>,
+  onUnauthorized: () => void,
+) => RealtimeSyncClient;
+
 export class SyncCoordinator {
-  private intervalId: number | null = null;
+  private intervalId: ReturnType<typeof globalThis.setInterval> | null = null;
   private dirty = false;
   private dirtyVersion = 0;
   private syncing = false;
@@ -18,13 +25,22 @@ export class SyncCoordinator {
     private readonly getState: () => SyncState,
     private readonly setState: (state: SyncState) => Promise<void>,
     private readonly syncOnce: () => Promise<void>,
+    realtimeFactory: RealtimeSyncFactory = (
+      getSettings,
+      getState,
+      onRemoteChange,
+      onUnauthorized,
+    ) => new RealtimeSyncClient(getSettings, getState, { onRemoteChange, onUnauthorized }),
   ) {
-    this.realtime = new RealtimeSyncClient(
+    this.realtime = realtimeFactory(
       this.getSettings,
       this.getState,
       async () => {
         this.markDirty();
         await this.runBackgroundSync();
+      },
+      () => {
+        this.stopBackgroundSyncUntilRestart();
       },
     );
   }
@@ -44,10 +60,7 @@ export class SyncCoordinator {
 
   restartAutoSync(): void {
     this.stoppedByUnauthorized = false;
-    if (this.intervalId !== null) {
-      window.clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
+    this.stopPolling();
 
     if (
       !this.getSettings().autoSync
@@ -60,7 +73,7 @@ export class SyncCoordinator {
 
     const intervalMs = Math.max(this.getSettings().pollIntervalSecs, 1) * 1000;
     this.realtime.restart();
-    this.intervalId = window.setInterval(async () => {
+    this.intervalId = globalThis.setInterval(async () => {
       if (!this.dirty && this.getState().lastSeq > 0) {
         await this.runBackgroundSync();
         return;
@@ -71,10 +84,7 @@ export class SyncCoordinator {
   }
 
   stop(): void {
-    if (this.intervalId !== null) {
-      window.clearInterval(this.intervalId);
-      this.intervalId = null;
-    }
+    this.stopPolling();
     this.realtime.stop();
   }
 
@@ -150,10 +160,14 @@ export class SyncCoordinator {
 
   private stopBackgroundSyncUntilRestart(): void {
     this.stoppedByUnauthorized = true;
+    this.stopPolling();
+    this.realtime.stop();
+  }
+
+  private stopPolling(): void {
     if (this.intervalId !== null) {
-      window.clearInterval(this.intervalId);
+      globalThis.clearInterval(this.intervalId);
       this.intervalId = null;
     }
-    this.realtime.stop();
   }
 }
