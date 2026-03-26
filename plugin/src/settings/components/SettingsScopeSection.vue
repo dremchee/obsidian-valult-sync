@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import { t } from "@/i18n";
-import type { SettingsActions, SettingsViewModel } from "../view-model";
+import type {
+  SettingsScopeActions,
+  SettingsScopeViewModel,
+} from "../view-model";
 
 const props = defineProps<{
-  model: SettingsViewModel;
-  actions: SettingsActions;
+  model: SettingsScopeViewModel;
+  actions: SettingsScopeActions;
 }>();
 
 function handleIncludePatternsInput(event: Event): void {

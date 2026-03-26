@@ -10,6 +10,27 @@ export class Notice {
   }
 }
 
+export class Modal {
+  app: unknown;
+  modalEl = {
+    addClass() {},
+  };
+  titleEl = {
+    setText() {},
+  };
+  contentEl = {
+    empty() {},
+  };
+
+  constructor(app: unknown) {
+    this.app = app;
+  }
+
+  open(): void {}
+
+  close(): void {}
+}
+
 export function normalizePath(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+/g, "/");
 }

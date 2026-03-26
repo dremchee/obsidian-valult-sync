@@ -3,11 +3,14 @@
 
   import { t } from '@/i18n'
   import type { VaultItem } from '@/types'
-  import type { SettingsActions, SettingsViewModel } from '../view-model'
+  import type {
+    SettingsVaultActions,
+    SettingsVaultViewModel,
+  } from '../view-model'
 
   const props = defineProps<{
-    model: SettingsViewModel
-    actions: SettingsActions
+    model: SettingsVaultViewModel
+    actions: SettingsVaultActions
     availableJoinVaults: VaultItem[]
     currentVaultOnServer: boolean
     serverRegistryStatus: string

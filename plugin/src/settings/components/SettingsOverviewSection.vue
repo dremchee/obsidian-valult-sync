@@ -3,11 +3,14 @@ import { computed } from "vue";
 
 import { t } from "@/i18n";
 import { buildE2eeStatusText, formatLastSyncAt } from "../ui";
-import type { SettingsActions, SettingsViewModel } from "../view-model";
+import type {
+  SettingsOverviewActions,
+  SettingsOverviewViewModel,
+} from "../view-model";
 
 const props = defineProps<{
-  model: SettingsViewModel;
-  actions: SettingsActions;
+  model: SettingsOverviewViewModel;
+  actions: SettingsOverviewActions;
 }>();
 
 const e2eeBadgeClass = computed(() => {

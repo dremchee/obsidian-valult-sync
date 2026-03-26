@@ -14,55 +14,55 @@
   }>()
 
   const availableJoinVaults = computed(() =>
-    (props.model.remoteVaults ?? []).filter(
-      (vault) => vault.vault_id !== props.model.currentVaultId
+    (props.model.vault.remoteVaults ?? []).filter(
+      (vault) => vault.vault_id !== props.model.vault.currentVaultId
     )
   )
 
   const currentVaultOnServer = computed(
     () =>
-      props.model.remoteVaults?.some(
-        (vault) => vault.vault_id === props.model.currentVaultId
+      props.model.vault.remoteVaults?.some(
+        (vault) => vault.vault_id === props.model.vault.currentVaultId
       ) ?? false
   )
 
   const serverRegistryStatus = computed(() => {
-    if (!props.model.currentVaultId) {
+    if (!props.model.vault.currentVaultId) {
       return t('settings.vault.registryState.notConnected')
     }
-    if (props.model.remoteVaults) {
+    if (props.model.vault.remoteVaults) {
       return currentVaultOnServer.value
         ? t('settings.vault.registryState.loaded')
         : t('settings.vault.registryState.notLoadedHere')
     }
-    if (props.model.loadingRemoteVaults) {
+    if (props.model.vault.loadingRemoteVaults) {
       return t('settings.vault.registryState.loading')
     }
-    return props.model.remoteVaultsError
+    return props.model.vault.remoteVaultsError
       ? t('settings.vault.registryState.unavailable')
       : t('settings.vault.registryState.notLoaded')
   })
 
   const vaultRegistryDescription = computed(() => {
-    if (props.model.loadingRemoteVaults) {
+    if (props.model.vault.loadingRemoteVaults) {
       return t('settings.vault.serverVaults.statusLoading')
     }
-    if (props.model.remoteVaultsError) {
+    if (props.model.vault.remoteVaultsError) {
       return t('settings.vault.serverVaults.unavailable', {
-        message: props.model.remoteVaultsError
+        message: props.model.vault.remoteVaultsError
       })
     }
-    if (props.model.remoteVaults) {
-      if (props.model.remoteVaults.length === 0) {
+    if (props.model.vault.remoteVaults) {
+      if (props.model.vault.remoteVaults.length === 0) {
         return t('settings.vault.serverVaults.empty')
       }
-      if (props.model.currentVaultId && !currentVaultOnServer.value) {
+      if (props.model.vault.currentVaultId && !currentVaultOnServer.value) {
         return t('settings.vault.serverVaults.currentNotLoaded', {
-          count: props.model.remoteVaults.length
+          count: props.model.vault.remoteVaults.length
         })
       }
       return t('settings.vault.serverVaults.loaded', {
-        count: props.model.remoteVaults.length
+        count: props.model.vault.remoteVaults.length
       })
     }
     return t('settings.vault.serverVaults.loadPrompt')
@@ -70,18 +70,18 @@
 </script>
 
 <template>
-  <SettingsConnectionSection :actions="props.actions" :model="props.model" />
+  <SettingsConnectionSection :actions="props.actions" :model="props.model.connection" />
 
-  <template v-if="props.model.unlocked">
-    <SettingsOverviewSection :actions="props.actions" :model="props.model" />
+  <template v-if="props.model.connection.unlocked">
+    <SettingsOverviewSection :actions="props.actions" :model="props.model.overview" />
     <SettingsVaultSection
       :actions="props.actions"
       :available-join-vaults="availableJoinVaults"
       :current-vault-on-server="currentVaultOnServer"
-      :model="props.model"
+      :model="props.model.vault"
       :server-registry-status="serverRegistryStatus"
       :vault-registry-description="vaultRegistryDescription"
     />
-    <SettingsScopeSection :actions="props.actions" :model="props.model" />
+    <SettingsScopeSection :actions="props.actions" :model="props.model.scope" />
   </template>
 </template>

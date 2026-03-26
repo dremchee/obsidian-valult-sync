@@ -1,10 +1,13 @@
 <script setup lang="ts">
   import { t } from '@/i18n'
-  import type { SettingsActions, SettingsViewModel } from '../view-model'
+  import type {
+    SettingsConnectionActions,
+    SettingsConnectionViewModel,
+  } from '../view-model'
 
   const props = defineProps<{
-    model: SettingsViewModel
-    actions: SettingsActions
+    model: SettingsConnectionViewModel
+    actions: SettingsConnectionActions
   }>()
 
   function handleServerUrlInput(event: Event): void {
@@ -125,10 +128,7 @@
             {{ t('settings.connection.authToken.authorizedDescription') }}
           </div>
         </div>
-        <div class="setting-item-control obsidian-sync-button-row">
-          <button type="button" @click="props.actions.onStartAuthEdit">
-            {{ t('settings.connection.authToken.change') }}
-          </button>
+        <div class="setting-item-control">
           <button type="button" @click="props.actions.onSignOut">
             {{ t('settings.connection.authToken.signOut') }}
           </button>
@@ -158,7 +158,7 @@
             {{ t('settings.connection.pollInterval.description') }}
           </div>
         </div>
-        <div class="setting-item-control obsidian-sync-single-control">
+        <div class="setting-item-control">
           <input
             :value="String(props.model.pollIntervalSecs)"
             inputmode="numeric"
