@@ -36,32 +36,39 @@ function parseTargetDirs() {
 
 loadDotEnv(envFile);
 
-const targetDirs = parseTargetDirs();
-if (!targetDirs.length) {
-  throw new Error("OBSIDIAN_PLUGIN_DIRS not set (set it in plugin/.env or shell env)");
-}
-
-if (!existsSync(distDir)) {
-  throw new Error(`Build output directory not found: ${distDir}`);
-}
-
-const entries = readdirSync(distDir);
-if (!entries.length) {
-  throw new Error(`Build output directory is empty: ${distDir}`);
-}
-
-console.log(`Deploying plugin to ${targetDirs.length} director${targetDirs.length === 1 ? "y" : "ies"}`);
-
-for (const targetDir of targetDirs) {
-  console.log(`- ${targetDir}`);
-  mkdirSync(targetDir, { recursive: true });
-
-  for (const entry of entries) {
-    cpSync(resolve(distDir, entry), resolve(targetDir, entry), {
-      recursive: true,
-      force: true,
-    });
+export function runDeploy() {
+  const targetDirs = parseTargetDirs();
+  if (!targetDirs.length) {
+    throw new Error("OBSIDIAN_PLUGIN_DIRS not set (set it in plugin/.env or shell env)");
   }
+
+  if (!existsSync(distDir)) {
+    throw new Error(`Build output directory not found: ${distDir}`);
+  }
+
+  const entries = readdirSync(distDir);
+  if (!entries.length) {
+    throw new Error(`Build output directory is empty: ${distDir}`);
+  }
+
+  console.log(`Deploying plugin to ${targetDirs.length} director${targetDirs.length === 1 ? "y" : "ies"}`);
+
+  for (const targetDir of targetDirs) {
+    console.log(`- ${targetDir}`);
+    mkdirSync(targetDir, { recursive: true });
+
+    for (const entry of entries) {
+      cpSync(resolve(distDir, entry), resolve(targetDir, entry), {
+        recursive: true,
+        force: true,
+      });
+    }
+  }
+
+  console.log(`Plugin deployed to ${targetDirs.length} director${targetDirs.length === 1 ? "y" : "ies"}`);
 }
 
-console.log(`Plugin deployed to ${targetDirs.length} director${targetDirs.length === 1 ? "y" : "ies"}`);
+const isEntrypoint = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+if (isEntrypoint) {
+  runDeploy();
+}

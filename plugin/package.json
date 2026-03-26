@@ -8,7 +8,7 @@
     "build": "vite build && node scripts/postbuild.mjs",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",
-    "deploy:obsidian": "npm run build && node scripts/deploy.mjs"
+    "dev:obsidian": "node scripts/dev-obsidian.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
