@@ -290,6 +290,64 @@ describe("SyncEngine", () => {
     expect(persistedState.lastSeq).toBe(1);
   });
 
+  it("suppresses deletion uploads on the first sync after startup", async () => {
+    const app = createMemoryApp({});
+    let persistedState: SyncState = createState({
+      files: {
+        "notes/test.md": {
+          hash: "server-hash",
+          version: 1,
+          mtime: 1,
+          deleted: false,
+        },
+      },
+      lastSeq: 1,
+    });
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      upload: vi.fn(),
+      delete: vi.fn().mockResolvedValue({ ok: true, version: 2 }),
+      getFile: vi.fn(),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [],
+        latest_seq: 1,
+      }),
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => DEFAULT_SETTINGS,
+      () => "",
+      async () => {},
+      () => persistedState,
+      async (state) => {
+        persistedState = state;
+      },
+      () => api,
+      async () => {},
+    );
+
+    await engine.syncOnce();
+
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(persistedState.files["notes/test.md"]).toMatchObject({
+      version: 1,
+      deleted: false,
+    });
+
+    await engine.syncOnce();
+
+    expect(api.delete).toHaveBeenCalledTimes(1);
+    expect(api.delete).toHaveBeenCalledWith(expect.objectContaining({
+      path: "notes/test.md",
+      base_version: 1,
+    }));
+    expect(persistedState.files["notes/test.md"]).toMatchObject({
+      version: 2,
+      deleted: true,
+    });
+  });
+
   it("keeps a conflict copy when a remote tombstone deletes a locally modified file", async () => {
     const app = createMemoryApp({
       "notes/test.md": "local unsynced edit",

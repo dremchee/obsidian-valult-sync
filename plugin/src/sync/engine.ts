@@ -35,6 +35,7 @@ import type {
 
 export class SyncEngine {
   private running = false;
+  private startupDeletionGuardActive = true;
   private readonly maxNetworkAttempts = 4;
   private readonly retryBaseDelayMs = 500;
   private readonly vaultIO: ObsidianVaultIO;
@@ -77,6 +78,7 @@ export class SyncEngine {
       state.lastSyncAt = Date.now();
 
       await this.saveState(state);
+      this.startupDeletionGuardActive = false;
     } catch (error) {
       console.error("obsidian-sync: sync failed", error);
       throw error;
@@ -110,6 +112,9 @@ export class SyncEngine {
   private async runLocalSyncStage(api: SyncApi, state: SyncState): Promise<void> {
     const localFiles = await this.scanVault();
     await this.uploadLocalChanges(api, state, localFiles);
+    if (this.startupDeletionGuardActive) {
+      return;
+    }
     await this.uploadLocalDeletions(api, state, localFiles);
   }
 
