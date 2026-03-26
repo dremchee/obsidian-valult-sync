@@ -4,15 +4,15 @@ import { normalizePatternList } from "../sync/scope";
 import { formatSyncErrorState } from "../sync/errors";
 import { SettingsController } from "./controller";
 import { CreateVaultModal, type CreateVaultModalResult } from "../ui/create-vault-modal";
-import { destroyComponent, mountComponent, type MountedSvelteComponent } from "../ui/svelte";
+import { destroyComponent, mountComponent, type MountedVueComponent } from "../ui/vue";
 import { formatDeviceError } from "./ui";
-import SettingsTabView from "./components/SettingsTab.svelte";
+import SettingsTabView from "./components/SettingsTab.vue";
 import type { SettingsActions, SettingsViewModel } from "./view-model";
 import type { VaultItem } from "../types";
 import type ObsidianSyncPlugin from "../main";
 
 export class SyncSettingTab extends PluginSettingTab {
-  private component: MountedSvelteComponent | null = null;
+  private component: MountedVueComponent | null = null;
   private remoteVaults: VaultItem[] | null = null;
   private authTokenDraft: string | null = null;
   private editingAuthToken = false;

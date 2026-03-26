@@ -1,7 +1,7 @@
 import { Menu } from "obsidian";
 
-import StatusBarView from "./components/StatusBar.svelte";
-import { destroyComponent, mountComponent, type MountedSvelteComponent } from "./svelte";
+import StatusBarView from "./components/StatusBar.vue";
+import { destroyComponent, mountComponent, type MountedVueComponent } from "./vue";
 
 export type StatusBarState = "ok" | "pending" | "syncing" | "error" | "disabled";
 
@@ -15,7 +15,7 @@ export interface StatusBarSnapshot {
 
 export class PluginStatusBar {
   private intervalId: number | null = null;
-  private component: MountedSvelteComponent | null = null;
+  private component: MountedVueComponent | null = null;
 
   constructor(
     private readonly statusBarEl: HTMLElement,

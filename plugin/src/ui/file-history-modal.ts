@@ -2,11 +2,11 @@ import { Modal } from "obsidian";
 
 import type { FileVersionItem } from "../types";
 import type { HistoryState } from "./file-history-types";
-import FileHistoryModalView from "./components/FileHistoryModal.svelte";
-import { destroyComponent, mountComponent, type MountedSvelteComponent } from "./svelte";
+import FileHistoryModalView from "./components/FileHistoryModal.vue";
+import { destroyComponent, mountComponent, type MountedVueComponent } from "./vue";
 
 export class FileHistoryModal extends Modal {
-  private component: MountedSvelteComponent | null = null;
+  private component: MountedVueComponent | null = null;
   private state: HistoryState = { kind: "loading" };
   private restoringVersion: number | null = null;
 

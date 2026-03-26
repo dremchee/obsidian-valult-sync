@@ -157,22 +157,102 @@
 }
 
 .obsidian-sync-field-controls {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
-  min-width: min(420px, 100%);
+  width: min(520px, 100%);
+}
+
+.obsidian-sync-field-controls input,
+.obsidian-sync-field-controls select {
+  flex: 1 1 260px;
+  min-width: 180px;
 }
 
 .obsidian-sync-button-row {
   display: flex;
   flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
   gap: 8px;
 }
 
+.obsidian-sync-single-control,
+.obsidian-sync-action-control,
+.obsidian-sync-code-control,
+.obsidian-sync-toggle-control {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.obsidian-sync-single-control,
+.obsidian-sync-action-control {
+  width: min(320px, 100%);
+}
+
+.obsidian-sync-single-control input {
+  width: 100%;
+}
+
+.obsidian-sync-code-control {
+  width: min(520px, 100%);
+}
+
+.obsidian-sync-toggle-control {
+  width: min(72px, 100%);
+}
+
 .obsidian-sync-textarea-control {
-  min-width: min(420px, 100%);
+  width: min(520px, 100%);
 }
 
 .obsidian-sync-textarea-control textarea {
-  width: min(420px, 100%);
+  box-sizing: border-box;
+  width: 100%;
   min-height: 120px;
+}
+
+.setting-item-control code {
+  display: inline-block;
+  max-width: min(520px, 100%);
+  overflow-wrap: anywhere;
+}
+
+.obsidian-sync-history-list .setting-item:first-child {
+  border-top: 0;
+}
+
+.obsidian-sync-history-list .setting-item {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+@media (max-width: 720px) {
+  .obsidian-sync-field-controls,
+  .obsidian-sync-button-row,
+  .obsidian-sync-textarea-control,
+  .obsidian-sync-single-control,
+  .obsidian-sync-action-control,
+  .obsidian-sync-code-control,
+  .obsidian-sync-toggle-control {
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .obsidian-sync-field-controls input,
+  .obsidian-sync-field-controls select,
+  .obsidian-sync-field-controls button,
+  .obsidian-sync-button-row button,
+  .obsidian-sync-single-control input,
+  .obsidian-sync-action-control button,
+  .obsidian-sync-code-control code,
+  .obsidian-sync-toggle-control input,
+  .obsidian-sync-textarea-control textarea {
+    width: 100%;
+    min-width: 0;
+    flex: 1 1 100%;
+  }
 }

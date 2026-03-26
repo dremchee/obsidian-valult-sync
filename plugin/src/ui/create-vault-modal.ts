@@ -1,7 +1,7 @@
 import { Modal } from "obsidian";
 
-import CreateVaultModalView from "./components/CreateVaultModal.svelte";
-import { destroyComponent, mountComponent, type MountedSvelteComponent } from "./svelte";
+import CreateVaultModalView from "./components/CreateVaultModal.vue";
+import { destroyComponent, mountComponent, type MountedVueComponent } from "./vue";
 
 export type CreateVaultModalResult = {
   vaultId: string;
@@ -12,7 +12,7 @@ type SubmitCreateVault = (result: CreateVaultModalResult | null) => void;
 
 export class CreateVaultModal extends Modal {
   private submitted = false;
-  private component: MountedSvelteComponent | null = null;
+  private component: MountedVueComponent | null = null;
 
   constructor(
     app: Modal["app"],

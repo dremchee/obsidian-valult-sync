@@ -1,12 +1,12 @@
 import { defineConfig } from "vite";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { svelte } from "@sveltejs/vite-plugin-svelte";
+import vue from "@vitejs/plugin-vue";
 
 const rootDir = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
-  plugins: [svelte()],
+  plugins: [vue()],
   build: {
     outDir: "dist",
     emptyOutDir: true,
