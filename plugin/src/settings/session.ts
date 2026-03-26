@@ -575,14 +575,20 @@ export class SettingsSession {
         if (!createVault) {
           return;
         }
-        await this.createAndJoinVault(createVault.vaultId, createVault.passphrase);
+        await this.createAndJoinVault(
+          createVault.vaultId,
+          createVault.encryptionEnabled ? createVault.passphrase : "",
+        );
       },
       onCreateVault: async () => {
         const createVault = await this.requestCreateVault("");
         if (!createVault) {
           return;
         }
-        await this.createAndJoinVault(createVault.vaultId, createVault.passphrase);
+        await this.createAndJoinVault(
+          createVault.vaultId,
+          createVault.encryptionEnabled ? createVault.passphrase : "",
+        );
       },
       onJoinVault: async (vaultId) => {
         if (!vaultId) {
@@ -590,21 +596,23 @@ export class SettingsSession {
         }
 
         const wasConnected = Boolean(this.host.settings.vaultId);
+        const serverVault = this.state.remoteVaults?.find((item) => item.vault_id === vaultId) ?? null;
+        const serverFingerprint = serverVault?.e2ee_fingerprint?.trim() ?? "";
+        const requiresPassphrase = Boolean(serverFingerprint);
         new JoinVaultModal(
           this.app,
           vaultId,
+          requiresPassphrase,
           async ({ passphrase }) => {
             this.state.confirmDisconnectVaultId = null;
             this.state.confirmForgetVaultId = null;
-            this.state.vaultStatusText = t("settings.vault.state.validatingE2ee", {
-              vaultId,
-            });
+            this.state.vaultStatusText = requiresPassphrase
+              ? t("settings.vault.state.validatingE2ee", { vaultId })
+              : t("settings.vault.state.joining", { vaultId });
             this.sync();
 
             try {
               const localFileCount = this.getSyncableLocalFiles(vaultId).length;
-              const serverVault = this.state.remoteVaults?.find((item) => item.vault_id === vaultId) ?? null;
-              const serverFingerprint = serverVault?.e2ee_fingerprint?.trim() ?? "";
               if (serverFingerprint) {
                 const localFingerprint = await buildPassphraseFingerprint(vaultId, passphrase);
                 if (localFingerprint !== serverFingerprint) {

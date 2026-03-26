@@ -27,6 +27,36 @@ const DEFAULT_STATE: SyncState = {
 };
 
 describe("SettingsController", () => {
+  it("creates a plain vault when passphrase is empty", async () => {
+    const createVault = vi.fn().mockResolvedValue({
+      ok: true,
+      created: true,
+      vault: {
+        vault_id: "vault-a",
+        created_at: "2024-01-01T00:00:00Z",
+        updated_at: "2024-01-01T00:00:00Z",
+        device_count: 1,
+        e2ee_fingerprint: null,
+      },
+    });
+    const controller = createController(() => ({
+      health: vi.fn(),
+      upload: vi.fn(),
+      delete: vi.fn(),
+      getHistory: vi.fn(),
+      getDevices: vi.fn(),
+      getVaults: vi.fn(),
+      createVault,
+      restoreFile: vi.fn(),
+      getChanges: vi.fn(),
+      getFile: vi.fn(),
+    }));
+
+    await controller.createVault("vault-a", "");
+
+    expect(createVault).toHaveBeenCalledWith("vault-a", null);
+  });
+
   it("rejects join when encrypted vault content cannot be decrypted with the supplied passphrase", async () => {
     const encryptedFile = await createEncryptedFileResponse("vault-a", "notes/test.md", "correct horse");
     const controller = createController(() => ({
@@ -177,8 +207,41 @@ describe("SettingsController", () => {
     }));
 
     await expect(
-      controller.validateVaultJoinPassphrase("vault-a", "correct horse"),
+      controller.validateVaultJoinPassphrase("vault-a", ""),
     ).resolves.toBeUndefined();
+  });
+
+  it("requires passphrase only when encrypted remote content exists", async () => {
+    const encryptedFile = await createEncryptedFileResponse("vault-a", "notes/test.md", "correct horse");
+    const controller = createController(() => ({
+      health: vi.fn(),
+      upload: vi.fn(),
+      delete: vi.fn(),
+      getHistory: vi.fn(),
+      getDevices: vi.fn(),
+      getVaults: vi.fn(),
+      createVault: vi.fn(),
+      restoreFile: vi.fn(),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [
+          {
+            seq: 1,
+            device_id: "device-remote",
+            path: encryptedFile.path,
+            version: encryptedFile.version,
+            deleted: false,
+          },
+        ],
+        latest_seq: 1,
+      }),
+      getFile: vi.fn().mockResolvedValue(encryptedFile),
+    }));
+
+    await expect(
+      controller.validateVaultJoinPassphrase("vault-a", ""),
+    ).rejects.toMatchObject({
+      code: "missing_passphrase",
+    });
   });
 });
 

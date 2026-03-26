@@ -182,13 +182,13 @@ export class SettingsController {
       return;
     }
 
-    if (!normalizedPassphrase) {
-      throw createSyncError("missing_passphrase", t("settings.e2ee.validation.passphraseRequired"));
-    }
-
     const sampleFile = await this.getLatestEncryptedRemoteFile(normalizedVaultId);
     if (!sampleFile) {
       return;
+    }
+
+    if (!normalizedPassphrase) {
+      throw createSyncError("missing_passphrase", t("settings.e2ee.validation.passphraseRequired"));
     }
 
     await decodeSyncPayload(
