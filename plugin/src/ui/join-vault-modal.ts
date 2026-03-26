@@ -19,6 +19,7 @@ export class JoinVaultModal extends Modal {
   private submitted = false;
   private component: ReactiveMountedVueComponent<{
     vaultId: string;
+    requiresPassphrase: boolean;
     errorMessage: string;
     isSubmitting: boolean;
     onSubmit: (result: JoinVaultModalResult) => Promise<void>;
@@ -28,6 +29,7 @@ export class JoinVaultModal extends Modal {
   constructor(
     app: Modal["app"],
     private readonly vaultId: string,
+    private readonly requiresPassphrase: boolean,
     private readonly onSubmitJoinVault: SubmitJoinVault,
     private readonly onCancelJoinVault: CancelJoinVault,
   ) {
@@ -39,6 +41,7 @@ export class JoinVaultModal extends Modal {
     this.contentEl.empty();
     this.component = mountReactiveComponent(JoinVaultModalView, this.contentEl, {
       vaultId: this.vaultId,
+      requiresPassphrase: this.requiresPassphrase,
       errorMessage: "",
       isSubmitting: false,
       onSubmit: async (result: JoinVaultModalResult) => {

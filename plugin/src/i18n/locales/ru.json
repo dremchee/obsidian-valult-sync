@@ -193,13 +193,15 @@
   "modal": {
     "createVault": {
       "title": "Создать vault",
-      "intro": "Введите имя vault и E2EE passphrase для нового vault.",
+      "intro": "Введите имя для нового vault. Шифрование опционально и включается отдельно.",
       "vaultName": "Имя vault",
       "vaultNamePlaceholder": "team_notes",
       "vaultNameDescription": "Используется как server-side vault ID для этой папки.",
+      "enableEncryption": "Включить шифрование",
+      "enableEncryptionDescription": "Включите, чтобы создать E2EE vault. Если выключено, vault создаётся без шифрования.",
       "passphrase": "E2EE passphrase",
       "passphrasePlaceholder": "correct horse battery staple",
-      "passphraseDescription": "Обязателен при создании нового vault.",
+      "passphraseDescription": "Обязателен только если шифрование включено.",
       "confirmPassphrase": "Подтвердите passphrase",
       "confirmPassphraseDescription": "Введите passphrase ещё раз, чтобы не создать vault с опечаткой.",
       "create": "Создать vault",
@@ -211,7 +213,8 @@
     },
     "joinVault": {
       "title": "Подключить vault",
-      "intro": "Введите E2EE passphrase для vault, к которому вы подключаетесь. Если в vault уже есть зашифрованный контент, passphrase будет проверен; иначе подключение продолжится без проверки.",
+      "introEncrypted": "Введите E2EE passphrase для vault, к которому вы подключаетесь. Перед подключением passphrase будет проверен.",
+      "introPlain": "Этот vault не использует E2EE. Подключение продолжится без запроса passphrase.",
       "vaultName": "Vault",
       "vaultNameDescription": "Целевой vault на сервере.",
       "passphrase": "E2EE passphrase",

@@ -193,13 +193,15 @@
   "modal": {
     "createVault": {
       "title": "Create vault",
-      "intro": "Enter a vault name and an E2EE passphrase for the new vault.",
+      "intro": "Enter a vault name for the new vault. Encryption is optional and can be enabled explicitly.",
       "vaultName": "Vault name",
       "vaultNamePlaceholder": "team_notes",
       "vaultNameDescription": "Used as the server-side vault ID for this folder.",
+      "enableEncryption": "Enable encryption",
+      "enableEncryptionDescription": "Turn this on to create an E2EE vault. When off, the vault is created without encryption.",
       "passphrase": "E2EE passphrase",
       "passphrasePlaceholder": "correct horse battery staple",
-      "passphraseDescription": "Required when creating a new vault.",
+      "passphraseDescription": "Required only when encryption is enabled.",
       "confirmPassphrase": "Confirm passphrase",
       "confirmPassphraseDescription": "Re-enter the passphrase to avoid creating the vault with a typo.",
       "create": "Create vault",
@@ -211,7 +213,8 @@
     },
     "joinVault": {
       "title": "Join vault",
-      "intro": "Enter the E2EE passphrase for the vault you are joining. If the vault already has encrypted content, the passphrase will be verified; otherwise join will continue without verification.",
+      "introEncrypted": "Enter the E2EE passphrase for the vault you are joining. The passphrase will be verified before the vault is connected.",
+      "introPlain": "This vault does not use E2EE. Join will continue without requesting a passphrase.",
       "vaultName": "Vault",
       "vaultNameDescription": "Target vault on the server.",
       "passphrase": "E2EE passphrase",

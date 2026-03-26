@@ -11,6 +11,7 @@ import {
 export type CreateVaultModalResult = {
   vaultId: string;
   passphrase: string;
+  encryptionEnabled: boolean;
 };
 
 type SubmitCreateVault = (result: CreateVaultModalResult | null) => void;

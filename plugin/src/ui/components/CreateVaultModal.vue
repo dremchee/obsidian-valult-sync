@@ -5,11 +5,12 @@ import { t } from "@/i18n";
 
 const props = defineProps<{
   initialVaultId: string;
-  onSubmit: (result: { vaultId: string; passphrase: string }) => void;
+  onSubmit: (result: { vaultId: string; passphrase: string; encryptionEnabled: boolean }) => void;
   onCancel: () => void;
 }>();
 
 const vaultId = shallowRef(props.initialVaultId);
+const encryptionEnabled = shallowRef(false);
 const passphrase = shallowRef("");
 const confirmPassphrase = shallowRef("");
 const error = shallowRef("");
@@ -23,6 +24,16 @@ function clearError(): void {
   error.value = "";
 }
 
+function onEncryptionEnabledChange(): void {
+  clearError();
+  if (encryptionEnabled.value) {
+    return;
+  }
+
+  passphrase.value = "";
+  confirmPassphrase.value = "";
+}
+
 function submit(): void {
   const normalizedVaultId = vaultId.value.trim();
   const normalizedPassphrase = passphrase.value.trim();
@@ -32,12 +43,12 @@ function submit(): void {
     return;
   }
 
-  if (!normalizedPassphrase) {
+  if (encryptionEnabled.value && !normalizedPassphrase) {
     error.value = t("modal.createVault.errors.enterPassphrase");
     return;
   }
 
-  if (normalizedPassphrase !== confirmPassphrase.value.trim()) {
+  if (encryptionEnabled.value && normalizedPassphrase !== confirmPassphrase.value.trim()) {
     error.value = t("modal.createVault.errors.passphraseMismatch");
     return;
   }
@@ -45,6 +56,7 @@ function submit(): void {
   props.onSubmit({
     vaultId: normalizedVaultId,
     passphrase: passphrase.value,
+    encryptionEnabled: encryptionEnabled.value,
   });
 }
 </script>
@@ -73,34 +85,46 @@ function submit(): void {
   </label>
 
   <label class="obsidian-sync-form-row">
-    <span class="obsidian-sync-form-label">{{ t("modal.createVault.passphrase") }}</span>
-    <span class="setting-item-description">{{ t("modal.createVault.passphraseDescription") }}</span>
+    <span class="obsidian-sync-form-label">{{ t("modal.createVault.enableEncryption") }}</span>
+    <span class="setting-item-description">{{ t("modal.createVault.enableEncryptionDescription") }}</span>
     <input
-      v-model="passphrase"
-      autocomplete="new-password"
-      autocapitalize="off"
-      :placeholder="t('modal.createVault.passphrasePlaceholder')"
-      spellcheck="false"
-      type="password"
-      @input="clearError"
-      @keydown.enter.prevent="submit"
+      v-model="encryptionEnabled"
+      type="checkbox"
+      @change="onEncryptionEnabledChange"
     >
   </label>
 
-  <label class="obsidian-sync-form-row">
-    <span class="obsidian-sync-form-label">{{ t("modal.createVault.confirmPassphrase") }}</span>
-    <span class="setting-item-description">{{ t("modal.createVault.confirmPassphraseDescription") }}</span>
-    <input
-      v-model="confirmPassphrase"
-      autocomplete="new-password"
-      autocapitalize="off"
-      :placeholder="t('modal.createVault.passphrasePlaceholder')"
-      spellcheck="false"
-      type="password"
-      @input="clearError"
-      @keydown.enter.prevent="submit"
-    >
-  </label>
+  <template v-if="encryptionEnabled">
+    <label class="obsidian-sync-form-row">
+      <span class="obsidian-sync-form-label">{{ t("modal.createVault.passphrase") }}</span>
+      <span class="setting-item-description">{{ t("modal.createVault.passphraseDescription") }}</span>
+      <input
+        v-model="passphrase"
+        autocomplete="new-password"
+        autocapitalize="off"
+        :placeholder="t('modal.createVault.passphrasePlaceholder')"
+        spellcheck="false"
+        type="password"
+        @input="clearError"
+        @keydown.enter.prevent="submit"
+      >
+    </label>
+
+    <label class="obsidian-sync-form-row">
+      <span class="obsidian-sync-form-label">{{ t("modal.createVault.confirmPassphrase") }}</span>
+      <span class="setting-item-description">{{ t("modal.createVault.confirmPassphraseDescription") }}</span>
+      <input
+        v-model="confirmPassphrase"
+        autocomplete="new-password"
+        autocapitalize="off"
+        :placeholder="t('modal.createVault.passphrasePlaceholder')"
+        spellcheck="false"
+        type="password"
+        @input="clearError"
+        @keydown.enter.prevent="submit"
+      >
+    </label>
+  </template>
 
   <div class="setting-item-description obsidian-sync-modal-error">{{ error }}</div>
 

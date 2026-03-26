@@ -5,6 +5,7 @@ import { t } from "@/i18n";
 
 const props = defineProps<{
   vaultId: string;
+  requiresPassphrase: boolean;
   errorMessage: string;
   isSubmitting: boolean;
   onSubmit: (result: { passphrase: string }) => Promise<void>;
@@ -25,7 +26,7 @@ function clearError(): void {
 
 async function submit(): Promise<void> {
   const normalizedPassphrase = passphrase.value.trim();
-  if (!normalizedPassphrase) {
+  if (props.requiresPassphrase && !normalizedPassphrase) {
     localError.value = t("modal.joinVault.errors.enterPassphrase");
     passphraseInput.value?.focus();
     return;
@@ -41,7 +42,7 @@ async function submit(): Promise<void> {
 <template>
   <div class="obsidian-sync-modal-copy">
     <p class="setting-item-description">
-      {{ t("modal.joinVault.intro") }}
+      {{ t(props.requiresPassphrase ? "modal.joinVault.introEncrypted" : "modal.joinVault.introPlain") }}
     </p>
   </div>
 
@@ -57,7 +58,7 @@ async function submit(): Promise<void> {
     >
   </label>
 
-  <label class="obsidian-sync-form-row">
+  <label v-if="props.requiresPassphrase" class="obsidian-sync-form-row">
     <span class="obsidian-sync-form-label">{{ t("modal.joinVault.passphrase") }}</span>
     <span class="setting-item-description">{{ t("modal.joinVault.passphraseDescription") }}</span>
     <input
