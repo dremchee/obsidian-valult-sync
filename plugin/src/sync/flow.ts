@@ -4,6 +4,8 @@ import type {
   DeleteRequest,
   FileState,
   LocalFileSnapshot,
+  RenameCandidate,
+  RenameRequest,
   SyncSettings,
   SyncState,
   UploadRequest,
@@ -82,6 +84,19 @@ export function createDeleteRequest(
   };
 }
 
+export function createRenameRequest(
+  settings: Pick<SyncSettings, "vaultId" | "deviceId">,
+  candidate: RenameCandidate,
+): RenameRequest {
+  return {
+    vault_id: settings.vaultId,
+    device_id: settings.deviceId,
+    from_path: candidate.fromPath,
+    to_path: candidate.toFile.path,
+    base_version: candidate.fromState.version,
+  };
+}
+
 export function applyDeletedFile(
   state: SyncState,
   path: string,
@@ -93,6 +108,15 @@ export function applyDeletedFile(
     mtime: 0,
     deleted: true,
   };
+}
+
+export function applyRenamedFile(
+  state: SyncState,
+  candidate: RenameCandidate,
+  version: number,
+): void {
+  applyDeletedFile(state, candidate.fromPath, version);
+  applyUploadedFile(state, candidate.toFile, version);
 }
 
 export function decideRemoteChange(
@@ -125,6 +149,51 @@ export function shouldCreateConflictCopy(
     && !!localState
     && !localState.deleted
     && currentHash !== localState.hash;
+}
+
+export function detectRenameCandidates(
+  state: SyncState,
+  localFiles: Map<string, LocalFileSnapshot>,
+): RenameCandidate[] {
+  const missingByHash = new Map<string, Array<{ path: string; state: FileState }>>();
+  const newByHash = new Map<string, LocalFileSnapshot[]>();
+
+  for (const [path, fileState] of Object.entries(state.files)) {
+    if (fileState.deleted || localFiles.has(path)) {
+      continue;
+    }
+
+    const entries = missingByHash.get(fileState.hash) ?? [];
+    entries.push({ path, state: fileState });
+    missingByHash.set(fileState.hash, entries);
+  }
+
+  for (const localFile of localFiles.values()) {
+    const current = state.files[localFile.path];
+    if (current && !current.deleted) {
+      continue;
+    }
+
+    const entries = newByHash.get(localFile.hash) ?? [];
+    entries.push(localFile);
+    newByHash.set(localFile.hash, entries);
+  }
+
+  const candidates: RenameCandidate[] = [];
+  for (const [hash, missingEntries] of missingByHash.entries()) {
+    const newEntries = newByHash.get(hash) ?? [];
+    if (missingEntries.length !== 1 || newEntries.length !== 1) {
+      continue;
+    }
+
+    candidates.push({
+      fromPath: missingEntries[0].path,
+      fromState: missingEntries[0].state,
+      toFile: newEntries[0],
+    });
+  }
+
+  return candidates;
 }
 
 export function applyRemoteFile(

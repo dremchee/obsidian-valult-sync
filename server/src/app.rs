@@ -26,6 +26,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(routes::devices::router())
         .merge(routes::events::router())
         .merge(routes::delete::router())
+        .merge(routes::rename::router())
         .merge(routes::vaults::router())
         .merge(routes::snapshot::router())
         .merge(routes::history::router())

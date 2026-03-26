@@ -220,6 +220,51 @@ notes/daily/2026-03-10.md
 
 ---
 
+## POST /rename
+
+Атомарно переименовать файл внутри vault.
+
+### Request
+
+```json
+{
+  "vault_id": "default",
+  "device_id": "device_local_desktop",
+  "from_path": "notes/test.md",
+  "to_path": "notes/renamed.md",
+  "base_version": 3
+}
+```
+
+### Успешный response
+
+```json
+{
+  "ok": true,
+  "version": 4
+}
+```
+
+### Conflict response
+
+```json
+{
+  "ok": false,
+  "conflict": true,
+  "server_version": 3
+}
+```
+
+### Примечания
+
+- rename возможен только если `base_version` совпадает с текущей версией `from_path`
+- `to_path` не должен совпадать с `from_path`
+- если `to_path` уже занят live-файлом, сервер вернёт conflict
+- при rename `hash`, `payload_hash` и `content_format` сохраняются на новом пути
+- в change feed операция появляется как пара событий: delete old path и create new path с одной `version`
+
+---
+
 ## POST /upload
 
 Создать новую версию файла.

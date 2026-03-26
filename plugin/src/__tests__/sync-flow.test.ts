@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   applyDeletedFile,
   applyRemoteFile,
+  applyRenamedFile,
   applyUploadedFile,
   buildConflictPath,
   createDeleteRequest,
+  createRenameRequest,
   createUploadRequest,
+  detectRenameCandidates,
   decideRemoteChange,
   shouldCreateConflictCopy,
   shouldUploadLocalChange,
@@ -56,6 +59,18 @@ describe("sync flow helpers", () => {
       vault_id: "vault-a",
       device_id: "device-local",
       path: "notes/test.md",
+      base_version: 3,
+    });
+
+    expect(createRenameRequest(DEFAULT_SETTINGS, {
+      fromPath: "notes/old.md",
+      fromState: current,
+      toFile: local,
+    })).toMatchObject({
+      vault_id: "vault-a",
+      device_id: "device-local",
+      from_path: "notes/old.md",
+      to_path: "notes/test.md",
       base_version: 3,
     });
   });
@@ -126,8 +141,59 @@ describe("sync flow helpers", () => {
       deleted: true,
     });
 
+    applyRenamedFile(state, {
+      fromPath: "notes/old.md",
+      fromState: {
+        hash: "old-hash",
+        version: 1,
+        mtime: 1,
+        deleted: false,
+      },
+      toFile: local,
+    }, 10);
+    expect(state.files["notes/old.md"]).toMatchObject({
+      version: 10,
+      deleted: true,
+    });
+    expect(state.files[local.path]).toMatchObject({
+      hash: local.hash,
+      version: 10,
+      deleted: false,
+    });
+
     expect(buildConflictPath("notes/test.md")).toBe("notes/test (conflict).md");
     expect(buildConflictPath("notes/test")).toBe("notes/test (conflict)");
+  });
+
+  it("detects unambiguous pure renames by hash", () => {
+    const local = createLocalSnapshot();
+    const candidates = detectRenameCandidates({
+      vaultId: "vault-a",
+      files: {
+        "notes/old.md": {
+          hash: local.hash,
+          version: 4,
+          mtime: 1,
+          deleted: false,
+        },
+      },
+      lastSeq: 0,
+      lastSyncAt: null,
+      lastSyncError: null,
+    }, new Map([[local.path, local]]));
+
+    expect(candidates).toEqual([
+      {
+        fromPath: "notes/old.md",
+        fromState: {
+          hash: local.hash,
+          version: 4,
+          mtime: 1,
+          deleted: false,
+        },
+        toFile: local,
+      },
+    ]);
   });
 });
 

@@ -290,6 +290,155 @@ describe("SyncEngine", () => {
     expect(persistedState.lastSeq).toBe(1);
   });
 
+  it("uses atomic rename for pure local renames", async () => {
+    const app = createMemoryApp({
+      "notes/renamed.md": "hello",
+    });
+    let persistedState: SyncState | null = null;
+    const fileHash = await sha256Hex(toBytes("hello"));
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      rename: vi.fn().mockResolvedValue({ ok: true, version: 2 }),
+      upload: vi.fn(),
+      delete: vi.fn(),
+      getFile: vi.fn(),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [],
+        latest_seq: 1,
+      }),
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => DEFAULT_SETTINGS,
+      () => "",
+      async () => {},
+      () => createState({
+        files: {
+          "notes/test.md": {
+            hash: fileHash,
+            version: 1,
+            mtime: 1,
+            deleted: false,
+          },
+        },
+        lastSeq: 1,
+      }),
+      async (state) => {
+        persistedState = state;
+      },
+      () => api,
+      async () => {},
+    );
+
+    await engine.syncOnce();
+
+    expect(api.rename).toHaveBeenCalledWith({
+      vault_id: "vault-a",
+      device_id: "device-local",
+      from_path: "notes/test.md",
+      to_path: "notes/renamed.md",
+      base_version: 1,
+    });
+    expect(api.upload).not.toHaveBeenCalled();
+    expect(api.delete).not.toHaveBeenCalled();
+    expect(persistedState).toMatchObject({
+      files: {
+        "notes/test.md": {
+          version: 2,
+          deleted: true,
+        },
+        "notes/renamed.md": {
+          version: 2,
+          deleted: false,
+        },
+      },
+    });
+  });
+
+  it("applies remote rename batches without leaving duplicate paths", async () => {
+    const app = createMemoryApp({
+      "notes/test.md": "hello",
+    });
+    let persistedState: SyncState | null = null;
+    const fileHash = await sha256Hex(toBytes("hello"));
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      upload: vi.fn(),
+      delete: vi.fn(),
+      rename: vi.fn(),
+      getFile: vi.fn().mockResolvedValue({
+        path: "notes/renamed.md",
+        hash: fileHash,
+        version: 2,
+        deleted: false,
+        content_b64: bytesToBase64(toBytes("hello")),
+        content_format: "plain",
+      }),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [
+          {
+            seq: 2,
+            device_id: "device-remote",
+            path: "notes/test.md",
+            version: 2,
+            deleted: true,
+          },
+          {
+            seq: 3,
+            device_id: "device-remote",
+            path: "notes/renamed.md",
+            version: 2,
+            deleted: false,
+          },
+        ],
+        latest_seq: 3,
+      }),
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => DEFAULT_SETTINGS,
+      () => "",
+      async () => {},
+      () => createState({
+        files: {
+          "notes/test.md": {
+            hash: fileHash,
+            version: 1,
+            mtime: 1,
+            deleted: false,
+          },
+        },
+        lastSeq: 1,
+      }),
+      async (state) => {
+        persistedState = state;
+      },
+      () => api,
+      async () => {},
+    );
+
+    await engine.syncOnce();
+
+    expect(app.listPaths()).toEqual(["notes/renamed.md"]);
+    expect(app.readText("notes/renamed.md")).toBe("hello");
+    expect(api.getFile).toHaveBeenCalledTimes(1);
+    expect(persistedState).toMatchObject({
+      lastSeq: 3,
+      files: {
+        "notes/test.md": {
+          version: 2,
+          deleted: true,
+        },
+        "notes/renamed.md": {
+          version: 2,
+          deleted: false,
+        },
+      },
+    });
+  });
+
   it("suppresses deletion uploads on the first sync after startup", async () => {
     const app = createMemoryApp({});
     let persistedState: SyncState = createState({
@@ -767,6 +916,7 @@ function createApiStub(overrides: Partial<SyncApi>): SyncApi {
     health: vi.fn(),
     upload: vi.fn(),
     delete: vi.fn(),
+    rename: vi.fn(),
     getFile: vi.fn(),
     getChanges: vi.fn(),
     ...overrides,

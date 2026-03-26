@@ -10,10 +10,13 @@ import { createSyncError, toSyncErrorState } from "./errors";
 import {
   applyDeletedFile,
   applyRemoteFile,
+  applyRenamedFile,
   applyUploadedFile,
   buildConflictPath,
   createDeleteRequest,
+  createRenameRequest,
   createUploadRequest,
+  detectRenameCandidates,
   decideRemoteChange,
   shouldCreateConflictCopy,
   shouldUploadLocalChange,
@@ -111,6 +114,7 @@ export class SyncEngine {
 
   private async runLocalSyncStage(api: SyncApi, state: SyncState): Promise<void> {
     const localFiles = await this.scanVault();
+    await this.uploadLocalRenames(api, state, localFiles);
     await this.uploadLocalChanges(api, state, localFiles);
     if (this.startupDeletionGuardActive) {
       return;
@@ -152,6 +156,23 @@ export class SyncEngine {
     }
   }
 
+  private async uploadLocalRenames(
+    api: SyncApi,
+    state: SyncState,
+    localFiles: Map<string, LocalFileSnapshot>,
+  ): Promise<void> {
+    for (const candidate of detectRenameCandidates(state, localFiles)) {
+      const response = await this.retry(
+        () => api.rename(createRenameRequest(this.getSettings(), candidate)),
+        `rename ${candidate.fromPath} -> ${candidate.toFile.path}`,
+      );
+
+      if (response.ok && response.version) {
+        applyRenamedFile(state, candidate, response.version);
+      }
+    }
+  }
+
   private async uploadLocalDeletions(
     api: SyncApi,
     state: SyncState,
@@ -184,8 +205,15 @@ export class SyncEngine {
       "fetch change feed",
     );
     const currentDeviceId = this.getSettings().deviceId;
+    const groupedChanges = groupChangesByMutation(response.changes);
 
-    for (const change of response.changes) {
+    for (const changes of groupedChanges) {
+      if (await this.tryApplyRemoteRenameBatch(api, state, changes, currentDeviceId)) {
+        state.lastSeq = changes[changes.length - 1].seq;
+        continue;
+      }
+
+      for (const change of changes) {
       const localState = state.files[change.path];
       const decision = decideRemoteChange(
         change,
@@ -210,9 +238,54 @@ export class SyncEngine {
       }
 
       state.lastSeq = change.seq;
+      }
     }
 
     state.lastSeq = response.latest_seq;
+  }
+
+  private async tryApplyRemoteRenameBatch(
+    api: SyncApi,
+    state: SyncState,
+    changes: Array<{ seq: number; device_id: string; path: string; version: number; deleted: boolean }>,
+    currentDeviceId: string,
+  ): Promise<boolean> {
+    if (changes.length !== 2 || changes[0].device_id === currentDeviceId) {
+      return false;
+    }
+
+    const deletedChange = changes.find((change) => change.deleted);
+    const createdChange = changes.find((change) => !change.deleted);
+    if (!deletedChange || !createdChange) {
+      return false;
+    }
+
+    const deletedDecision = decideRemoteChange(
+      deletedChange,
+      currentDeviceId,
+      state.files[deletedChange.path],
+      (candidatePath) => this.shouldSyncPath(candidatePath),
+    );
+    const createdDecision = decideRemoteChange(
+      createdChange,
+      currentDeviceId,
+      state.files[createdChange.path],
+      (candidatePath) => this.shouldSyncPath(candidatePath),
+    );
+    if (
+      deletedDecision === "skip-out-of-scope"
+      || createdDecision === "skip-out-of-scope"
+      || deletedDecision === "skip-own-change"
+      || createdDecision === "skip-own-change"
+      || createdDecision === "skip-current-state"
+    ) {
+      return false;
+    }
+
+    await this.applyRemoteDelete(state, deletedChange.path, deletedChange.version, deletedChange.device_id);
+    await this.downloadAndApplyRemote(api, state, createdChange.path, createdChange.device_id);
+
+    return true;
   }
 
   private async resolveConflict(
@@ -388,4 +461,32 @@ function sleep(ms: number): Promise<void> {
 
 function isGeneratedConflictPath(path: string): boolean {
   return / \(conflict\)(\.[^/]+)?$/.test(path);
+}
+
+function groupChangesByMutation(
+  changes: Array<{ seq: number; device_id: string; path: string; version: number; deleted: boolean }>,
+): Array<Array<{ seq: number; device_id: string; path: string; version: number; deleted: boolean }>> {
+  const groups: Array<Array<{ seq: number; device_id: string; path: string; version: number; deleted: boolean }>> = [];
+  let currentGroup: Array<{ seq: number; device_id: string; path: string; version: number; deleted: boolean }> = [];
+
+  for (const change of changes) {
+    if (
+      currentGroup.length > 0
+      && (
+        currentGroup[0].device_id !== change.device_id
+        || currentGroup[0].version !== change.version
+      )
+    ) {
+      groups.push(currentGroup);
+      currentGroup = [];
+    }
+
+    currentGroup.push(change);
+  }
+
+  if (currentGroup.length > 0) {
+    groups.push(currentGroup);
+  }
+
+  return groups;
 }

@@ -28,6 +28,15 @@ pub struct DeleteRequest {
     pub base_version: i64,
 }
 
+#[derive(Debug, Deserialize)]
+pub struct RenameRequest {
+    pub vault_id: String,
+    pub device_id: String,
+    pub from_path: String,
+    pub to_path: String,
+    pub base_version: i64,
+}
+
 #[derive(Debug, Serialize)]
 pub struct MutationResponse {
     pub ok: bool,

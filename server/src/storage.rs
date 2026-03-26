@@ -116,6 +116,27 @@ pub async fn delete_file(storage_root: &Path, vault_id: &str, relative_path: &st
     }
 }
 
+pub async fn rename_file(
+    storage_root: &Path,
+    vault_id: &str,
+    from_relative_path: &str,
+    to_relative_path: &str,
+) -> Result<()> {
+    let from_path = resolve_path(storage_root, vault_id, from_relative_path)?;
+    let to_path = resolve_path(storage_root, vault_id, to_relative_path)?;
+    if let Some(parent) = to_path.parent() {
+        fs::create_dir_all(parent)
+            .await
+            .context("failed to create target directory")?;
+    }
+
+    fs::rename(&from_path, &to_path)
+        .await
+        .context("failed to atomically rename file")?;
+
+    Ok(())
+}
+
 pub async fn write_file_version(
     storage_root: &Path,
     vault_id: &str,

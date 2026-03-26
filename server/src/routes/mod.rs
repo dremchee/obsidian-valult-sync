@@ -5,6 +5,7 @@ pub mod events;
 pub mod file;
 pub mod health;
 pub mod history;
+pub mod rename;
 pub mod restore;
 pub mod snapshot;
 pub mod upload;

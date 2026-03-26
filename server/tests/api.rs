@@ -219,6 +219,109 @@ async fn snapshot_returns_current_vault_state() {
 }
 
 #[tokio::test]
+async fn rename_moves_file_atomically_and_preserves_metadata() {
+    let (_tmp_dir, app) = test_app().await;
+
+    let first_upload = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/upload")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "vault_id": "vault-a",
+                        "device_id": "device-a",
+                        "path": "notes/test.md",
+                        "content_b64": "ZW5jcnlwdGVk",
+                        "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+                        "payload_hash": "954d1bb83d80bb6f6e746b28f0de3ec4c4ed980cfe67ed23a9159cd464ff339a",
+                        "content_format": "e2ee-envelope-v1",
+                        "base_version": 0
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(first_upload.status(), StatusCode::OK);
+
+    let rename_response = rename_file(
+        &app,
+        "vault-a",
+        "device-a",
+        "notes/test.md",
+        "notes/renamed.md",
+        1,
+    )
+    .await;
+    assert_eq!(rename_response.status(), StatusCode::OK);
+    assert_eq!(
+        read_json(rename_response).await,
+        json!({ "ok": true, "version": 2 })
+    );
+
+    let old_file = get_file(&app, "vault-a", "notes/test.md").await;
+    assert_eq!(
+        read_json(old_file).await,
+        json!({
+            "path": "notes/test.md",
+            "hash": "",
+            "version": 2,
+            "deleted": true,
+            "content_b64": null,
+            "content_format": "e2ee-envelope-v1"
+        })
+    );
+
+    let new_file = get_file(&app, "vault-a", "notes/renamed.md").await;
+    assert_eq!(
+        read_json(new_file).await,
+        json!({
+            "path": "notes/renamed.md",
+            "hash": "5891b5b522d5df086d0ff0b110fbd9d21bb4fc7163af34d08286a2e846f6be03",
+            "version": 2,
+            "deleted": false,
+            "content_b64": "ZW5jcnlwdGVk",
+            "content_format": "e2ee-envelope-v1"
+        })
+    );
+
+    let changes = get_changes(&app, "vault-a", 0).await;
+    assert_eq!(
+        read_json(changes).await,
+        json!({
+            "changes": [
+                {
+                    "seq": 1,
+                    "device_id": "device-a",
+                    "path": "notes/test.md",
+                    "version": 1,
+                    "deleted": false
+                },
+                {
+                    "seq": 2,
+                    "device_id": "device-a",
+                    "path": "notes/test.md",
+                    "version": 2,
+                    "deleted": true
+                },
+                {
+                    "seq": 3,
+                    "device_id": "device-a",
+                    "path": "notes/renamed.md",
+                    "version": 2,
+                    "deleted": false
+                }
+            ],
+            "latest_seq": 3
+        })
+    );
+}
+
+#[tokio::test]
 async fn upload_auto_registers_vault_in_registry() {
     let (_tmp_dir, app) = test_app().await;
 
@@ -985,6 +1088,36 @@ async fn delete_file(
                         "vault_id": vault_id,
                         "device_id": device_id,
                         "path": path,
+                        "base_version": base_version
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap()
+}
+
+async fn rename_file(
+    app: &axum::Router,
+    vault_id: &str,
+    device_id: &str,
+    from_path: &str,
+    to_path: &str,
+    base_version: i64,
+) -> axum::response::Response {
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/rename")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "vault_id": vault_id,
+                        "device_id": device_id,
+                        "from_path": from_path,
+                        "to_path": to_path,
                         "base_version": base_version
                     })
                     .to_string(),

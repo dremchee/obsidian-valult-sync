@@ -56,6 +56,14 @@ export interface DeleteRequest {
   base_version: number;
 }
 
+export interface RenameRequest {
+  vault_id: string;
+  device_id: string;
+  from_path: string;
+  to_path: string;
+  base_version: number;
+}
+
 export interface MutationResponse {
   ok: boolean;
   version?: number;
@@ -153,6 +161,12 @@ export interface LocalFileSnapshot {
   hash: string;
   mtime: number;
   data: Uint8Array;
+}
+
+export interface RenameCandidate {
+  fromPath: string;
+  fromState: FileState;
+  toFile: LocalFileSnapshot;
 }
 
 export interface E2eeEnvelope {

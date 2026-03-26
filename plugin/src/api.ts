@@ -8,6 +8,7 @@ import type {
   FileHistoryResponse,
   FileResponse,
   MutationResponse,
+  RenameRequest,
   RestoreFileRequest,
   VaultSnapshotResponse,
   UploadRequest,
@@ -41,6 +42,10 @@ export class SyncApi {
 
   delete(payload: DeleteRequest): Promise<MutationResponse> {
     return this.sendJson("/delete", payload);
+  }
+
+  rename(payload: RenameRequest): Promise<MutationResponse> {
+    return this.sendJson("/rename", payload);
   }
 
   getFile(vaultId: string, path: string): Promise<FileResponse> {

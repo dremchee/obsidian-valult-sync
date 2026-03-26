@@ -7,8 +7,8 @@ use crate::{
     dto::{
         ChangeItem, ChangesResponse, ContentFormat, CreateVaultRequest, CreateVaultResponse,
         DeleteRequest, DeviceItem, DevicesResponse, FileHistoryResponse, FileResponse,
-        FileVersionItem, MutationResponse, RestoreFileRequest, SnapshotFileItem, UploadRequest,
-        VaultItem, VaultSnapshotResponse, VaultsResponse,
+        FileVersionItem, MutationResponse, RenameRequest, RestoreFileRequest, SnapshotFileItem,
+        UploadRequest, VaultItem, VaultSnapshotResponse, VaultsResponse,
     },
     error::AppError,
     models::{ChangeRecord, DeviceRecord, FileRecord, FileVersionRecord, VaultRecord},
@@ -196,6 +196,161 @@ pub async fn delete(
     .await
     .map_err(AppError::internal)?;
     state.notify_vault_event(&vault_id, change_result.last_insert_rowid());
+
+    Ok(MutationResponse {
+        ok: true,
+        version: Some(new_version),
+        conflict: None,
+        server_version: None,
+    })
+}
+
+pub async fn rename(
+    state: &AppState,
+    request: RenameRequest,
+) -> Result<MutationResponse, AppError> {
+    let vault_id = storage::validate_vault_id(&request.vault_id)?;
+    let device_id = storage::validate_device_id(&request.device_id)?;
+    let from_path = storage::validate_relative_path(&request.from_path)?;
+    let to_path = storage::validate_relative_path(&request.to_path)?;
+    if from_path == to_path {
+        return Err(AppError::InvalidPayload(
+            "from_path and to_path must differ".to_string(),
+        ));
+    }
+
+    let now = Utc::now().to_rfc3339();
+    touch_vault(state.pool(), &vault_id, &now).await?;
+    touch_device(state.pool(), &vault_id, &device_id, &now).await?;
+
+    let current = get_file_record(state.pool(), &vault_id, &from_path)
+        .await?
+        .ok_or(AppError::NotFound)?;
+    if current.deleted {
+        return Err(AppError::NotFound);
+    }
+
+    if request.base_version != current.version {
+        return Ok(MutationResponse {
+            ok: false,
+            version: None,
+            conflict: Some(true),
+            server_version: Some(current.version),
+        });
+    }
+
+    if let Some(target) = get_file_record(state.pool(), &vault_id, &to_path).await? {
+        if !target.deleted {
+            return Ok(MutationResponse {
+                ok: false,
+                version: None,
+                conflict: Some(true),
+                server_version: Some(target.version),
+            });
+        }
+    }
+
+    let data = storage::read_file(state.storage_root(), &vault_id, &from_path)
+        .await
+        .map_err(AppError::internal)?;
+    storage::rename_file(state.storage_root(), &vault_id, &from_path, &to_path)
+        .await
+        .map_err(AppError::internal)?;
+
+    let new_version = current.version + 1;
+    let content_format = content_format_from_db(&current.content_format)?;
+
+    store_file_version(
+        state,
+        &vault_id,
+        &from_path,
+        new_version,
+        "",
+        "",
+        ContentFormat::Plain,
+        true,
+        &now,
+        None,
+    )
+    .await?;
+    store_file_version(
+        state,
+        &vault_id,
+        &to_path,
+        new_version,
+        &current.hash,
+        &current.payload_hash,
+        content_format,
+        false,
+        &now,
+        Some(&data),
+    )
+    .await?;
+
+    sqlx::query(
+        r#"
+        UPDATE files
+        SET hash = '', payload_hash = '', version = ?2, deleted = 1, updated_at = ?3
+        WHERE vault_id = ?1 AND path = ?4
+        "#,
+    )
+    .bind(&vault_id)
+    .bind(new_version)
+    .bind(&now)
+    .bind(&from_path)
+    .execute(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+
+    sqlx::query(
+        r#"
+        INSERT INTO files (vault_id, path, hash, payload_hash, content_format, version, deleted, updated_at)
+        VALUES (?1, ?2, ?3, ?4, ?5, ?6, 0, ?7)
+        ON CONFLICT(vault_id, path) DO UPDATE SET
+          hash = excluded.hash,
+          payload_hash = excluded.payload_hash,
+          content_format = excluded.content_format,
+          version = excluded.version,
+          deleted = excluded.deleted,
+          updated_at = excluded.updated_at
+        "#,
+    )
+    .bind(&vault_id)
+    .bind(&to_path)
+    .bind(&current.hash)
+    .bind(&current.payload_hash)
+    .bind(&current.content_format)
+    .bind(new_version)
+    .bind(&now)
+    .execute(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+
+    let delete_change_result = sqlx::query(
+        "INSERT INTO changes (vault_id, device_id, path, version, deleted, updated_at) VALUES (?1, ?2, ?3, ?4, 1, ?5)",
+    )
+    .bind(&vault_id)
+    .bind(&device_id)
+    .bind(&from_path)
+    .bind(new_version)
+    .bind(&now)
+    .execute(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+    state.notify_vault_event(&vault_id, delete_change_result.last_insert_rowid());
+
+    let create_change_result = sqlx::query(
+        "INSERT INTO changes (vault_id, device_id, path, version, deleted, updated_at) VALUES (?1, ?2, ?3, ?4, 0, ?5)",
+    )
+    .bind(&vault_id)
+    .bind(&device_id)
+    .bind(&to_path)
+    .bind(new_version)
+    .bind(&now)
+    .execute(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+    state.notify_vault_event(&vault_id, create_change_result.last_insert_rowid());
 
     Ok(MutationResponse {
         ok: true,
