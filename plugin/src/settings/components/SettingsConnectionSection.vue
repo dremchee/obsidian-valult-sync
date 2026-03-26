@@ -181,7 +181,10 @@
           </div>
         </div>
         <div class="setting-item-control">
-          <label class="checkbox-container">
+          <label
+            class="checkbox-container"
+            :class="{ 'is-enabled': props.model.autoSync }"
+          >
             <input
               :checked="props.model.autoSync"
               type="checkbox"
