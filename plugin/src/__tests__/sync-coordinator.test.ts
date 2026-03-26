@@ -95,11 +95,13 @@ describe("SyncCoordinator", () => {
     );
   });
 
-  it("stops background sync on network failures", async () => {
+  it("keeps background sync running across transient network failures", async () => {
     const realtimeStop = vi.fn();
     const realtimeRestart = vi.fn();
     const setState = vi.fn().mockResolvedValue(undefined);
-    const syncOnce = vi.fn().mockRejectedValue(new ApiError("temporary failure", 500));
+    const syncOnce = vi.fn()
+      .mockRejectedValueOnce(new ApiError("temporary failure", 500))
+      .mockResolvedValueOnce(undefined);
 
     const coordinator = new SyncCoordinator(
       () => DEFAULT_SETTINGS,
@@ -117,13 +119,20 @@ describe("SyncCoordinator", () => {
     await coordinator.runBackgroundSync();
 
     expect(realtimeRestart).toHaveBeenCalledTimes(1);
-    expect(realtimeStop).toHaveBeenCalledTimes(1);
-    expect(syncOnce).toHaveBeenCalledTimes(1);
-    expect(setState).toHaveBeenCalledWith(
+    expect(realtimeStop).not.toHaveBeenCalled();
+    expect(syncOnce).toHaveBeenCalledTimes(2);
+    expect(setState).toHaveBeenNthCalledWith(
+      1,
       expect.objectContaining({
         lastSyncError: expect.objectContaining({
           code: "network_error",
         }),
+      }),
+    );
+    expect(setState).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        lastSyncError: null,
       }),
     );
   });

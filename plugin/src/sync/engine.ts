@@ -1,34 +1,20 @@
 import {
   Notice,
-  TFile,
   type App,
 } from "obsidian";
 
 import { SyncApi } from "../api";
 import { t } from "../i18n";
 import { createSyncError, toSyncErrorState } from "./errors";
-import {
-  applyDeletedFile,
-  applyRemoteFile,
-  applyRenamedFile,
-  applyUploadedFile,
-  buildConflictPath,
-  createDeleteRequest,
-  createRenameRequest,
-  createUploadRequest,
-  detectRenameCandidates,
-  decideRemoteChange,
-  shouldCreateConflictCopy,
-  shouldUploadLocalChange,
-  shouldUploadLocalDeletion,
-} from "./flow";
+import { LocalMutationExecutor } from "./local-mutation-executor";
 import {
   decodeSyncPayload,
   encodeSyncPayload,
-  sha256Hex,
 } from "./payload-codec";
+import { RemoteChangeApplier } from "./remote-applier";
 import { withRetry } from "./retry";
 import { shouldSyncPath } from "./scope";
+import { SyncRuntime } from "./sync-runtime";
 import { ObsidianVaultIO } from "./vault-io";
 import type {
   LocalFileSnapshot,
@@ -42,6 +28,9 @@ export class SyncEngine {
   private readonly maxNetworkAttempts = 4;
   private readonly retryBaseDelayMs = 500;
   private readonly vaultIO: ObsidianVaultIO;
+  private readonly localExecutor: LocalMutationExecutor;
+  private readonly remoteApplier: RemoteChangeApplier;
+  private readonly runtime: SyncRuntime;
 
   constructor(
     app: App,
@@ -57,6 +46,36 @@ export class SyncEngine {
     private readonly sleepFn: (ms: number) => Promise<void> = sleep,
   ) {
     this.vaultIO = new ObsidianVaultIO(app);
+    this.localExecutor = new LocalMutationExecutor({
+      buildUploadPayload: (local) => this.buildUploadPayload(local),
+      onDeleteConflict: (api, state, path) => this.remoteApplier.syncRemotePath(
+        api,
+        state,
+        this.getSettings().vaultId,
+        path,
+      ),
+      onUploadConflict: (api, state, localFile) => this.remoteApplier.resolveConflict(
+        api,
+        state,
+        this.getSettings().vaultId,
+        localFile,
+      ),
+      retry: <T>(operation: () => Promise<T>, label: string) => this.retry(operation, label),
+    });
+    this.remoteApplier = new RemoteChangeApplier({
+      vaultIO: this.vaultIO,
+      decodeRemoteContent: (payloadBase64, contentFormat) => this.decodeRemoteContent(payloadBase64, contentFormat),
+      notifyConflictCopy: (path, sourceDeviceId) => this.notifyConflictCopy(path, sourceDeviceId),
+      retry: <T>(operation: () => Promise<T>, label: string) => this.retry(operation, label),
+    });
+    this.runtime = new SyncRuntime({
+      executeHealthCheck: (api) => this.retry(() => api.health(), "health check"),
+      localExecutor: this.localExecutor,
+      remoteApplier: this.remoteApplier,
+      saveState: this.saveState,
+      scanVault: () => this.scanVault(),
+      shouldSyncPath: (path) => this.shouldSyncPath(path),
+    });
   }
 
   async syncOnce(): Promise<void> {
@@ -75,13 +94,13 @@ export class SyncEngine {
       );
       state.vaultId = settings.vaultId;
 
-      await this.retry(() => api.health(), "health check");
-      await this.runLocalSyncStage(api, state);
-      await this.runRemoteSyncStage(api, state);
-      state.lastSyncAt = Date.now();
-
-      await this.saveState(state);
-      this.startupDeletionGuardActive = false;
+      const result = await this.runtime.run({
+        api,
+        settings,
+        state,
+        startupDeletionGuardActive: this.startupDeletionGuardActive,
+      });
+      this.startupDeletionGuardActive = result.startupDeletionGuardActive;
     } catch (error) {
       console.error("obsidian-sync: sync failed", error);
       throw error;
@@ -109,291 +128,6 @@ export class SyncEngine {
 
     if (!settings.deviceId.trim()) {
       throw createSyncError("invalid_settings", t("sync.errors.invalidSettingsDeviceId"));
-    }
-  }
-
-  private async runLocalSyncStage(api: SyncApi, state: SyncState): Promise<void> {
-    const localFiles = await this.scanVault();
-    await this.uploadLocalRenames(api, state, localFiles);
-    await this.uploadLocalChanges(api, state, localFiles);
-    if (this.startupDeletionGuardActive) {
-      return;
-    }
-    await this.uploadLocalDeletions(api, state, localFiles);
-  }
-
-  private async runRemoteSyncStage(api: SyncApi, state: SyncState): Promise<void> {
-    await this.downloadRemoteChanges(api, state);
-  }
-
-  private async uploadLocalChanges(
-    api: SyncApi,
-    state: SyncState,
-    localFiles: Map<string, LocalFileSnapshot>,
-  ): Promise<void> {
-    for (const local of localFiles.values()) {
-      const current = state.files[local.path];
-      if (!shouldUploadLocalChange(current, local)) {
-        continue;
-      }
-
-      const response = await this.retry(
-        async () => {
-          const payload = await this.buildUploadPayload(local);
-          return api.upload(createUploadRequest(this.getSettings(), local, current, payload));
-        },
-        `upload ${local.path}`,
-      );
-
-      if (response.ok && response.version) {
-        applyUploadedFile(state, local, response.version);
-        continue;
-      }
-
-      if (response.conflict) {
-        await this.resolveConflict(api, state, local);
-      }
-    }
-  }
-
-  private async uploadLocalRenames(
-    api: SyncApi,
-    state: SyncState,
-    localFiles: Map<string, LocalFileSnapshot>,
-  ): Promise<void> {
-    for (const candidate of detectRenameCandidates(state, localFiles)) {
-      const response = await this.retry(
-        () => api.rename(createRenameRequest(this.getSettings(), candidate)),
-        `rename ${candidate.fromPath} -> ${candidate.toFile.path}`,
-      );
-
-      if (response.ok && response.version) {
-        applyRenamedFile(state, candidate, response.version);
-      }
-    }
-  }
-
-  private async uploadLocalDeletions(
-    api: SyncApi,
-    state: SyncState,
-    localFiles: Map<string, LocalFileSnapshot>,
-  ): Promise<void> {
-    for (const [path, fileState] of Object.entries(state.files)) {
-      if (!shouldUploadLocalDeletion(path, fileState, localFiles, (candidatePath) => this.shouldSyncPath(candidatePath))) {
-        continue;
-      }
-
-      const response = await this.retry(
-        () => api.delete(createDeleteRequest(this.getSettings(), path, fileState)),
-        `delete ${path}`,
-      );
-
-      if (response.ok && response.version) {
-        applyDeletedFile(state, path, response.version);
-        continue;
-      }
-
-      if (response.conflict) {
-        await this.downloadAndApplyRemote(api, state, path);
-      }
-    }
-  }
-
-  private async downloadRemoteChanges(api: SyncApi, state: SyncState): Promise<void> {
-    const response = await this.retry(
-      () => api.getChanges(state.vaultId, state.lastSeq),
-      "fetch change feed",
-    );
-    const currentDeviceId = this.getSettings().deviceId;
-    const groupedChanges = groupChangesByMutation(response.changes);
-
-    for (const changes of groupedChanges) {
-      if (await this.tryApplyRemoteRenameBatch(api, state, changes, currentDeviceId)) {
-        state.lastSeq = changes[changes.length - 1].seq;
-        continue;
-      }
-
-      for (const change of changes) {
-      const localState = state.files[change.path];
-      const decision = decideRemoteChange(
-        change,
-        currentDeviceId,
-        localState,
-        (candidatePath) => this.shouldSyncPath(candidatePath),
-      );
-
-      if (
-        decision === "skip-own-change"
-        || decision === "skip-out-of-scope"
-        || decision === "skip-current-state"
-      ) {
-        state.lastSeq = change.seq;
-        continue;
-      }
-
-      if (decision === "apply-delete") {
-        await this.applyRemoteDelete(state, change.path, change.version, change.device_id);
-      } else {
-        await this.downloadAndApplyRemote(api, state, change.path, change.device_id);
-      }
-
-      state.lastSeq = change.seq;
-      }
-    }
-
-    state.lastSeq = response.latest_seq;
-  }
-
-  private async tryApplyRemoteRenameBatch(
-    api: SyncApi,
-    state: SyncState,
-    changes: Array<{ seq: number; device_id: string; path: string; version: number; deleted: boolean }>,
-    currentDeviceId: string,
-  ): Promise<boolean> {
-    if (changes.length !== 2 || changes[0].device_id === currentDeviceId) {
-      return false;
-    }
-
-    const deletedChange = changes.find((change) => change.deleted);
-    const createdChange = changes.find((change) => !change.deleted);
-    if (!deletedChange || !createdChange) {
-      return false;
-    }
-
-    const deletedDecision = decideRemoteChange(
-      deletedChange,
-      currentDeviceId,
-      state.files[deletedChange.path],
-      (candidatePath) => this.shouldSyncPath(candidatePath),
-    );
-    const createdDecision = decideRemoteChange(
-      createdChange,
-      currentDeviceId,
-      state.files[createdChange.path],
-      (candidatePath) => this.shouldSyncPath(candidatePath),
-    );
-    if (
-      deletedDecision === "skip-out-of-scope"
-      || createdDecision === "skip-out-of-scope"
-      || deletedDecision === "skip-own-change"
-      || createdDecision === "skip-own-change"
-      || createdDecision === "skip-current-state"
-    ) {
-      return false;
-    }
-
-    await this.applyRemoteDelete(state, deletedChange.path, deletedChange.version, deletedChange.device_id);
-    await this.downloadAndApplyRemote(api, state, createdChange.path, createdChange.device_id);
-
-    return true;
-  }
-
-  private async resolveConflict(
-    api: SyncApi,
-    state: SyncState,
-    local: LocalFileSnapshot,
-  ): Promise<void> {
-    const existing = this.vaultIO.getAbstractFileByPath(local.path);
-    if (existing instanceof TFile) {
-      await this.saveConflictCopyIfNeeded(existing, local.data, false);
-    }
-
-    await this.downloadAndApplyRemote(api, state, local.path, undefined, true);
-  }
-
-  private async downloadAndApplyRemote(
-    api: SyncApi,
-    state: SyncState,
-    path: string,
-    sourceDeviceId?: string,
-    conflictCopyAlreadySaved = false,
-  ): Promise<void> {
-    const remote = await this.retry(
-      () => api.getFile(this.getSettings().vaultId, path),
-        `download ${path}`,
-    );
-
-    if (remote.deleted) {
-      await this.applyRemoteDelete(
-        state,
-        remote.path,
-        remote.version,
-        sourceDeviceId,
-        conflictCopyAlreadySaved,
-      );
-      return;
-    }
-
-    const data = await this.decodeRemoteContent(
-      remote.content_b64 ?? "",
-      remote.content_format,
-    );
-    const existing = this.vaultIO.getAbstractFileByPath(remote.path);
-    const localState = state.files[remote.path];
-
-    if (existing instanceof TFile) {
-      const currentData = await this.vaultIO.readBinary(existing);
-      const currentHash = await sha256Hex(currentData);
-      if (shouldCreateConflictCopy(conflictCopyAlreadySaved, localState, currentHash)) {
-        await this.saveConflictCopyIfNeeded(existing, currentData, true, sourceDeviceId);
-      }
-      await this.vaultIO.writeBinary(existing, data);
-    } else {
-      await this.vaultIO.ensureParentFolder(remote.path);
-      await this.vaultIO.createBinary(remote.path, data);
-    }
-
-    applyRemoteFile(
-      state,
-      remote.path,
-      remote.hash,
-      remote.version,
-      await this.vaultIO.getMtime(remote.path),
-    );
-  }
-
-  private async applyRemoteDelete(
-    state: SyncState,
-    path: string,
-    version: number,
-    sourceDeviceId?: string,
-    conflictCopyAlreadySaved = false,
-  ): Promise<void> {
-    const existing = this.vaultIO.getAbstractFileByPath(path);
-    const localState = state.files[path];
-
-    if (existing instanceof TFile) {
-      const currentData = await this.vaultIO.readBinary(existing);
-      const currentHash = await sha256Hex(currentData);
-      if (shouldCreateConflictCopy(conflictCopyAlreadySaved, localState, currentHash)) {
-        await this.saveConflictCopyIfNeeded(existing, currentData, true, sourceDeviceId);
-      }
-      await this.vaultIO.trashFile(existing);
-    }
-
-    applyDeletedFile(state, path, version);
-  }
-
-  private async writeConflictCopy(file: TFile, data: Uint8Array): Promise<void> {
-    const conflictPath = buildConflictPath(file.path);
-    await this.vaultIO.ensureParentFolder(conflictPath);
-    await this.vaultIO.createBinary(conflictPath, data);
-  }
-
-  private async saveConflictCopyIfNeeded(
-    file: TFile,
-    data: Uint8Array,
-    notify: boolean,
-    sourceDeviceId?: string,
-  ): Promise<void> {
-    const conflictPath = buildConflictPath(file.path);
-    if (this.vaultIO.getAbstractFileByPath(conflictPath)) {
-      return;
-    }
-
-    await this.writeConflictCopy(file, data);
-    if (notify) {
-      this.notifyConflictCopy(file.path, sourceDeviceId);
     }
   }
 
@@ -461,32 +195,4 @@ function sleep(ms: number): Promise<void> {
 
 function isGeneratedConflictPath(path: string): boolean {
   return / \(conflict\)(\.[^/]+)?$/.test(path);
-}
-
-function groupChangesByMutation(
-  changes: Array<{ seq: number; device_id: string; path: string; version: number; deleted: boolean }>,
-): Array<Array<{ seq: number; device_id: string; path: string; version: number; deleted: boolean }>> {
-  const groups: Array<Array<{ seq: number; device_id: string; path: string; version: number; deleted: boolean }>> = [];
-  let currentGroup: Array<{ seq: number; device_id: string; path: string; version: number; deleted: boolean }> = [];
-
-  for (const change of changes) {
-    if (
-      currentGroup.length > 0
-      && (
-        currentGroup[0].device_id !== change.device_id
-        || currentGroup[0].version !== change.version
-      )
-    ) {
-      groups.push(currentGroup);
-      currentGroup = [];
-    }
-
-    currentGroup.push(change);
-  }
-
-  if (currentGroup.length > 0) {
-    groups.push(currentGroup);
-  }
-
-  return groups;
 }

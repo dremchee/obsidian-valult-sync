@@ -3,7 +3,7 @@ import { Notice } from "obsidian";
 import { t } from "../i18n";
 import { RealtimeSyncClient } from "./realtime";
 import { formatSyncErrorState, toSyncErrorState } from "./errors";
-import type { SyncSettings, SyncState } from "../types";
+import type { SyncErrorCode, SyncSettings, SyncState } from "../types";
 
 type RealtimeSyncFactory = (
   getSettings: () => SyncSettings,
@@ -113,7 +113,9 @@ export class SyncCoordinator {
       new Notice(t("notices.syncCompleted"), 3000);
     } catch (error) {
       const syncError = toSyncErrorState(error);
-      this.stopBackgroundSyncUntilRestart();
+      if (shouldStopBackgroundSync(syncError.code)) {
+        this.stopBackgroundSyncUntilRestart();
+      }
       await this.setLastSyncError(syncError);
       new Notice(formatSyncErrorState(syncError), 5000);
     } finally {
@@ -140,7 +142,9 @@ export class SyncCoordinator {
       await this.setLastSyncError(null);
     } catch (error) {
       const syncError = toSyncErrorState(error);
-      this.stopBackgroundSyncUntilRestart();
+      if (shouldStopBackgroundSync(syncError.code)) {
+        this.stopBackgroundSyncUntilRestart();
+      }
       await this.setLastSyncError(syncError);
     } finally {
       this.syncing = false;
@@ -171,4 +175,8 @@ export class SyncCoordinator {
       this.intervalId = null;
     }
   }
+}
+
+function shouldStopBackgroundSync(code: SyncErrorCode): boolean {
+  return code !== "network_error" && code !== "unknown_error";
 }
