@@ -2,6 +2,7 @@ import { Notice, Plugin, TFile } from "obsidian";
 
 import { SyncApi } from "./api";
 import { E2eeState } from "./e2ee/state";
+import { registerPluginTranslations, t } from "./i18n";
 import { SettingsController } from "./settings/controller";
 import { SyncSettingTab } from "./settings/tab";
 import { PluginStateStore } from "./state/store";
@@ -46,6 +47,7 @@ export default class ObsidianSyncPlugin extends Plugin {
   private readonly stateStore = new PluginStateStore();
 
   async onload(): Promise<void> {
+    registerPluginTranslations();
     await this.loadPluginData();
 
     this.engine = new SyncEngine(
@@ -94,7 +96,7 @@ export default class ObsidianSyncPlugin extends Plugin {
 
     this.addCommand({
       id: "sync-now",
-      name: "Sync now",
+      name: t("commands.syncNow"),
       callback: async () => {
         await this.coordinator.runManualSync();
       },
@@ -102,7 +104,7 @@ export default class ObsidianSyncPlugin extends Plugin {
 
     this.addCommand({
       id: "show-active-file-server-history",
-      name: "Show active file server history",
+      name: t("commands.showFileHistory"),
       checkCallback: (checking) => {
         const activeFile = this.app.workspace.getActiveFile();
         const trackedState = activeFile ? this.state.files[activeFile.path] : undefined;
@@ -115,7 +117,7 @@ export default class ObsidianSyncPlugin extends Plugin {
         }
 
         if (!available || !activeFile || !trackedState) {
-          new Notice("The active file is not tracked by sync yet.", 4000);
+          new Notice(t("notices.activeFileNotTracked"), 4000);
           return false;
         }
 
@@ -138,7 +140,7 @@ export default class ObsidianSyncPlugin extends Plugin {
 
     this.addCommand({
       id: "restore-active-file-to-previous-server-version",
-      name: "Restore active file to previous server version",
+      name: t("commands.restorePreviousVersion"),
       checkCallback: (checking) => {
         const activeFile = this.app.workspace.getActiveFile();
         const trackedState = activeFile ? this.state.files[activeFile.path] : undefined;
@@ -152,7 +154,7 @@ export default class ObsidianSyncPlugin extends Plugin {
         }
 
         if (!available || !activeFile) {
-          new Notice("No previous synced server version is available for the active file.", 4000);
+          new Notice(t("notices.noPreviousSyncedVersion"), 4000);
           return false;
         }
 
@@ -245,9 +247,11 @@ export default class ObsidianSyncPlugin extends Plugin {
     if (!this.settings.autoSync) {
       return {
         state: "disabled",
-        statusText: this.settings.vaultId.trim() ? "Auto sync off" : "No vault connected",
+        statusText: this.settings.vaultId.trim()
+          ? t("status.autoSyncOff")
+          : t("status.noVaultConnected"),
         lastSyncAt: this.state.lastSyncAt,
-        vaultId: this.settings.vaultId || "Not connected",
+        vaultId: this.settings.vaultId || t("settings.common.notConnected"),
         lastError: this.state.lastSyncError?.message ?? null,
       };
     }
@@ -255,9 +259,9 @@ export default class ObsidianSyncPlugin extends Plugin {
     if (this.coordinator.isSyncing()) {
       return {
         state: "syncing",
-        statusText: "Syncing",
+        statusText: t("status.syncing"),
         lastSyncAt: this.state.lastSyncAt,
-        vaultId: this.settings.vaultId || "Not connected",
+        vaultId: this.settings.vaultId || t("settings.common.notConnected"),
         lastError: this.state.lastSyncError?.message ?? null,
       };
     }
@@ -265,9 +269,9 @@ export default class ObsidianSyncPlugin extends Plugin {
     if (this.state.lastSyncError) {
       return {
         state: "error",
-        statusText: "Needs attention",
+        statusText: t("status.needsAttention"),
         lastSyncAt: this.state.lastSyncAt,
-        vaultId: this.settings.vaultId || "Not connected",
+        vaultId: this.settings.vaultId || t("settings.common.notConnected"),
         lastError: this.state.lastSyncError.message,
       };
     }
@@ -275,18 +279,18 @@ export default class ObsidianSyncPlugin extends Plugin {
     if (this.coordinator.hasPendingWork()) {
       return {
         state: "pending",
-        statusText: "Pending changes",
+        statusText: t("status.pendingChanges"),
         lastSyncAt: this.state.lastSyncAt,
-        vaultId: this.settings.vaultId || "Not connected",
+        vaultId: this.settings.vaultId || t("settings.common.notConnected"),
         lastError: null,
       };
     }
 
     return {
       state: "ok",
-      statusText: "Up to date",
+      statusText: t("status.upToDate"),
       lastSyncAt: this.state.lastSyncAt,
-      vaultId: this.settings.vaultId || "Not connected",
+      vaultId: this.settings.vaultId || t("settings.common.notConnected"),
       lastError: null,
     };
   }
@@ -313,7 +317,7 @@ export default class ObsidianSyncPlugin extends Plugin {
       );
 
       if (!previousVersion) {
-        new Notice("No previous server version is available for this file.", 4000);
+        new Notice(t("notices.noPreviousServerVersion"), 4000);
         return;
       }
 
@@ -324,7 +328,9 @@ export default class ObsidianSyncPlugin extends Plugin {
       );
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      new Notice(`Restore failed: ${message}`, 5000);
+      new Notice(t("notices.restoreFailed", {
+        message,
+      }), 5000);
     }
   }
 
@@ -342,13 +348,16 @@ export default class ObsidianSyncPlugin extends Plugin {
     });
 
     if (!response.ok) {
-      new Notice("Restore conflicted with a newer server version. Run sync and try again.", 5000);
+      new Notice(t("notices.restoreConflict"), 5000);
       return;
     }
 
     this.coordinator.markDirty();
     await this.coordinator.runManualSync();
-    new Notice(`Restored ${activeFile.path} from server version ${targetVersion}.`, 5000);
+    new Notice(t("notices.restored", {
+      path: activeFile.path,
+      version: targetVersion,
+    }), 5000);
   }
 
 }

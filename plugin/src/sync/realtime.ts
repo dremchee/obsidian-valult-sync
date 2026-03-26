@@ -1,4 +1,5 @@
 import { ApiError } from "../api";
+import { t } from "../i18n";
 import type { SyncSettings, SyncState } from "../types";
 
 interface RealtimePayload {
@@ -62,7 +63,7 @@ export class RealtimeSyncClient {
       }
 
       if (!response.body) {
-        throw new Error("Realtime stream is unavailable");
+        throw new Error(t("sync.realtime.unavailable"));
       }
 
       const reader = response.body.getReader();

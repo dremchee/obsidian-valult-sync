@@ -1,0 +1,259 @@
+{
+  "settings": {
+    "common": {
+      "loading": "Загрузка...",
+      "notConnected": "Не подключено",
+      "notLoaded": "Не загружено",
+      "unavailable": "Недоступно",
+      "loaded": "Загружено",
+      "cancel": "Отмена",
+      "never": "Никогда"
+    },
+    "connection": {
+      "heading": "Подключение",
+      "serverUrl": {
+        "label": "URL сервера",
+        "description": "Базовый URL Rust sync server.",
+        "placeholder": "http://127.0.0.1:3000",
+        "check": "Проверить",
+        "status": "Подключение: {{status}}",
+        "statusNotChecked": "Не проверено",
+        "statusChecking": "Проверка...",
+        "statusReady": "Сервер доступен.",
+        "statusNotAuthorized": "Нет авторизации"
+      },
+      "authToken": {
+        "label": "Auth token",
+        "description": "Bearer token, который требует sync server.",
+        "placeholder": "secret-token",
+        "authorize": "Авторизовать",
+        "change": "Сменить токен",
+        "signOut": "Выйти",
+        "authorizedLabel": "Авторизация",
+        "authorizedDescription": "Плагин авторизован текущим токеном сервера.",
+        "gateMissingToken": "Введите корректный Auth token, чтобы открыть настройки vault, sync scope, device и E2EE.",
+        "gateUnauthorized": "Текущий Auth token отклонён сервером. Обновите токен и снова запустите проверку.",
+        "gateLocked": "Авторизуйте плагин, чтобы открыть остальные настройки синхронизации."
+      },
+      "deviceId": {
+        "label": "Device ID",
+        "description": "Стабильный идентификатор этой установки Obsidian."
+      },
+      "pollInterval": {
+        "label": "Интервал опроса",
+        "description": "Как часто плагин опрашивает сервер на предмет удалённых изменений.",
+        "placeholder": "2"
+      },
+      "autoSync": {
+        "label": "Автосинхронизация",
+        "description": "Запускать цикл синхронизации в фоне."
+      }
+    },
+    "overview": {
+      "heading": "Обзор",
+      "syncStatus": "Статус синхронизации",
+      "attention": "Требуется внимание. {{message}}",
+      "tracking": "Отслеживается файлов: {{count}}. Последняя успешная синхронизация: {{time}}.",
+      "healthy": "Норма",
+      "needsAttention": "Требуется внимание",
+      "e2eeLoaded": "E2EE загружен",
+      "e2eeLocked": "E2EE заблокирован",
+      "e2eePending": "E2EE ожидает",
+      "e2eeOff": "E2EE выключен",
+      "vault": "Vault",
+      "server": "Сервер",
+      "filesTracked": "Файлов отслеживается",
+      "deletesTracked": "Удалений отслеживается",
+      "lastSync": "Последняя синхронизация",
+      "lastIssue": "Последняя проблема",
+      "e2ee": "E2EE",
+      "quickActions": "Быстрые действия: {{status}}",
+      "quickActionsReady": "Готово",
+      "quickActionsRunningSync": "Идёт синхронизация...",
+      "quickActionsSyncCompleted": "Синхронизация завершена.",
+      "quickActionsRefreshingDevices": "Обновление устройств...",
+      "quickActionsDevicesLoaded": "Загружено устройств: {{count}}.",
+      "syncNow": "Синхронизировать",
+      "checkConnection": "Проверить подключение",
+      "refreshDevices": "Обновить устройства"
+    },
+    "vault": {
+      "heading": "Vault",
+      "registryStatus": "Реестр vault: {{status}}",
+      "currentVault": {
+        "label": "Текущий vault",
+        "description": "Подключённый vault: {{vaultId}}. Статус в реестре сервера: {{registryStatus}}.",
+        "disconnect": "Отключить",
+        "confirmDisconnect": "Подтвердить отключение",
+        "forget": "Забыть локальное состояние",
+        "confirmForget": "Подтвердить сброс"
+      },
+      "serverVaults": {
+        "label": "Vault на сервере",
+        "loadVaults": "Загрузить vault",
+        "createCurrent": "Создать текущий",
+        "empty": "На сервере пока нет ни одного vault.",
+        "loaded": "С сервера загружено vault: {{count}}.",
+        "currentNotLoaded": "Загружено vault: {{count}}. Текущий vault отсутствует в реестре сервера.",
+        "loadPrompt": "Загрузите vault с сервера, чтобы подключиться к существующему.",
+        "unavailable": "Список vault недоступен: {{message}}",
+        "countLoaded": "Загружено vault: {{count}}.",
+        "statusLoading": "Загрузка..."
+      },
+      "createVault": {
+        "label": "Создать vault",
+        "descriptionConnected": "Создать новый vault на сервере и переподключить к нему эту папку.",
+        "descriptionDisconnected": "Создать новый vault на сервере и подключить к нему эту папку.",
+        "action": "Создать vault",
+        "statusCreating": "Создание {{vaultId}}...",
+        "statusCreatedJoined": "Реестр vault: {{vaultId}} создан и подключён.",
+        "statusJoinedExisting": "Реестр vault: выполнено подключение к существующему {{vaultId}}."
+      },
+      "joinVault": {
+        "reconnectLabel": "Переподключить эту папку",
+        "joinLabel": "Подключить vault с сервера",
+        "reconnectDescription": "Переподключить эту папку к vault, найденному на сервере.",
+        "joinDescription": "Подключить эту папку к vault, найденному на сервере.",
+        "joinAction": "Подключить",
+        "noLoadedVaults": "Нет загруженных vault"
+      },
+      "state": {
+        "statusLoading": "Загрузка...",
+        "statusNotLoaded": "Не загружено",
+        "disconnectPending": "Нажмите \"Подтвердить отключение\", чтобы выйти из {{vaultId}}. Локально всё ещё могут оставаться несинхронизированные изменения или ошибки.",
+        "disconnecting": "Отключение {{vaultId}}...",
+        "disconnected": "Эта папка больше не подключена к {{vaultId}}.",
+        "forgetPending": "Нажмите \"Подтвердить сброс\", чтобы удалить локальное состояние для {{vaultId}}.",
+        "removing": "Удаление локального состояния для {{vaultId}}...",
+        "removed": "Локальное состояние для {{vaultId}} удалено.",
+        "reconnecting": "Переподключение этой папки к {{vaultId}}...",
+        "joining": "Подключение к {{vaultId}}..."
+      },
+      "registryState": {
+        "notConnected": "Не подключено",
+        "loaded": "Загружено",
+        "notLoadedHere": "Не загружено здесь",
+        "loading": "Загрузка...",
+        "unavailable": "Недоступно",
+        "notLoaded": "Не загружено"
+      }
+    },
+    "scope": {
+      "heading": "Область синхронизации",
+      "include": {
+        "label": "Include patterns",
+        "description": "Необязательный allow-list. Если задан, синхронизируются только совпадающие пути. Синтаксис такой же, как у ignore rules.",
+        "placeholder": "Notes/\n*.md"
+      },
+      "ignore": {
+        "label": "Ignore patterns",
+        "description": "По одному шаблону на строку. Поддерживаются '*', '?' и префиксы папок, оканчивающиеся на '/'.",
+        "placeholder": ".obsidian/\nTemplates/\n*.canvas"
+      }
+    },
+    "helpers": {
+      "e2eeLoadedPendingFingerprint": "E2EE: passphrase загружен. Fingerprint будет сохранён после первой зашифрованной синхронизации.",
+      "e2eeOff": "E2EE: выключен для этого vault.",
+      "e2eeFingerprintMissingPassphrase": "E2EE: fingerprint {{fingerprint}} сохранён, но passphrase не загружен в текущую сессию.",
+      "e2eeFingerprintLoaded": "E2EE: fingerprint {{fingerprint}} сохранён, passphrase загружен в текущую сессию.",
+      "authFailed": "ошибка авторизации"
+    },
+    "e2ee": {
+      "validation": {
+        "pendingFingerprint": "Fingerprint ещё не сохранён. Он будет записан после первой зашифрованной синхронизации.",
+        "notConfigured": "E2EE для этого vault ещё не настроен.",
+        "passphraseRequired": "Для этого vault требуется E2EE passphrase",
+        "fingerprintMismatch": "E2EE passphrase не совпадает с сохранённым fingerprint для этого vault",
+        "matchesFingerprint": "Passphrase совпадает с fingerprint {{fingerprint}}."
+      }
+    }
+  },
+  "statusBar": {
+    "status": "Статус: {{status}}",
+    "vault": "Vault: {{vaultId}}",
+    "lastSync": "Последняя синхронизация: {{time}}",
+    "lastIssue": "Последняя проблема: {{message}}",
+    "openSettings": "Открыть настройки синхронизации"
+  },
+  "modal": {
+    "createVault": {
+      "title": "Создать vault",
+      "intro": "Введите имя vault и E2EE passphrase для нового vault.",
+      "vaultName": "Имя vault",
+      "vaultNamePlaceholder": "team_notes",
+      "vaultNameDescription": "Используется как server-side vault ID для этой папки.",
+      "passphrase": "E2EE passphrase",
+      "passphrasePlaceholder": "correct horse battery staple",
+      "passphraseDescription": "Обязателен при создании нового vault.",
+      "confirmPassphrase": "Подтвердите passphrase",
+      "confirmPassphraseDescription": "Введите passphrase ещё раз, чтобы не создать vault с опечаткой.",
+      "create": "Создать vault",
+      "errors": {
+        "enterVaultName": "Введите имя vault.",
+        "enterPassphrase": "Введите E2EE passphrase для создания этого vault.",
+        "passphraseMismatch": "Passphrase не совпадают."
+      }
+    },
+    "fileHistory": {
+      "title": "История на сервере: {{path}}",
+      "loading": "Загрузка истории с сервера...",
+      "loadFailed": "Не удалось загрузить историю с сервера: {{message}}",
+      "empty": "Для этого файла на сервере пока нет истории.",
+      "version": "Версия {{version}}",
+      "unknownTime": "Время неизвестно",
+      "tombstone": "tombstone",
+      "currentVersion": "Текущая версия",
+      "current": "Текущая",
+      "restore": "Восстановить",
+      "restoring": "Восстановление..."
+    }
+  },
+  "commands": {
+    "syncNow": "Синхронизировать",
+    "showFileHistory": "Показать серверную историю активного файла",
+    "restorePreviousVersion": "Восстановить активный файл к предыдущей версии с сервера"
+  },
+  "notices": {
+    "activeFileNotTracked": "Активный файл ещё не отслеживается синхронизацией.",
+    "noPreviousSyncedVersion": "Для активного файла недоступна предыдущая синхронизированная версия с сервера.",
+    "noPreviousServerVersion": "Для этого файла недоступна предыдущая версия на сервере.",
+    "restoreFailed": "Восстановление не удалось: {{message}}",
+    "restoreConflict": "Восстановление столкнулось с более новой версией на сервере. Запустите sync и попробуйте снова.",
+    "restored": "Файл {{path}} восстановлен из серверной версии {{version}}.",
+    "connectVaultFirst": "Сначала подключите эту папку к vault",
+    "syncAlreadyRunning": "Синхронизация уже выполняется",
+    "syncCompleted": "Синхронизация завершена",
+    "syncFailed": "Синхронизация не удалась: {{message}}",
+    "conflictCopySaved": "Сохранена conflict-копия для {{path}}{{sourceSuffix}}"
+  },
+  "status": {
+    "autoSyncOff": "Автосинхронизация выключена",
+    "noVaultConnected": "Vault не подключён",
+    "syncing": "Синхронизация",
+    "needsAttention": "Требуется внимание",
+    "pendingChanges": "Есть ожидающие изменения",
+    "upToDate": "Актуально"
+  },
+  "sync": {
+    "realtime": {
+      "unavailable": "Realtime stream недоступен"
+    },
+    "errors": {
+      "unauthorizedDetailed": "Нет авторизации. Проверьте Auth token в настройках плагина.",
+      "invalidVaultId": "Vault ID некорректен. Используйте только буквы, цифры, '-' или '_'.",
+      "invalidDeviceId": "Device ID некорректен. Используйте только буквы, цифры, '-' или '_'.",
+      "noRecentErrors": "Недавних ошибок нет",
+      "network": "Сетевая ошибка: {{message}}",
+      "unauthorized": "Ошибка авторизации. Проверьте токен в настройках плагина.",
+      "missingPassphrase": "Отсутствует E2EE passphrase.",
+      "fingerprintMismatch": "E2EE passphrase не совпадает с этим vault.",
+      "decryptFailed": "Не удалось расшифровать синхронизированный контент.",
+      "invalidEnvelope": "Формат зашифрованного файла некорректен.",
+      "invalidSettingsServerUrl": "Server URL не настроен",
+      "invalidSettingsAuthToken": "Auth token не настроен",
+      "invalidSettingsVaultId": "Vault ID не настроен",
+      "invalidSettingsDeviceId": "Device ID не настроен",
+      "decryptRequired": "Для расшифровки синхронизированного контента требуется E2EE passphrase"
+    }
+  }
+}

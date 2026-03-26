@@ -1,4 +1,5 @@
 import { buildPassphraseFingerprint } from "./crypto";
+import { t } from "../i18n";
 import { createSyncError } from "../sync/errors";
 
 export class E2eeState {
@@ -50,20 +51,22 @@ export class E2eeState {
 
     if (!fingerprint) {
       return passphrase
-        ? "No fingerprint stored yet. It will be recorded after the first encrypted sync."
-        : "E2EE is not configured for this vault yet.";
+        ? t("settings.e2ee.validation.pendingFingerprint")
+        : t("settings.e2ee.validation.notConfigured");
     }
 
     if (!passphrase) {
-      throw createSyncError("missing_passphrase", "E2EE passphrase is required for this vault");
+      throw createSyncError("missing_passphrase", t("settings.e2ee.validation.passphraseRequired"));
     }
 
     const currentFingerprint = await buildPassphraseFingerprint(vaultId, passphrase);
     if (currentFingerprint !== fingerprint) {
-      throw createSyncError("fingerprint_mismatch", "E2EE passphrase does not match the stored fingerprint for this vault");
+      throw createSyncError("fingerprint_mismatch", t("settings.e2ee.validation.fingerprintMismatch"));
     }
 
-    return `Passphrase matches fingerprint ${shortFingerprint(fingerprint)}.`;
+    return t("settings.e2ee.validation.matchesFingerprint", {
+      fingerprint: shortFingerprint(fingerprint),
+    });
   }
 
   async rememberPassphrase(vaultId: string): Promise<boolean> {
@@ -75,7 +78,7 @@ export class E2eeState {
     const currentFingerprint = await buildPassphraseFingerprint(vaultId, passphrase);
     const knownFingerprint = this.getFingerprint(vaultId);
     if (knownFingerprint && knownFingerprint !== currentFingerprint) {
-      throw createSyncError("fingerprint_mismatch", "E2EE passphrase does not match the stored fingerprint for this vault");
+      throw createSyncError("fingerprint_mismatch", t("settings.e2ee.validation.fingerprintMismatch"));
     }
 
     if (!knownFingerprint) {

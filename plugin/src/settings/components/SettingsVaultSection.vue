@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { shallowRef, watch } from "vue";
 
+import { t } from "../../i18n";
 import type { VaultItem } from "../../types";
 import type { SettingsActions, SettingsViewModel } from "../view-model";
 
@@ -37,26 +38,30 @@ function handleJoinVault(): void {
 <template>
   <div class="setting-group">
     <div class="setting-item setting-item-heading">
-      <div class="setting-item-name">Vault</div>
+      <div class="setting-item-name">{{ t("settings.vault.heading") }}</div>
     </div>
     <div class="setting-items">
       <div class="setting-item obsidian-sync-inline-status-row">
         <div class="setting-item-description obsidian-sync-inline-status">
-          Vault registry: {{ props.model.vaultStatusText }}
+          {{ t("settings.vault.registryStatus", { status: props.model.vaultStatusText }) }}
         </div>
       </div>
 
       <div class="setting-item obsidian-sync-with-top-border">
         <div class="setting-item-info">
-          <div class="setting-item-name">Current vault</div>
+          <div class="setting-item-name">{{ t("settings.vault.currentVault.label") }}</div>
           <div class="setting-item-description">
-            Connected vault: {{ props.model.currentVaultId || "Not connected" }}. Server registry:
-            {{ props.serverRegistryStatus }}.
+            {{ t("settings.vault.currentVault.description", {
+              vaultId: props.model.currentVaultId || t("settings.common.notConnected"),
+              registryStatus: props.serverRegistryStatus,
+            }) }}
           </div>
         </div>
         <div class="setting-item-control obsidian-sync-button-row">
           <button type="button" :disabled="!props.model.currentVaultId" @click="props.actions.onDisconnectVault">
-            {{ props.model.confirmDisconnect ? "Confirm disconnect" : "Disconnect" }}
+            {{ props.model.confirmDisconnect
+              ? t("settings.vault.currentVault.confirmDisconnect")
+              : t("settings.vault.currentVault.disconnect") }}
           </button>
           <button
             type="button"
@@ -64,19 +69,21 @@ function handleJoinVault(): void {
             :disabled="!props.model.currentVaultId"
             @click="props.actions.onForgetLocalState"
           >
-            {{ props.model.confirmForget ? "Confirm forget" : "Forget local state" }}
+            {{ props.model.confirmForget
+              ? t("settings.vault.currentVault.confirmForget")
+              : t("settings.vault.currentVault.forget") }}
           </button>
         </div>
       </div>
 
       <div class="setting-item obsidian-sync-with-top-border">
         <div class="setting-item-info">
-          <div class="setting-item-name">Server vaults</div>
+          <div class="setting-item-name">{{ t("settings.vault.serverVaults.label") }}</div>
           <div class="setting-item-description">{{ props.vaultRegistryDescription }}</div>
         </div>
         <div class="setting-item-control obsidian-sync-button-row">
           <button type="button" :disabled="props.model.loadingRemoteVaults" @click="props.actions.onLoadVaults">
-            Load vaults
+            {{ t("settings.vault.serverVaults.loadVaults") }}
           </button>
           <button
             type="button"
@@ -84,48 +91,52 @@ function handleJoinVault(): void {
             :disabled="!props.model.currentVaultId || !props.model.remoteVaults || props.currentVaultOnServer"
             @click="props.actions.onCreateCurrentVault"
           >
-            Create current
+            {{ t("settings.vault.serverVaults.createCurrent") }}
           </button>
         </div>
       </div>
 
       <div class="setting-item obsidian-sync-with-top-border">
         <div class="setting-item-info">
-          <div class="setting-item-name">Create vault</div>
+          <div class="setting-item-name">{{ t("settings.vault.createVault.label") }}</div>
           <div class="setting-item-description">
             {{
               props.model.currentVaultId
-                ? "Create a new vault on the server and reconnect this folder to it."
-                : "Create a new vault on the server and connect this folder to it."
+                ? t("settings.vault.createVault.descriptionConnected")
+                : t("settings.vault.createVault.descriptionDisconnected")
             }}
           </div>
         </div>
         <div class="setting-item-control obsidian-sync-action-control">
-          <button type="button" class="mod-cta" @click="props.actions.onCreateVault">Create vault</button>
+          <button type="button" class="mod-cta" @click="props.actions.onCreateVault">{{ t("settings.vault.createVault.action") }}</button>
         </div>
       </div>
 
       <div class="setting-item obsidian-sync-with-top-border">
         <div class="setting-item-info">
           <div class="setting-item-name">
-            {{ props.model.currentVaultId ? "Reconnect this folder" : "Join server vault" }}
+            {{ props.model.currentVaultId
+              ? t("settings.vault.joinVault.reconnectLabel")
+              : t("settings.vault.joinVault.joinLabel") }}
           </div>
           <div class="setting-item-description">
             <template v-if="props.model.remoteVaults">
               {{
                 props.model.currentVaultId
-                  ? "Reconnect this folder to a vault discovered on the server."
-                  : "Connect this folder to a vault discovered on the server."
+                  ? t("settings.vault.joinVault.reconnectDescription")
+                  : t("settings.vault.joinVault.joinDescription")
               }}
             </template>
-            <template v-else-if="props.model.loadingRemoteVaults">Loading vaults from the server...</template>
-            <template v-else>Load vaults from the server first.</template>
+            <template v-else-if="props.model.loadingRemoteVaults">{{ t("settings.vault.serverVaults.statusLoading") }}</template>
+            <template v-else>{{ t("settings.vault.serverVaults.loadPrompt") }}</template>
           </div>
         </div>
         <div class="setting-item-control obsidian-sync-field-controls">
           <select v-model="remoteJoinVaultId">
             <option v-if="props.availableJoinVaults.length === 0" value="">
-              {{ props.model.loadingRemoteVaults ? "Loading..." : "No loaded vaults" }}
+              {{ props.model.loadingRemoteVaults
+                ? t("settings.common.loading")
+                : t("settings.vault.joinVault.noLoadedVaults") }}
             </option>
             <option
               v-for="vault in props.availableJoinVaults"
@@ -136,7 +147,7 @@ function handleJoinVault(): void {
               {{ vault.vault_id }}
             </option>
           </select>
-          <button type="button" :disabled="!remoteJoinVaultId" @click="handleJoinVault">Join</button>
+          <button type="button" :disabled="!remoteJoinVaultId" @click="handleJoinVault">{{ t("settings.vault.joinVault.joinAction") }}</button>
         </div>
       </div>
     </div>

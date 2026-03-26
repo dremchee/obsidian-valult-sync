@@ -1,5 +1,6 @@
 import { Modal } from "obsidian";
 
+import { t } from "../i18n";
 import CreateVaultModalView from "./components/CreateVaultModal.vue";
 import { destroyComponent, mountComponent, type MountedVueComponent } from "./vue";
 
@@ -23,7 +24,7 @@ export class CreateVaultModal extends Modal {
   }
 
   onOpen(): void {
-    this.titleEl.setText("Create vault");
+    this.titleEl.setText(t("modal.createVault.title"));
     this.contentEl.empty();
     this.component = mountComponent(CreateVaultModalView, this.contentEl, {
       initialVaultId: this.initialVaultId,

@@ -1,5 +1,6 @@
 import { Notice } from "obsidian";
 
+import { t } from "../i18n";
 import { RealtimeSyncClient } from "./realtime";
 import { formatSyncErrorState, toSyncErrorState } from "./errors";
 import type { SyncSettings, SyncState } from "../types";
@@ -79,12 +80,12 @@ export class SyncCoordinator {
 
   async runManualSync(): Promise<void> {
     if (!this.getSettings().vaultId.trim()) {
-      new Notice("Connect this folder to a vault first", 4000);
+      new Notice(t("notices.connectVaultFirst"), 4000);
       return;
     }
 
     if (this.syncing) {
-      new Notice("Sync already running", 3000);
+      new Notice(t("notices.syncAlreadyRunning"), 3000);
       return;
     }
 
@@ -94,7 +95,7 @@ export class SyncCoordinator {
       await this.syncOnce();
       this.clearDirtyIfUnchanged(startedDirtyVersion);
       await this.setLastSyncError(null);
-      new Notice("Sync completed", 3000);
+      new Notice(t("notices.syncCompleted"), 3000);
     } catch (error) {
       const syncError = toSyncErrorState(error);
       if (syncError.code === "unauthorized") {

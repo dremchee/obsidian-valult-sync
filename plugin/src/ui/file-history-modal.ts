@@ -1,5 +1,6 @@
 import { Modal } from "obsidian";
 
+import { t } from "../i18n";
 import type { FileVersionItem } from "../types";
 import type { HistoryState } from "./file-history-types";
 import FileHistoryModalView from "./components/FileHistoryModal.vue";
@@ -22,7 +23,9 @@ export class FileHistoryModal extends Modal {
 
   onOpen(): void {
     this.modalEl.addClass("obsidian-sync-file-history-modal");
-    this.titleEl.setText(`Server history: ${this.path}`);
+    this.titleEl.setText(t("modal.fileHistory.title", {
+      path: this.path,
+    }));
     this.contentEl.empty();
     this.renderView();
     void this.render();

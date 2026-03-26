@@ -1,4 +1,5 @@
 import { ApiError } from "../api";
+import { t } from "../i18n";
 import type { SyncErrorCode, SyncErrorState } from "../types";
 
 export class SyncError extends Error {
@@ -22,15 +23,24 @@ export function toSyncErrorState(error: unknown): SyncErrorState {
 
   if (error instanceof ApiError) {
     if (error.status === 401) {
-      return { code: "unauthorized", message: "Unauthorized. Check Auth token in plugin settings." };
+      return {
+        code: "unauthorized",
+        message: t("sync.errors.unauthorizedDetailed"),
+      };
     }
 
     if (error.code === "invalid_vault_id") {
-      return { code: "invalid_settings", message: "Vault ID is invalid. Use only letters, digits, '-' or '_'." };
+      return {
+        code: "invalid_settings",
+        message: t("sync.errors.invalidVaultId"),
+      };
     }
 
     if (error.code === "invalid_device_id") {
-      return { code: "invalid_settings", message: "Device ID is invalid. Use only letters, digits, '-' or '_'." };
+      return {
+        code: "invalid_settings",
+        message: t("sync.errors.invalidDeviceId"),
+      };
     }
 
     return { code: "network_error", message: error.message };
@@ -45,22 +55,24 @@ export function toSyncErrorState(error: unknown): SyncErrorState {
 
 export function formatSyncErrorState(state: SyncErrorState | null): string {
   if (!state) {
-    return "No recent errors";
+    return t("sync.errors.noRecentErrors");
   }
 
   switch (state.code) {
     case "network_error":
-      return `Network error: ${state.message}`;
+      return t("sync.errors.network", {
+        message: state.message,
+      });
     case "unauthorized":
-      return "Auth failed. Check the token in plugin settings.";
+      return t("sync.errors.unauthorized");
     case "missing_passphrase":
-      return "E2EE passphrase is missing.";
+      return t("sync.errors.missingPassphrase");
     case "fingerprint_mismatch":
-      return "E2EE passphrase does not match this vault.";
+      return t("sync.errors.fingerprintMismatch");
     case "decrypt_failed":
-      return "Could not decrypt synced content.";
+      return t("sync.errors.decryptFailed");
     case "invalid_e2ee_envelope":
-      return "Encrypted file format is invalid.";
+      return t("sync.errors.invalidEnvelope");
     case "invalid_settings":
       return state.message;
     case "unknown_error":

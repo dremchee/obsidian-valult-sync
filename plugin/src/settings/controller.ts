@@ -1,5 +1,6 @@
 import { SyncApi } from "../api";
 import { E2eeState } from "../e2ee/state";
+import { t } from "../i18n";
 import { PluginStateStore } from "../state/store";
 import { SyncCoordinator } from "../sync/coordinator";
 import { createSyncError } from "../sync/errors";
@@ -108,7 +109,7 @@ export class SettingsController {
 
   async checkConnection(): Promise<string> {
     await this.baseApi().health();
-    return "Server is reachable.";
+    return t("settings.connection.serverUrl.statusReady");
   }
 
   async getRemoteVaults(): Promise<VaultItem[]> {
@@ -150,7 +151,10 @@ export class SettingsController {
   private api(): SyncApi {
     const settings = this.getSettings();
     if (!settings.authToken.trim()) {
-      throw createSyncError("invalid_settings", "Auth token is required");
+      throw createSyncError(
+        "invalid_settings",
+        t("sync.errors.invalidSettingsAuthToken"),
+      );
     }
     return new SyncApi(settings.serverUrl.replace(/\/+$/, ""), settings.authToken);
   }

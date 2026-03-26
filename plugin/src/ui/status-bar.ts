@@ -1,5 +1,6 @@
 import { Menu } from "obsidian";
 
+import { t } from "../i18n";
 import StatusBarView from "./components/StatusBar.vue";
 import { destroyComponent, mountComponent, type MountedVueComponent } from "./vue";
 
@@ -45,20 +46,30 @@ export class PluginStatusBar {
   private readonly handleClick = (evt: MouseEvent): void => {
     const snapshot = this.getSnapshot();
     const menu = new Menu();
-    menu.addItem((item) => item.setTitle(`Status: ${snapshot.statusText}`).setDisabled(true));
-    menu.addItem((item) => item.setTitle(`Vault: ${snapshot.vaultId}`).setDisabled(true));
+    menu.addItem((item) =>
+      item.setTitle(t("statusBar.status", {
+        status: snapshot.statusText,
+      })).setDisabled(true));
+    menu.addItem((item) =>
+      item.setTitle(t("statusBar.vault", {
+        vaultId: snapshot.vaultId,
+      })).setDisabled(true));
     menu.addItem((item) =>
       item
-        .setTitle(`Last sync: ${formatLastSync(snapshot.lastSyncAt)}`)
+        .setTitle(t("statusBar.lastSync", {
+          time: formatLastSync(snapshot.lastSyncAt),
+        }))
         .setDisabled(true),
     );
     if (snapshot.lastError) {
-      menu.addItem((item) => item.setTitle(`Last issue: ${snapshot.lastError}`).setDisabled(true));
+      menu.addItem((item) => item.setTitle(t("statusBar.lastIssue", {
+        message: snapshot.lastError,
+      })).setDisabled(true));
     }
     menu.addSeparator();
     menu.addItem((item) =>
       item
-        .setTitle("Open sync settings")
+        .setTitle(t("statusBar.openSettings"))
         .onClick(() => this.onOpenSettings()),
     );
     menu.showAtMouseEvent(evt);
@@ -77,7 +88,7 @@ export class PluginStatusBar {
 
 function formatLastSync(value: number | null): string {
   if (value === null) {
-    return "Never";
+    return t("settings.common.never");
   }
 
   const date = new Date(value);

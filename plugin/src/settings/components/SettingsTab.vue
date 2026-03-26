@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 
+import { t } from "../../i18n";
 import SettingsConnectionSection from "./SettingsConnectionSection.vue";
 import SettingsOverviewSection from "./SettingsOverviewSection.vue";
 import SettingsScopeSection from "./SettingsScopeSection.vue";
@@ -24,34 +25,44 @@ const currentVaultOnServer = computed(
 
 const serverRegistryStatus = computed(() => {
   if (!props.model.currentVaultId) {
-    return "Not connected";
+    return t("settings.vault.registryState.notConnected");
   }
   if (props.model.remoteVaults) {
-    return currentVaultOnServer.value ? "Loaded" : "Not loaded here";
+    return currentVaultOnServer.value
+      ? t("settings.vault.registryState.loaded")
+      : t("settings.vault.registryState.notLoadedHere");
   }
   if (props.model.loadingRemoteVaults) {
-    return "Loading...";
+    return t("settings.vault.registryState.loading");
   }
-  return props.model.remoteVaultsError ? "Unavailable" : "Not loaded";
+  return props.model.remoteVaultsError
+    ? t("settings.vault.registryState.unavailable")
+    : t("settings.vault.registryState.notLoaded");
 });
 
 const vaultRegistryDescription = computed(() => {
   if (props.model.loadingRemoteVaults) {
-    return "Loading vaults from the server...";
+    return t("settings.vault.serverVaults.statusLoading");
   }
   if (props.model.remoteVaultsError) {
-    return `Vault list is unavailable: ${props.model.remoteVaultsError}`;
+    return t("settings.vault.serverVaults.unavailable", {
+      message: props.model.remoteVaultsError,
+    });
   }
   if (props.model.remoteVaults) {
     if (props.model.remoteVaults.length === 0) {
-      return "No vaults exist on the server yet.";
+      return t("settings.vault.serverVaults.empty");
     }
     if (props.model.currentVaultId && !currentVaultOnServer.value) {
-      return `Loaded ${props.model.remoteVaults.length} vault(s). The current vault is not in the server registry.`;
+      return t("settings.vault.serverVaults.currentNotLoaded", {
+        count: props.model.remoteVaults.length,
+      });
     }
-    return `Loaded ${props.model.remoteVaults.length} vault(s) from the server.`;
+    return t("settings.vault.serverVaults.loaded", {
+      count: props.model.remoteVaults.length,
+    });
   }
-  return "Load vaults from the server to join an existing one.";
+  return t("settings.vault.serverVaults.loadPrompt");
 });
 </script>
 

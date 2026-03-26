@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import type { SettingsActions, SettingsViewModel } from "../view-model";
 
 const props = defineProps<{
@@ -18,20 +19,20 @@ function handleIgnorePatternsInput(event: Event): void {
 <template>
   <div class="setting-group">
     <div class="setting-item setting-item-heading">
-      <div class="setting-item-name">Sync Scope</div>
+      <div class="setting-item-name">{{ t("settings.scope.heading") }}</div>
     </div>
     <div class="setting-items">
       <div class="setting-item">
         <div class="setting-item-info">
-          <div class="setting-item-name">Include patterns</div>
+          <div class="setting-item-name">{{ t("settings.scope.include.label") }}</div>
           <div class="setting-item-description">
-            Optional allow-list. If set, only matching paths are synced. Same pattern syntax as ignore rules.
+            {{ t("settings.scope.include.description") }}
           </div>
         </div>
         <div class="setting-item-control obsidian-sync-textarea-control">
           <textarea
             :value="props.model.includePatterns.join('\n')"
-            placeholder="Notes/\n*.md"
+            :placeholder="t('settings.scope.include.placeholder')"
             rows="5"
             spellcheck="false"
             @input="handleIncludePatternsInput"
@@ -41,15 +42,15 @@ function handleIgnorePatternsInput(event: Event): void {
 
       <div class="setting-item obsidian-sync-with-top-border">
         <div class="setting-item-info">
-          <div class="setting-item-name">Ignore patterns</div>
+          <div class="setting-item-name">{{ t("settings.scope.ignore.label") }}</div>
           <div class="setting-item-description">
-            One pattern per line. Supports '*', '?', and folder prefixes ending with '/'.
+            {{ t("settings.scope.ignore.description") }}
           </div>
         </div>
         <div class="setting-item-control obsidian-sync-textarea-control">
           <textarea
             :value="props.model.ignorePatterns.join('\n')"
-            placeholder=".obsidian/\nTemplates/\n*.canvas"
+            :placeholder="t('settings.scope.ignore.placeholder')"
             rows="5"
             spellcheck="false"
             @input="handleIgnorePatternsInput"

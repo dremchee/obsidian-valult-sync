@@ -2,6 +2,7 @@
 import { computed, onMounted, useTemplateRef, watch } from "vue";
 import { setIcon } from "obsidian";
 
+import { t } from "../../i18n";
 import type { StatusBarSnapshot, StatusBarState } from "../status-bar";
 
 const props = defineProps<{
@@ -28,7 +29,7 @@ function iconForState(state: StatusBarState): string {
 
 function formatLastSync(value: number | null): string {
   if (value === null) {
-    return "Never";
+    return t("settings.common.never");
   }
 
   const date = new Date(value);
@@ -46,10 +47,18 @@ const iconName = computed(() => iconForState(props.snapshot.state));
 
 const title = computed(() =>
   [
-    `Status: ${props.snapshot.statusText}`,
-    `Vault: ${props.snapshot.vaultId}`,
-    `Last sync: ${formatLastSync(props.snapshot.lastSyncAt)}`,
-    ...(props.snapshot.lastError ? [`Last issue: ${props.snapshot.lastError}`] : []),
+    t("statusBar.status", {
+      status: props.snapshot.statusText,
+    }),
+    t("statusBar.vault", {
+      vaultId: props.snapshot.vaultId,
+    }),
+    t("statusBar.lastSync", {
+      time: formatLastSync(props.snapshot.lastSyncAt),
+    }),
+    ...(props.snapshot.lastError ? [t("statusBar.lastIssue", {
+      message: props.snapshot.lastError,
+    })] : []),
   ].join("\n"),
 );
 

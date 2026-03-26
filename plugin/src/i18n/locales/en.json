@@ -1,0 +1,259 @@
+{
+  "settings": {
+    "common": {
+      "loading": "Loading...",
+      "notConnected": "Not connected",
+      "notLoaded": "Not loaded",
+      "unavailable": "Unavailable",
+      "loaded": "Loaded",
+      "cancel": "Cancel",
+      "never": "Never"
+    },
+    "connection": {
+      "heading": "Connection",
+      "serverUrl": {
+        "label": "Server URL",
+        "description": "Base URL of the Rust sync server.",
+        "placeholder": "http://127.0.0.1:3000",
+        "check": "Check",
+        "status": "Connection: {{status}}",
+        "statusNotChecked": "Not checked",
+        "statusChecking": "Checking...",
+        "statusReady": "Server is reachable.",
+        "statusNotAuthorized": "Not authorized"
+      },
+      "authToken": {
+        "label": "Auth token",
+        "description": "Bearer token required by the sync server.",
+        "placeholder": "secret-token",
+        "authorize": "Authorize",
+        "change": "Change token",
+        "signOut": "Sign out",
+        "authorizedLabel": "Authorization",
+        "authorizedDescription": "Authorized with the current server token.",
+        "gateMissingToken": "Enter a valid Auth token to unlock vault, sync scope, device and E2EE settings.",
+        "gateUnauthorized": "The current Auth token was rejected by the server. Update the token and run Check again.",
+        "gateLocked": "Authorize this plugin to unlock the rest of the sync settings."
+      },
+      "deviceId": {
+        "label": "Device ID",
+        "description": "Stable identifier for this Obsidian installation."
+      },
+      "pollInterval": {
+        "label": "Poll interval",
+        "description": "How often the plugin polls the server for remote changes.",
+        "placeholder": "2"
+      },
+      "autoSync": {
+        "label": "Auto sync",
+        "description": "Run the sync loop in the background."
+      }
+    },
+    "overview": {
+      "heading": "Overview",
+      "syncStatus": "Sync status",
+      "attention": "Attention required. {{message}}",
+      "tracking": "Tracking {{count}} file(s). Last successful sync: {{time}}.",
+      "healthy": "Healthy",
+      "needsAttention": "Needs attention",
+      "e2eeLoaded": "E2EE loaded",
+      "e2eeLocked": "E2EE locked",
+      "e2eePending": "E2EE pending",
+      "e2eeOff": "E2EE off",
+      "vault": "Vault",
+      "server": "Server",
+      "filesTracked": "Files tracked",
+      "deletesTracked": "Deletes tracked",
+      "lastSync": "Last sync",
+      "lastIssue": "Last issue",
+      "e2ee": "E2EE",
+      "quickActions": "Quick actions: {{status}}",
+      "quickActionsReady": "Ready",
+      "quickActionsRunningSync": "Running sync...",
+      "quickActionsSyncCompleted": "Sync completed.",
+      "quickActionsRefreshingDevices": "Refreshing devices...",
+      "quickActionsDevicesLoaded": "{{count}} device(s) loaded.",
+      "syncNow": "Sync now",
+      "checkConnection": "Check connection",
+      "refreshDevices": "Refresh devices"
+    },
+    "vault": {
+      "heading": "Vault",
+      "registryStatus": "Vault registry: {{status}}",
+      "currentVault": {
+        "label": "Current vault",
+        "description": "Connected vault: {{vaultId}}. Server registry: {{registryStatus}}.",
+        "disconnect": "Disconnect",
+        "confirmDisconnect": "Confirm disconnect",
+        "forget": "Forget local state",
+        "confirmForget": "Confirm forget"
+      },
+      "serverVaults": {
+        "label": "Server vaults",
+        "loadVaults": "Load vaults",
+        "createCurrent": "Create current",
+        "empty": "No vaults exist on the server yet.",
+        "loaded": "Loaded {{count}} vault(s) from the server.",
+        "currentNotLoaded": "Loaded {{count}} vault(s). The current vault is not in the server registry.",
+        "loadPrompt": "Load vaults from the server to join an existing one.",
+        "unavailable": "Vault list is unavailable: {{message}}",
+        "countLoaded": "{{count}} vault(s) loaded.",
+        "statusLoading": "Loading..."
+      },
+      "createVault": {
+        "label": "Create vault",
+        "descriptionConnected": "Create a new vault on the server and reconnect this folder to it.",
+        "descriptionDisconnected": "Create a new vault on the server and connect this folder to it.",
+        "action": "Create vault",
+        "statusCreating": "Creating {{vaultId}}...",
+        "statusCreatedJoined": "Vault registry: Created and joined {{vaultId}}.",
+        "statusJoinedExisting": "Vault registry: Joined existing vault {{vaultId}}."
+      },
+      "joinVault": {
+        "reconnectLabel": "Reconnect this folder",
+        "joinLabel": "Join server vault",
+        "reconnectDescription": "Reconnect this folder to a vault discovered on the server.",
+        "joinDescription": "Connect this folder to a vault discovered on the server.",
+        "joinAction": "Join",
+        "noLoadedVaults": "No loaded vaults"
+      },
+      "state": {
+        "statusLoading": "Loading...",
+        "statusNotLoaded": "Not loaded",
+        "disconnectPending": "Click \"Confirm disconnect\" to leave {{vaultId}}. Pending work or sync issues may still exist locally.",
+        "disconnecting": "Disconnecting {{vaultId}}...",
+        "disconnected": "This folder is no longer connected to {{vaultId}}.",
+        "forgetPending": "Click \"Confirm forget\" to remove local state for {{vaultId}}.",
+        "removing": "Removing local state for {{vaultId}}...",
+        "removed": "Removed local state for {{vaultId}}.",
+        "reconnecting": "Reconnecting this folder to {{vaultId}}...",
+        "joining": "Joining {{vaultId}}..."
+      },
+      "registryState": {
+        "notConnected": "Not connected",
+        "loaded": "Loaded",
+        "notLoadedHere": "Not loaded here",
+        "loading": "Loading...",
+        "unavailable": "Unavailable",
+        "notLoaded": "Not loaded"
+      }
+    },
+    "scope": {
+      "heading": "Sync Scope",
+      "include": {
+        "label": "Include patterns",
+        "description": "Optional allow-list. If set, only matching paths are synced. Same pattern syntax as ignore rules.",
+        "placeholder": "Notes/\n*.md"
+      },
+      "ignore": {
+        "label": "Ignore patterns",
+        "description": "One pattern per line. Supports '*', '?', and folder prefixes ending with '/'.",
+        "placeholder": ".obsidian/\nTemplates/\n*.canvas"
+      }
+    },
+    "helpers": {
+      "e2eeLoadedPendingFingerprint": "E2EE: passphrase loaded. A fingerprint will be saved after the first encrypted sync.",
+      "e2eeOff": "E2EE: off for this vault.",
+      "e2eeFingerprintMissingPassphrase": "E2EE: fingerprint {{fingerprint}} is saved, but no passphrase is loaded in this session.",
+      "e2eeFingerprintLoaded": "E2EE: fingerprint {{fingerprint}} is saved and the session passphrase is loaded.",
+      "authFailed": "auth failed"
+    },
+    "e2ee": {
+      "validation": {
+        "pendingFingerprint": "No fingerprint stored yet. It will be recorded after the first encrypted sync.",
+        "notConfigured": "E2EE is not configured for this vault yet.",
+        "passphraseRequired": "E2EE passphrase is required for this vault",
+        "fingerprintMismatch": "E2EE passphrase does not match the stored fingerprint for this vault",
+        "matchesFingerprint": "Passphrase matches fingerprint {{fingerprint}}."
+      }
+    }
+  },
+  "statusBar": {
+    "status": "Status: {{status}}",
+    "vault": "Vault: {{vaultId}}",
+    "lastSync": "Last sync: {{time}}",
+    "lastIssue": "Last issue: {{message}}",
+    "openSettings": "Open sync settings"
+  },
+  "modal": {
+    "createVault": {
+      "title": "Create vault",
+      "intro": "Enter a vault name and an E2EE passphrase for the new vault.",
+      "vaultName": "Vault name",
+      "vaultNamePlaceholder": "team_notes",
+      "vaultNameDescription": "Used as the server-side vault ID for this folder.",
+      "passphrase": "E2EE passphrase",
+      "passphrasePlaceholder": "correct horse battery staple",
+      "passphraseDescription": "Required when creating a new vault.",
+      "confirmPassphrase": "Confirm passphrase",
+      "confirmPassphraseDescription": "Re-enter the passphrase to avoid creating the vault with a typo.",
+      "create": "Create vault",
+      "errors": {
+        "enterVaultName": "Enter a vault name.",
+        "enterPassphrase": "Enter an E2EE passphrase to create this vault.",
+        "passphraseMismatch": "Passphrases do not match."
+      }
+    },
+    "fileHistory": {
+      "title": "Server history: {{path}}",
+      "loading": "Loading server history...",
+      "loadFailed": "Failed to load server history: {{message}}",
+      "empty": "No server history is available for this file yet.",
+      "version": "Version {{version}}",
+      "unknownTime": "Unknown time",
+      "tombstone": "tombstone",
+      "currentVersion": "Current version",
+      "current": "Current",
+      "restore": "Restore",
+      "restoring": "Restoring..."
+    }
+  },
+  "commands": {
+    "syncNow": "Sync now",
+    "showFileHistory": "Show active file server history",
+    "restorePreviousVersion": "Restore active file to previous server version"
+  },
+  "notices": {
+    "activeFileNotTracked": "The active file is not tracked by sync yet.",
+    "noPreviousSyncedVersion": "No previous synced server version is available for the active file.",
+    "noPreviousServerVersion": "No previous server version is available for this file.",
+    "restoreFailed": "Restore failed: {{message}}",
+    "restoreConflict": "Restore conflicted with a newer server version. Run sync and try again.",
+    "restored": "Restored {{path}} from server version {{version}}.",
+    "connectVaultFirst": "Connect this folder to a vault first",
+    "syncAlreadyRunning": "Sync already running",
+    "syncCompleted": "Sync completed",
+    "syncFailed": "Sync failed: {{message}}",
+    "conflictCopySaved": "Saved conflict copy for {{path}}{{sourceSuffix}}"
+  },
+  "status": {
+    "autoSyncOff": "Auto sync off",
+    "noVaultConnected": "No vault connected",
+    "syncing": "Syncing",
+    "needsAttention": "Needs attention",
+    "pendingChanges": "Pending changes",
+    "upToDate": "Up to date"
+  },
+  "sync": {
+    "realtime": {
+      "unavailable": "Realtime stream is unavailable"
+    },
+    "errors": {
+      "unauthorizedDetailed": "Unauthorized. Check Auth token in plugin settings.",
+      "invalidVaultId": "Vault ID is invalid. Use only letters, digits, '-' or '_'.",
+      "invalidDeviceId": "Device ID is invalid. Use only letters, digits, '-' or '_'.",
+      "noRecentErrors": "No recent errors",
+      "network": "Network error: {{message}}",
+      "unauthorized": "Auth failed. Check the token in plugin settings.",
+      "missingPassphrase": "E2EE passphrase is missing.",
+      "fingerprintMismatch": "E2EE passphrase does not match this vault.",
+      "decryptFailed": "Could not decrypt synced content.",
+      "invalidEnvelope": "Encrypted file format is invalid.",
+      "invalidSettingsServerUrl": "Server URL is not configured",
+      "invalidSettingsAuthToken": "Auth token is not configured",
+      "invalidSettingsVaultId": "Vault ID is not configured",
+      "invalidSettingsDeviceId": "Device ID is not configured",
+      "decryptRequired": "E2EE passphrase is required to decrypt synced content"
+    }
+  }
+}

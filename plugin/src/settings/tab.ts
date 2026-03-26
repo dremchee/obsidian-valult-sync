@@ -1,5 +1,6 @@
 import { App, PluginSettingTab } from "obsidian";
 
+import { t } from "../i18n";
 import { normalizePatternList } from "../sync/scope";
 import { formatSyncErrorState } from "../sync/errors";
 import { SettingsController } from "./controller";
@@ -20,9 +21,9 @@ export class SyncSettingTab extends PluginSettingTab {
   private remoteVaultsError: string | null = null;
   private confirmForgetVaultId: string | null = null;
   private confirmDisconnectVaultId: string | null = null;
-  private connectionStatusText = "Not checked";
-  private quickActionsStatusText = "Ready";
-  private vaultStatusText = "Not loaded";
+  private connectionStatusText = t("settings.connection.serverUrl.statusNotChecked");
+  private quickActionsStatusText = t("settings.overview.quickActionsReady");
+  private vaultStatusText = t("settings.vault.state.statusNotLoaded");
 
   constructor(
     app: App,
@@ -53,20 +54,22 @@ export class SyncSettingTab extends PluginSettingTab {
       || this.loadingRemoteVaults
       || !this.plugin.settings.serverUrl.trim()
       || !this.plugin.settings.authToken.trim()
-      || this.remoteVaultsError === "auth failed"
+      || this.remoteVaultsError === t("settings.helpers.authFailed")
       || this.plugin.state.lastSyncError?.code === "unauthorized"
     ) {
       return;
     }
 
     this.loadingRemoteVaults = true;
-    this.vaultStatusText = "Loading...";
+    this.vaultStatusText = t("settings.vault.state.statusLoading");
     void this.controller
       .getRemoteVaults()
       .then((vaults) => {
         this.remoteVaults = vaults;
         this.remoteVaultsError = null;
-        this.vaultStatusText = `${vaults.length} vault(s) loaded.`;
+        this.vaultStatusText = t("settings.vault.serverVaults.countLoaded", {
+          count: vaults.length,
+        });
       })
       .catch((error) => {
         this.remoteVaults = null;
@@ -90,7 +93,7 @@ export class SyncSettingTab extends PluginSettingTab {
       return false;
     }
 
-    if (this.remoteVaultsError === "auth failed") {
+    if (this.remoteVaultsError === t("settings.helpers.authFailed")) {
       return false;
     }
 
@@ -99,20 +102,25 @@ export class SyncSettingTab extends PluginSettingTab {
 
   private getAuthGateMessage(): string {
     if (!this.plugin.settings.authToken.trim()) {
-      return "Enter a valid Auth token to unlock vault, sync scope, device and E2EE settings.";
+      return t("settings.connection.authToken.gateMissingToken");
     }
 
-    if (this.remoteVaultsError === "auth failed" || this.plugin.state.lastSyncError?.code === "unauthorized") {
-      return "The current Auth token was rejected by the server. Update the token and run Check again.";
+    if (
+      this.remoteVaultsError === t("settings.helpers.authFailed")
+      || this.plugin.state.lastSyncError?.code === "unauthorized"
+    ) {
+      return t("settings.connection.authToken.gateUnauthorized");
     }
 
-    return "Authorize this plugin to unlock the rest of the sync settings.";
+    return t("settings.connection.authToken.gateLocked");
   }
 
   private async createAndJoinVault(vaultId: string, passphrase: string): Promise<void> {
     this.confirmDisconnectVaultId = null;
     this.confirmForgetVaultId = null;
-    this.vaultStatusText = `Creating ${vaultId}...`;
+    this.vaultStatusText = t("settings.vault.createVault.statusCreating", {
+      vaultId,
+    });
     try {
       this.controller.setE2eePassphrase(passphrase, vaultId);
       const response = await this.controller.createVault(vaultId);
@@ -122,8 +130,12 @@ export class SyncSettingTab extends PluginSettingTab {
       this.remoteVaultsError = null;
       this.vaultStatusText =
         response.created
-          ? `Vault registry: Created and joined ${response.vault.vault_id}.`
-          : `Vault registry: Joined existing vault ${response.vault.vault_id}.`;
+          ? t("settings.vault.createVault.statusCreatedJoined", {
+              vaultId: response.vault.vault_id,
+            })
+          : t("settings.vault.createVault.statusJoinedExisting", {
+              vaultId: response.vault.vault_id,
+            });
     } catch (error) {
       this.controller.setE2eePassphrase("", vaultId);
       this.remoteVaults = null;
@@ -152,7 +164,7 @@ export class SyncSettingTab extends PluginSettingTab {
     await this.plugin.persistData();
     this.controller.restartAutoSync();
 
-    this.connectionStatusText = "Checking...";
+    this.connectionStatusText = t("settings.connection.serverUrl.statusChecking");
     try {
       const message = await this.controller.checkConnection();
       this.editingAuthToken = false;
@@ -166,11 +178,13 @@ export class SyncSettingTab extends PluginSettingTab {
   }
 
   private async reloadRemoteVaults(): Promise<void> {
-    this.vaultStatusText = "Loading...";
+    this.vaultStatusText = t("settings.vault.state.statusLoading");
     try {
       this.remoteVaults = await this.controller.getRemoteVaults();
       this.remoteVaultsError = null;
-      this.vaultStatusText = `${this.remoteVaults.length} vault(s) loaded.`;
+      this.vaultStatusText = t("settings.vault.serverVaults.countLoaded", {
+        count: this.remoteVaults.length,
+      });
     } catch (error) {
       this.remoteVaults = null;
       this.remoteVaultsError = formatDeviceError(error);
@@ -215,8 +229,8 @@ export class SyncSettingTab extends PluginSettingTab {
         this.plugin.settings.serverUrl = value.trim();
         this.remoteVaults = null;
         this.remoteVaultsError = null;
-        this.vaultStatusText = "Not loaded";
-        this.connectionStatusText = "Not checked";
+        this.vaultStatusText = t("settings.vault.state.statusNotLoaded");
+        this.connectionStatusText = t("settings.connection.serverUrl.statusNotChecked");
         if (this.plugin.state.lastSyncError?.code === "unauthorized") {
           this.plugin.state.lastSyncError = null;
         }
@@ -225,7 +239,7 @@ export class SyncSettingTab extends PluginSettingTab {
         this.display();
       },
       onCheckConnection: async () => {
-        this.connectionStatusText = "Checking...";
+        this.connectionStatusText = t("settings.connection.serverUrl.statusChecking");
         this.display();
         try {
           this.connectionStatusText = await this.controller.checkConnection();
@@ -256,7 +270,7 @@ export class SyncSettingTab extends PluginSettingTab {
         this.plugin.settings.authToken = "";
         this.remoteVaults = null;
         this.remoteVaultsError = null;
-        this.vaultStatusText = "Not loaded";
+        this.vaultStatusText = t("settings.vault.state.statusNotLoaded");
         if (
           this.plugin.state.lastSyncError?.code === "unauthorized"
           || this.plugin.state.lastSyncError?.code === "invalid_settings"
@@ -265,7 +279,7 @@ export class SyncSettingTab extends PluginSettingTab {
         }
         await this.plugin.persistData();
         this.controller.restartAutoSync();
-        this.connectionStatusText = "Not authorized";
+        this.connectionStatusText = t("settings.connection.serverUrl.statusNotAuthorized");
         this.display();
       },
       onPollIntervalChange: async (value) => {
@@ -285,22 +299,24 @@ export class SyncSettingTab extends PluginSettingTab {
         this.display();
       },
       onSyncNow: async () => {
-        this.quickActionsStatusText = "Running sync...";
+        this.quickActionsStatusText = t("settings.overview.quickActionsRunningSync");
         this.display();
         try {
           await this.controller.runManualSync();
-          this.quickActionsStatusText = "Sync completed.";
+          this.quickActionsStatusText = t("settings.overview.quickActionsSyncCompleted");
         } catch (error) {
           this.quickActionsStatusText = formatDeviceError(error);
         }
         this.display();
       },
       onRefreshDevices: async () => {
-        this.quickActionsStatusText = "Refreshing devices...";
+        this.quickActionsStatusText = t("settings.overview.quickActionsRefreshingDevices");
         this.display();
         try {
           const devices = await this.controller.getRegisteredDevices();
-          this.quickActionsStatusText = `${devices.length} device(s) loaded.`;
+          this.quickActionsStatusText = t("settings.overview.quickActionsDevicesLoaded", {
+            count: devices.length,
+          });
         } catch (error) {
           this.quickActionsStatusText = formatDeviceError(error);
         }
@@ -315,16 +331,22 @@ export class SyncSettingTab extends PluginSettingTab {
         const needsConfirm = this.controller.hasPendingSyncWork() || this.plugin.state.lastSyncError !== null;
         if (needsConfirm && this.confirmDisconnectVaultId !== currentVaultId) {
           this.confirmDisconnectVaultId = currentVaultId;
-          this.vaultStatusText = `Click "Confirm disconnect" to leave ${currentVaultId}. Pending work or sync issues may still exist locally.`;
+          this.vaultStatusText = t("settings.vault.state.disconnectPending", {
+            vaultId: currentVaultId,
+          });
           this.display();
           return;
         }
 
         this.confirmDisconnectVaultId = null;
         this.confirmForgetVaultId = null;
-        this.vaultStatusText = `Disconnecting ${currentVaultId}...`;
+        this.vaultStatusText = t("settings.vault.state.disconnecting", {
+          vaultId: currentVaultId,
+        });
         await this.controller.disconnectVault();
-        this.vaultStatusText = `This folder is no longer connected to ${currentVaultId}.`;
+        this.vaultStatusText = t("settings.vault.state.disconnected", {
+          vaultId: currentVaultId,
+        });
         this.display();
       },
       onForgetLocalState: async () => {
@@ -336,15 +358,21 @@ export class SyncSettingTab extends PluginSettingTab {
         if (this.confirmForgetVaultId !== currentVaultId) {
           this.confirmForgetVaultId = currentVaultId;
           this.confirmDisconnectVaultId = null;
-          this.vaultStatusText = `Click "Confirm forget" to remove local state for ${currentVaultId}.`;
+          this.vaultStatusText = t("settings.vault.state.forgetPending", {
+            vaultId: currentVaultId,
+          });
           this.display();
           return;
         }
 
         this.confirmForgetVaultId = null;
-        this.vaultStatusText = `Removing local state for ${currentVaultId}...`;
+        this.vaultStatusText = t("settings.vault.state.removing", {
+          vaultId: currentVaultId,
+        });
         await this.controller.forgetLocalState();
-        this.vaultStatusText = `Removed local state for ${currentVaultId}.`;
+        this.vaultStatusText = t("settings.vault.state.removed", {
+          vaultId: currentVaultId,
+        });
         this.display();
       },
       onLoadVaults: async () => {
@@ -375,8 +403,12 @@ export class SyncSettingTab extends PluginSettingTab {
         this.confirmDisconnectVaultId = null;
         this.confirmForgetVaultId = null;
         this.vaultStatusText = this.plugin.settings.vaultId
-          ? `Reconnecting this folder to ${vaultId}...`
-          : `Joining ${vaultId}...`;
+          ? t("settings.vault.state.reconnecting", {
+              vaultId,
+            })
+          : t("settings.vault.state.joining", {
+              vaultId,
+            });
         await this.controller.bindVault(vaultId);
         this.display();
       },

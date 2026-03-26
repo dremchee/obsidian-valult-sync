@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted, shallowRef, useTemplateRef } from "vue";
 
+import { t } from "../../i18n";
+
 const props = defineProps<{
   initialVaultId: string;
 }>();
@@ -29,17 +31,17 @@ function submit(): void {
   const normalizedPassphrase = passphrase.value.trim();
 
   if (!normalizedVaultId) {
-    error.value = "Enter a vault name.";
+    error.value = t("modal.createVault.errors.enterVaultName");
     return;
   }
 
   if (!normalizedPassphrase) {
-    error.value = "Enter an E2EE passphrase to create this vault.";
+    error.value = t("modal.createVault.errors.enterPassphrase");
     return;
   }
 
   if (normalizedPassphrase !== confirmPassphrase.value.trim()) {
-    error.value = "Passphrases do not match.";
+    error.value = t("modal.createVault.errors.passphraseMismatch");
     return;
   }
 
@@ -53,19 +55,19 @@ function submit(): void {
 <template>
   <div class="obsidian-sync-modal-copy">
     <p class="setting-item-description">
-      Enter a vault name and an E2EE passphrase for the new vault.
+      {{ t("modal.createVault.intro") }}
     </p>
   </div>
 
   <label class="obsidian-sync-form-row">
-    <span class="obsidian-sync-form-label">Vault name</span>
-    <span class="setting-item-description">Used as the server-side vault ID for this folder.</span>
+    <span class="obsidian-sync-form-label">{{ t("modal.createVault.vaultName") }}</span>
+    <span class="setting-item-description">{{ t("modal.createVault.vaultNameDescription") }}</span>
     <input
       ref="vaultInput"
       v-model="vaultId"
       autocomplete="off"
       autocapitalize="off"
-      placeholder="team_notes"
+      :placeholder="t('modal.createVault.vaultNamePlaceholder')"
       spellcheck="false"
       type="text"
       @input="clearError"
@@ -74,13 +76,13 @@ function submit(): void {
   </label>
 
   <label class="obsidian-sync-form-row">
-    <span class="obsidian-sync-form-label">E2EE passphrase</span>
-    <span class="setting-item-description">Required when creating a new vault.</span>
+    <span class="obsidian-sync-form-label">{{ t("modal.createVault.passphrase") }}</span>
+    <span class="setting-item-description">{{ t("modal.createVault.passphraseDescription") }}</span>
     <input
       v-model="passphrase"
       autocomplete="new-password"
       autocapitalize="off"
-      placeholder="correct horse battery staple"
+      :placeholder="t('modal.createVault.passphrasePlaceholder')"
       spellcheck="false"
       type="password"
       @input="clearError"
@@ -89,13 +91,13 @@ function submit(): void {
   </label>
 
   <label class="obsidian-sync-form-row">
-    <span class="obsidian-sync-form-label">Confirm passphrase</span>
-    <span class="setting-item-description">Re-enter the passphrase to avoid creating the vault with a typo.</span>
+    <span class="obsidian-sync-form-label">{{ t("modal.createVault.confirmPassphrase") }}</span>
+    <span class="setting-item-description">{{ t("modal.createVault.confirmPassphraseDescription") }}</span>
     <input
       v-model="confirmPassphrase"
       autocomplete="new-password"
       autocapitalize="off"
-      placeholder="correct horse battery staple"
+      :placeholder="t('modal.createVault.passphrasePlaceholder')"
       spellcheck="false"
       type="password"
       @input="clearError"
@@ -106,7 +108,7 @@ function submit(): void {
   <div class="setting-item-description obsidian-sync-modal-error">{{ error }}</div>
 
   <div class="obsidian-sync-modal-actions">
-    <button type="button" @click="emit('cancel')">Cancel</button>
-    <button type="button" class="mod-cta" @click="submit">Create vault</button>
+    <button type="button" @click="emit('cancel')">{{ t("settings.common.cancel") }}</button>
+    <button type="button" class="mod-cta" @click="submit">{{ t("modal.createVault.create") }}</button>
   </div>
 </template>

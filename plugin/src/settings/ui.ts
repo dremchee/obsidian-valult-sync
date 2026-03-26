@@ -1,8 +1,9 @@
 import { ApiError } from "../api";
+import { t } from "../i18n";
 
 export function formatLastSyncAt(value: number | null): string {
   if (value === null) {
-    return "Never";
+    return t("settings.common.never");
   }
 
   const parsed = new Date(value);
@@ -16,21 +17,25 @@ export function formatLastSyncAt(value: number | null): string {
 export function buildE2eeStatusText(fingerprint: string | null, passphrase: string): string {
   if (!fingerprint) {
     return passphrase.trim()
-      ? "E2EE: passphrase loaded. A fingerprint will be saved after the first encrypted sync."
-      : "E2EE: off for this vault.";
+      ? t("settings.helpers.e2eeLoadedPendingFingerprint")
+      : t("settings.helpers.e2eeOff");
   }
 
   if (!passphrase.trim()) {
-    return `E2EE: fingerprint ${fingerprint.slice(0, 12)} is saved, but no passphrase is loaded in this session.`;
+    return t("settings.helpers.e2eeFingerprintMissingPassphrase", {
+      fingerprint: fingerprint.slice(0, 12),
+    });
   }
 
-  return `E2EE: fingerprint ${fingerprint.slice(0, 12)} is saved and the session passphrase is loaded.`;
+  return t("settings.helpers.e2eeFingerprintLoaded", {
+    fingerprint: fingerprint.slice(0, 12),
+  });
 }
 
 export function formatDeviceError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) {
-      return "auth failed";
+      return t("settings.helpers.authFailed");
     }
     return error.message;
   }

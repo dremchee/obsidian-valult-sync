@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { t } from "../../i18n";
 import type { SettingsActions, SettingsViewModel } from "../view-model";
 
 const props = defineProps<{
@@ -26,15 +27,15 @@ function handleAutoSyncChange(event: Event): void {
 <template>
   <div class="setting-group">
     <div class="setting-item setting-item-heading">
-      <div class="setting-item-name">Connection</div>
+      <div class="setting-item-name">{{ t("settings.connection.heading") }}</div>
     </div>
     <div class="setting-items">
       <div class="setting-item">
         <div class="setting-item-info">
-          <div class="setting-item-name">Server URL</div>
-          <div class="setting-item-description">Base URL of the Rust sync server.</div>
+          <div class="setting-item-name">{{ t("settings.connection.serverUrl.label") }}</div>
+          <div class="setting-item-description">{{ t("settings.connection.serverUrl.description") }}</div>
           <div class="setting-item-description obsidian-sync-inline-status">
-            Connection: {{ props.model.connectionStatusText }}
+            {{ t("settings.connection.serverUrl.status", { status: props.model.connectionStatusText }) }}
           </div>
         </div>
         <div class="setting-item-control obsidian-sync-field-controls">
@@ -42,12 +43,12 @@ function handleAutoSyncChange(event: Event): void {
             :value="props.model.serverUrl"
             autocomplete="url"
             autocapitalize="off"
-            placeholder="http://127.0.0.1:3000"
+            :placeholder="t('settings.connection.serverUrl.placeholder')"
             spellcheck="false"
             type="text"
             @input="handleServerUrlInput"
           >
-          <button type="button" @click="props.actions.onCheckConnection">Check</button>
+          <button type="button" @click="props.actions.onCheckConnection">{{ t("settings.connection.serverUrl.check") }}</button>
         </div>
       </div>
 
@@ -56,8 +57,8 @@ function handleAutoSyncChange(event: Event): void {
         class="setting-item obsidian-sync-with-top-border"
       >
         <div class="setting-item-info">
-          <div class="setting-item-name">Auth token</div>
-          <div class="setting-item-description">Bearer token required by the sync server.</div>
+          <div class="setting-item-name">{{ t("settings.connection.authToken.label") }}</div>
+          <div class="setting-item-description">{{ t("settings.connection.authToken.description") }}</div>
           <div v-if="!props.model.unlocked" class="setting-item-description">
             {{ props.model.authGateMessage }}
           </div>
@@ -67,36 +68,36 @@ function handleAutoSyncChange(event: Event): void {
             :value="props.model.authTokenDraft"
             autocomplete="off"
             autocapitalize="off"
-            placeholder="secret-token"
+            :placeholder="t('settings.connection.authToken.placeholder')"
             spellcheck="false"
             type="password"
             @input="handleAuthTokenInput"
           >
-          <button type="button" class="mod-cta" @click="props.actions.onAuthorize">Authorize</button>
+          <button type="button" class="mod-cta" @click="props.actions.onAuthorize">{{ t("settings.connection.authToken.authorize") }}</button>
           <button
             v-if="props.model.editingAuthToken"
             type="button"
             @click="props.actions.onCancelAuthEdit"
           >
-            Cancel
+            {{ t("settings.common.cancel") }}
           </button>
         </div>
       </div>
       <div v-else class="setting-item obsidian-sync-with-top-border">
         <div class="setting-item-info">
-          <div class="setting-item-name">Authorization</div>
-          <div class="setting-item-description">Authorized with the current server token.</div>
+          <div class="setting-item-name">{{ t("settings.connection.authToken.authorizedLabel") }}</div>
+          <div class="setting-item-description">{{ t("settings.connection.authToken.authorizedDescription") }}</div>
         </div>
         <div class="setting-item-control obsidian-sync-button-row">
-          <button type="button" @click="props.actions.onStartAuthEdit">Change token</button>
-          <button type="button" @click="props.actions.onSignOut">Sign out</button>
+          <button type="button" @click="props.actions.onStartAuthEdit">{{ t("settings.connection.authToken.change") }}</button>
+          <button type="button" @click="props.actions.onSignOut">{{ t("settings.connection.authToken.signOut") }}</button>
         </div>
       </div>
 
       <div class="setting-item obsidian-sync-with-top-border">
         <div class="setting-item-info">
-          <div class="setting-item-name">Device ID</div>
-          <div class="setting-item-description">Stable identifier for this Obsidian installation.</div>
+          <div class="setting-item-name">{{ t("settings.connection.deviceId.label") }}</div>
+          <div class="setting-item-description">{{ t("settings.connection.deviceId.description") }}</div>
         </div>
         <div class="setting-item-control obsidian-sync-code-control">
           <code>{{ props.model.deviceId }}</code>
@@ -105,15 +106,15 @@ function handleAutoSyncChange(event: Event): void {
 
       <div class="setting-item obsidian-sync-with-top-border">
         <div class="setting-item-info">
-          <div class="setting-item-name">Poll interval</div>
-          <div class="setting-item-description">How often the plugin polls the server for remote changes.</div>
+          <div class="setting-item-name">{{ t("settings.connection.pollInterval.label") }}</div>
+          <div class="setting-item-description">{{ t("settings.connection.pollInterval.description") }}</div>
         </div>
         <div class="setting-item-control obsidian-sync-single-control">
           <input
             :value="String(props.model.pollIntervalSecs)"
             inputmode="numeric"
             min="1"
-            placeholder="2"
+            :placeholder="t('settings.connection.pollInterval.placeholder')"
             spellcheck="false"
             type="number"
             @input="handlePollIntervalInput"
@@ -123,8 +124,8 @@ function handleAutoSyncChange(event: Event): void {
 
       <div class="setting-item obsidian-sync-with-top-border">
         <div class="setting-item-info">
-          <div class="setting-item-name">Auto sync</div>
-          <div class="setting-item-description">Run the sync loop in the background.</div>
+          <div class="setting-item-name">{{ t("settings.connection.autoSync.label") }}</div>
+          <div class="setting-item-description">{{ t("settings.connection.autoSync.description") }}</div>
         </div>
         <div class="setting-item-control obsidian-sync-toggle-control">
           <div class="checkbox-container">

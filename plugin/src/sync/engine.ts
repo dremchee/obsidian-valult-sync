@@ -7,6 +7,7 @@ import {
 
 import { ApiError, SyncApi } from "../api";
 import { decryptEnvelope, encryptBytes, parseEnvelope, serializeEnvelope } from "../e2ee/crypto";
+import { t } from "../i18n";
 import { createSyncError, toSyncErrorState } from "./errors";
 import { shouldSyncPath } from "./scope";
 import type {
@@ -65,7 +66,9 @@ export class SyncEngine {
       await this.saveState(state);
     } catch (error) {
       console.error("obsidian-sync: sync failed", error);
-      new Notice(`Sync failed: ${formatError(error)}`, 6000);
+      new Notice(t("notices.syncFailed", {
+        message: formatError(error),
+      }), 6000);
       throw error;
     } finally {
       this.running = false;
@@ -97,19 +100,19 @@ export class SyncEngine {
 
   private validateSettings(settings: SyncSettings): void {
     if (!settings.serverUrl.trim()) {
-      throw createSyncError("invalid_settings", "Server URL is not configured");
+      throw createSyncError("invalid_settings", t("sync.errors.invalidSettingsServerUrl"));
     }
 
     if (!settings.authToken.trim()) {
-      throw createSyncError("invalid_settings", "Auth token is not configured");
+      throw createSyncError("invalid_settings", t("sync.errors.invalidSettingsAuthToken"));
     }
 
     if (!settings.vaultId.trim()) {
-      throw createSyncError("invalid_settings", "Vault ID is not configured");
+      throw createSyncError("invalid_settings", t("sync.errors.invalidSettingsVaultId"));
     }
 
     if (!settings.deviceId.trim()) {
-      throw createSyncError("invalid_settings", "Device ID is not configured");
+      throw createSyncError("invalid_settings", t("sync.errors.invalidSettingsDeviceId"));
     }
   }
 
@@ -329,7 +332,10 @@ export class SyncEngine {
 
   private notifyConflictCopy(path: string, sourceDeviceId?: string): void {
     const sourceSuffix = sourceDeviceId ? ` from ${sourceDeviceId}` : "";
-    new Notice(`Saved conflict copy for ${path}${sourceSuffix}`);
+    new Notice(t("notices.conflictCopySaved", {
+      path,
+      sourceSuffix,
+    }));
   }
 
   private async ensureParentFolder(path: string): Promise<void> {
@@ -394,7 +400,7 @@ export class SyncEngine {
 
     const passphrase = this.getE2eePassphrase().trim();
     if (!passphrase) {
-      throw createSyncError("missing_passphrase", "E2EE passphrase is required to decrypt synced content");
+      throw createSyncError("missing_passphrase", t("sync.errors.decryptRequired"));
     }
 
     await this.rememberValidatedE2eePassphrase();
