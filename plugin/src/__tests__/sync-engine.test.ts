@@ -152,6 +152,72 @@ describe("SyncEngine", () => {
     });
   });
 
+  it("does not re-create or re-notify an existing conflict copy after a failed sync", async () => {
+    const app = createMemoryApp({
+      "notes/test.md": "local edit",
+    });
+    const remoteContent = "server version";
+    const remoteHash = await sha256Hex(toBytes(remoteContent));
+    const api = createApiStub({
+      health: vi.fn().mockResolvedValue(undefined),
+      upload: vi.fn().mockResolvedValue({
+        ok: false,
+        conflict: true,
+        server_version: 2,
+      }),
+      delete: vi.fn(),
+      getFile: vi.fn().mockResolvedValue({
+        path: "notes/test.md",
+        hash: remoteHash,
+        version: 2,
+        deleted: false,
+        content_b64: bytesToBase64(toBytes(remoteContent)),
+        content_format: "plain",
+      }),
+      getChanges: vi.fn().mockResolvedValue({
+        changes: [],
+        latest_seq: 2,
+      }),
+    });
+
+    const staleState = createState({
+      files: {
+        "notes/test.md": {
+          hash: "stale-hash",
+          version: 1,
+          mtime: 1,
+          deleted: false,
+        },
+      },
+      lastSeq: 1,
+    });
+
+    const engine = new SyncEngine(
+      app as never,
+      () => DEFAULT_SETTINGS,
+      () => "",
+      async () => {},
+      () => staleState,
+      async () => {
+        throw new Error("persist failed");
+      },
+      () => api,
+      async () => {},
+    );
+
+    await expect(engine.syncOnce()).rejects.toThrow("persist failed");
+    expect(app.listPaths().filter((path) => path.includes("(conflict)"))).toEqual([
+      "notes/test (conflict).md",
+    ]);
+    expect(notices.filter((message) => message.includes("conflict"))).toHaveLength(0);
+
+    await expect(engine.syncOnce()).rejects.toThrow("persist failed");
+    expect(app.listPaths().filter((path) => path.includes("(conflict)"))).toEqual([
+      "notes/test (conflict).md",
+    ]);
+    expect(notices.filter((message) => message.includes("conflict"))).toHaveLength(0);
+  });
+
   it("resumes from persisted lastSeq after restart", async () => {
     const app = createMemoryApp({
       "notes/test.md": "hello",

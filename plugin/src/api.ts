@@ -68,8 +68,11 @@ export class SyncApi {
     return this.getJson("/vaults");
   }
 
-  createVault(vaultId: string): Promise<CreateVaultResponse> {
-    return this.sendJson("/vaults", { vault_id: vaultId });
+  createVault(vaultId: string, e2eeFingerprint: string | null): Promise<CreateVaultResponse> {
+    return this.sendJson("/vaults", {
+      vault_id: vaultId,
+      e2ee_fingerprint: e2eeFingerprint,
+    });
   }
 
   restoreFile(payload: RestoreFileRequest): Promise<MutationResponse> {

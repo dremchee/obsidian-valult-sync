@@ -7,7 +7,6 @@ export interface SettingsConnectionViewModel {
   authTokenDraft: string;
   editingAuthToken: boolean;
   connectionStatusText: string;
-  showDeviceId: boolean;
   deviceId: string;
   pollIntervalSecs: number;
   autoSync: boolean;
@@ -33,6 +32,9 @@ export interface SettingsVaultViewModel {
   vaultStatusText: string;
   confirmDisconnect: boolean;
   confirmForget: boolean;
+  pendingJoinDecision: boolean;
+  pendingJoinVaultId: string | null;
+  pendingJoinLocalFileCount: number;
 }
 
 export interface SettingsScopeViewModel {
@@ -72,6 +74,8 @@ export interface SettingsVaultActions {
   onCreateCurrentVault: () => Promise<void> | void;
   onCreateVault: () => Promise<void> | void;
   onJoinVault: (vaultId: string) => Promise<void> | void;
+  onAdoptServerVault: () => Promise<void> | void;
+  onSyncJoinedVault: () => Promise<void> | void;
 }
 
 export interface SettingsScopeActions {

@@ -32,6 +32,7 @@ pub struct VaultRecord {
     pub created_at: String,
     pub updated_at: String,
     pub device_count: i64,
+    pub e2ee_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone)]

@@ -85,7 +85,8 @@ async fn create_vault_then_list_vaults() {
                 .header("content-type", "application/json")
                 .body(Body::from(
                     json!({
-                        "vault_id": "product_docs"
+                        "vault_id": "product_docs",
+                        "e2ee_fingerprint": "fingerprint-123"
                     })
                     .to_string(),
                 ))
@@ -100,6 +101,7 @@ async fn create_vault_then_list_vaults() {
     assert_eq!(created["created"], json!(true));
     assert_eq!(created["vault"]["vault_id"], json!("product_docs"));
     assert_eq!(created["vault"]["device_count"], json!(0));
+    assert_eq!(created["vault"]["e2ee_fingerprint"], json!("fingerprint-123"));
 
     let vaults_response = app
         .oneshot(Request::builder().uri("/vaults").body(Body::empty()).unwrap())
@@ -129,6 +131,7 @@ async fn upload_auto_registers_vault_in_registry() {
     assert_eq!(vaults.len(), 1);
     assert_eq!(vaults[0]["vault_id"], json!("vault-a"));
     assert_eq!(vaults[0]["device_count"], json!(1));
+    assert_eq!(vaults[0]["e2ee_fingerprint"], Value::Null);
     assert!(vaults[0]["created_at"].as_str().unwrap().contains('T'));
     assert!(vaults[0]["updated_at"].as_str().unwrap().contains('T'));
 }

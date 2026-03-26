@@ -38,6 +38,14 @@ export class E2eeState {
       return;
     }
 
+    const current = this.sessionPassphrasesByVaultId[vaultId];
+    if (current && current.trim() && current !== passphrase) {
+      throw createSyncError(
+        "invalid_settings",
+        t("settings.e2ee.validation.passphraseLocked"),
+      );
+    }
+
     this.sessionPassphrasesByVaultId[vaultId] = passphrase;
   }
 

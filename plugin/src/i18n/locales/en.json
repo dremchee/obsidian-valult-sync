@@ -117,6 +117,17 @@
         "joinAction": "Join",
         "noLoadedVaults": "No loaded vaults"
       },
+      "joinDecision": {
+        "label": "Initial sync strategy",
+        "description": "You just connected {{vaultId}}. This directory already contains {{count}} local syncable file(s), and the server vault is not empty. Choose whether to accept the server vault as the source of truth and overwrite local files, or try a normal sync where conflicts may be created.",
+        "required": "Connected to {{vaultId}}, but you need to choose a first-sync strategy for {{count}} local file(s) before syncing starts.",
+        "adoptServer": "Download vault from server",
+        "syncWithConflicts": "Sync vault",
+        "overwriting": "Downloading {{vaultId}} from the server and overwriting local files...",
+        "overwriteComplete": "Local syncable files were replaced with {{vaultId}} from the server.",
+        "syncing": "Running a normal sync for {{vaultId}}...",
+        "syncComplete": "Normal sync for {{vaultId}} completed."
+      },
       "state": {
         "statusLoading": "Loading...",
         "statusNotLoaded": "Not loaded",
@@ -126,8 +137,11 @@
         "forgetPending": "Click \"Confirm forget\" to remove local state for {{vaultId}}.",
         "removing": "Removing local state for {{vaultId}}...",
         "removed": "Removed local state for {{vaultId}}.",
+        "validatingE2ee": "Validating E2EE for {{vaultId}}...",
         "reconnecting": "Reconnecting this folder to {{vaultId}}...",
-        "joining": "Joining {{vaultId}}..."
+        "reconnected": "This folder is reconnected to {{vaultId}} and E2EE is ready.",
+        "joining": "Joining {{vaultId}}...",
+        "joined": "This folder is connected to {{vaultId}} and E2EE is ready."
       },
       "registryState": {
         "notConnected": "Not connected",
@@ -163,6 +177,7 @@
         "pendingFingerprint": "No fingerprint stored yet. It will be recorded after the first encrypted sync.",
         "notConfigured": "E2EE is not configured for this vault yet.",
         "passphraseRequired": "E2EE passphrase is required for this vault",
+        "passphraseLocked": "E2EE passphrase is already set for this vault. Disconnect or forget local state before changing it.",
         "fingerprintMismatch": "E2EE passphrase does not match the stored fingerprint for this vault",
         "matchesFingerprint": "Passphrase matches fingerprint {{fingerprint}}."
       }
@@ -192,6 +207,18 @@
         "enterVaultName": "Enter a vault name.",
         "enterPassphrase": "Enter an E2EE passphrase to create this vault.",
         "passphraseMismatch": "Passphrases do not match."
+      }
+    },
+    "joinVault": {
+      "title": "Join vault",
+      "intro": "Enter the E2EE passphrase for the vault you are joining. If the vault already has encrypted content, the passphrase will be verified; otherwise join will continue without verification.",
+      "vaultName": "Vault",
+      "vaultNameDescription": "Target vault on the server.",
+      "passphrase": "E2EE passphrase",
+      "passphrasePlaceholder": "correct horse battery staple",
+      "passphraseDescription": "Required when joining a vault with encrypted content.",
+      "errors": {
+        "enterPassphrase": "Enter an E2EE passphrase to join this vault."
       }
     },
     "fileHistory": {

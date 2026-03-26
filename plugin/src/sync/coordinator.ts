@@ -17,7 +17,7 @@ export class SyncCoordinator {
   private dirty = false;
   private dirtyVersion = 0;
   private syncing = false;
-  private stoppedByUnauthorized = false;
+  private stoppedByError = false;
   private readonly realtime: RealtimeSyncClient;
 
   constructor(
@@ -59,7 +59,7 @@ export class SyncCoordinator {
   }
 
   restartAutoSync(): void {
-    this.stoppedByUnauthorized = false;
+    this.stoppedByError = false;
     this.stopPolling();
 
     if (
@@ -81,6 +81,11 @@ export class SyncCoordinator {
 
       await this.runBackgroundSync();
     }, intervalMs);
+  }
+
+  pauseAutoSync(): void {
+    this.stopPolling();
+    this.realtime.stop();
   }
 
   stop(): void {
@@ -108,9 +113,7 @@ export class SyncCoordinator {
       new Notice(t("notices.syncCompleted"), 3000);
     } catch (error) {
       const syncError = toSyncErrorState(error);
-      if (syncError.code === "unauthorized") {
-        this.stopBackgroundSyncUntilRestart();
-      }
+      this.stopBackgroundSyncUntilRestart();
       await this.setLastSyncError(syncError);
       new Notice(formatSyncErrorState(syncError), 5000);
     } finally {
@@ -119,7 +122,7 @@ export class SyncCoordinator {
   }
 
   async runBackgroundSync(): Promise<void> {
-    if (!this.getSettings().vaultId.trim() || this.stoppedByUnauthorized) {
+    if (!this.getSettings().vaultId.trim() || this.stoppedByError) {
       return;
     }
 
@@ -137,9 +140,7 @@ export class SyncCoordinator {
       await this.setLastSyncError(null);
     } catch (error) {
       const syncError = toSyncErrorState(error);
-      if (syncError.code === "unauthorized") {
-        this.stopBackgroundSyncUntilRestart();
-      }
+      this.stopBackgroundSyncUntilRestart();
       await this.setLastSyncError(syncError);
     } finally {
       this.syncing = false;
@@ -159,7 +160,7 @@ export class SyncCoordinator {
   }
 
   private stopBackgroundSyncUntilRestart(): void {
-    this.stoppedByUnauthorized = true;
+    this.stoppedByError = true;
     this.stopPolling();
     this.realtime.stop();
   }

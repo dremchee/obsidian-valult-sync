@@ -135,7 +135,7 @@
         </div>
       </div>
 
-      <div v-if="props.model.showDeviceId" class="setting-item">
+      <div class="setting-item">
         <div class="setting-item-info">
           <div class="setting-item-name">
             {{ t('settings.connection.deviceId.label') }}

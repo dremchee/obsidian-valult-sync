@@ -1,9 +1,10 @@
-import { type App } from "obsidian";
+import { TFile, type App } from "obsidian";
 import { computed, reactive } from "vue";
 
 import { t } from "../i18n";
-import { normalizePatternList } from "../sync/scope";
-import { formatSyncErrorState } from "../sync/errors";
+import { buildPassphraseFingerprint } from "../e2ee/crypto";
+import { normalizePatternList, shouldSyncPath } from "../sync/scope";
+import { createSyncError, formatSyncErrorState } from "../sync/errors";
 import type {
   CreateVaultResponse,
   DeviceItem,
@@ -13,6 +14,7 @@ import type {
   VaultScopeConfig,
 } from "../types";
 import { CreateVaultModal, type CreateVaultModalResult } from "../ui/create-vault-modal";
+import { JoinVaultModal } from "../ui/join-vault-modal";
 import { formatDeviceError } from "./ui";
 import type { SettingsActions, SettingsViewModel } from "./view-model";
 
@@ -27,6 +29,12 @@ interface SettingsSessionState {
   connectionStatusText: string;
   quickActionsStatusText: string;
   vaultStatusText: string;
+  pendingJoinDecision: {
+    vaultId: string;
+    localFileCount: number;
+  } | null;
+  initialConnectionCheckStarted: boolean;
+  initialDevicesLoadStartedForVaultId: string | null;
 }
 
 export interface SettingsSessionHost {
@@ -37,9 +45,17 @@ export interface SettingsSessionHost {
 
 export interface SettingsSessionController {
   setE2eePassphrase(passphrase: string, vaultId?: string): void;
-  createVault(vaultId: string): Promise<CreateVaultResponse>;
-  bindVault(vaultId: string): Promise<void>;
+  createVault(vaultId: string, passphrase: string): Promise<CreateVaultResponse>;
+  bindVault(
+    vaultId: string,
+    options?: {
+      startAutoSync?: boolean;
+      markDirty?: boolean;
+    },
+  ): Promise<void>;
   rememberCurrentE2eePassphrase(): Promise<void>;
+  validateVaultJoinPassphrase(vaultId: string, passphrase: string): Promise<void>;
+  hasRemoteVaultContent(vaultId: string): Promise<boolean>;
   getRemoteVaults(): Promise<VaultItem[]>;
   checkConnection(): Promise<string>;
   restartAutoSync(): void;
@@ -68,9 +84,12 @@ export class SettingsSession {
     connectionStatusText: t("settings.connection.serverUrl.statusNotChecked"),
     quickActionsStatusText: t("settings.overview.quickActionsReady"),
     vaultStatusText: t("settings.vault.state.statusNotLoaded"),
+    pendingJoinDecision: null,
+    initialConnectionCheckStarted: false,
+    initialDevicesLoadStartedForVaultId: null,
   });
 
-  private readonly unlocked = computed(() => {
+  private isUnlocked(): boolean {
     if (!this.host.settings.authToken.trim()) {
       return false;
     }
@@ -80,9 +99,9 @@ export class SettingsSession {
     }
 
     return this.host.state.lastSyncError?.code !== "unauthorized";
-  });
+  }
 
-  private readonly authGateMessage = computed(() => {
+  private getAuthGateMessage(): string {
     if (!this.host.settings.authToken.trim()) {
       return t("settings.connection.authToken.gateMissingToken");
     }
@@ -95,7 +114,7 @@ export class SettingsSession {
     }
 
     return t("settings.connection.authToken.gateLocked");
-  });
+  }
 
   private readonly trackedFilesCount = computed(() =>
     Object.values(this.host.state.files).filter((file) => !file.deleted).length,
@@ -104,12 +123,6 @@ export class SettingsSession {
   private readonly deletedFilesCount = computed(() =>
     Object.values(this.host.state.files).filter((file) => file.deleted).length,
   );
-
-  private readonly showDeviceId = computed(() => (
-    this.host.state.lastSyncError !== null
-    || this.state.remoteVaultsError !== null
-    || this.hasConnectionCheckError()
-  ));
 
   constructor(
     private readonly app: App,
@@ -122,18 +135,46 @@ export class SettingsSession {
 
   sync(): void {
     this.ensureDrafts();
+    this.maybeCheckConnectionOnOpen();
     this.maybeLoadRemoteVaults();
+    this.maybeLoadDevicesOnOpen();
     Object.assign(this.model, this.buildViewModel());
+  }
+
+  private canLoadServerState(): boolean {
+    return Boolean(
+      this.host.settings.serverUrl.trim()
+      && this.host.settings.authToken.trim()
+      && this.state.remoteVaultsError !== t("settings.helpers.authFailed")
+      && this.host.state.lastSyncError?.code !== "unauthorized",
+    );
+  }
+
+  private maybeCheckConnectionOnOpen(): void {
+    if (!this.canLoadServerState() || this.state.initialConnectionCheckStarted) {
+      return;
+    }
+
+    this.state.initialConnectionCheckStarted = true;
+    this.state.connectionStatusText = t("settings.connection.serverUrl.statusChecking");
+    void this.controller
+      .checkConnection()
+      .then((message) => {
+        this.state.connectionStatusText = message;
+      })
+      .catch((error) => {
+        this.state.connectionStatusText = formatDeviceError(error);
+      })
+      .finally(() => {
+        this.sync();
+      });
   }
 
   private maybeLoadRemoteVaults(): void {
     if (
       this.state.remoteVaults
       || this.state.loadingRemoteVaults
-      || !this.host.settings.serverUrl.trim()
-      || !this.host.settings.authToken.trim()
-      || this.state.remoteVaultsError === t("settings.helpers.authFailed")
-      || this.host.state.lastSyncError?.code === "unauthorized"
+      || !this.canLoadServerState()
     ) {
       return;
     }
@@ -160,6 +201,33 @@ export class SettingsSession {
       });
   }
 
+  private maybeLoadDevicesOnOpen(): void {
+    const currentVaultId = this.host.settings.vaultId.trim();
+    if (
+      !this.canLoadServerState()
+      || !currentVaultId
+      || this.state.initialDevicesLoadStartedForVaultId === currentVaultId
+    ) {
+      return;
+    }
+
+    this.state.initialDevicesLoadStartedForVaultId = currentVaultId;
+    this.state.quickActionsStatusText = t("settings.overview.quickActionsRefreshingDevices");
+    void this.controller
+      .getRegisteredDevices(currentVaultId)
+      .then((devices) => {
+        this.state.quickActionsStatusText = t("settings.overview.quickActionsDevicesLoaded", {
+          count: devices.length,
+        });
+      })
+      .catch((error) => {
+        this.state.quickActionsStatusText = formatDeviceError(error);
+      })
+      .finally(() => {
+        this.sync();
+      });
+  }
+
   private ensureDrafts(): void {
     if (this.state.authTokenDraft === null) {
       this.state.authTokenDraft = this.host.settings.authToken;
@@ -178,13 +246,12 @@ export class SettingsSession {
   private buildViewModel(): SettingsViewModel {
     return {
       connection: {
-        unlocked: this.unlocked.value,
-        authGateMessage: this.authGateMessage.value,
+        unlocked: this.isUnlocked(),
+        authGateMessage: this.getAuthGateMessage(),
         serverUrl: this.host.settings.serverUrl,
         authTokenDraft: this.state.editingAuthToken ? "" : (this.state.authTokenDraft ?? ""),
         editingAuthToken: this.state.editingAuthToken,
         connectionStatusText: this.state.connectionStatusText,
-        showDeviceId: this.showDeviceId.value,
         deviceId: this.host.settings.deviceId,
         pollIntervalSecs: this.host.settings.pollIntervalSecs,
         autoSync: this.host.settings.autoSync,
@@ -208,6 +275,9 @@ export class SettingsSession {
         vaultStatusText: this.state.vaultStatusText,
         confirmDisconnect: this.state.confirmDisconnectVaultId === this.host.settings.vaultId,
         confirmForget: this.state.confirmForgetVaultId === this.host.settings.vaultId,
+        pendingJoinDecision: Boolean(this.state.pendingJoinDecision),
+        pendingJoinVaultId: this.state.pendingJoinDecision?.vaultId ?? null,
+        pendingJoinLocalFileCount: this.state.pendingJoinDecision?.localFileCount ?? 0,
       },
       scope: {
         includePatterns: this.host.settings.includePatterns,
@@ -222,7 +292,37 @@ export class SettingsSession {
     });
   }
 
+  private getSyncableLocalFiles(targetVaultId = this.host.settings.vaultId): TFile[] {
+    const shouldResetScope = Boolean(this.host.settings.vaultId && this.host.settings.vaultId !== targetVaultId);
+    const includePatterns = shouldResetScope ? [] : this.host.settings.includePatterns;
+    const ignorePatterns = shouldResetScope ? [] : this.host.settings.ignorePatterns;
+
+    return this.app.vault.getFiles().filter((file) =>
+      shouldSyncPath(
+        file.path,
+        includePatterns,
+        ignorePatterns,
+      ),
+    );
+  }
+
+  private async discardSyncableLocalFiles(): Promise<void> {
+    for (const file of this.getSyncableLocalFiles()) {
+      await this.app.fileManager.trashFile(file);
+    }
+  }
+
+  private clearPendingJoinDecision(): void {
+    this.state.pendingJoinDecision = null;
+  }
+
+  private resetInitialServerRefreshState(): void {
+    this.state.initialConnectionCheckStarted = false;
+    this.state.initialDevicesLoadStartedForVaultId = null;
+  }
+
   private async createAndJoinVault(vaultId: string, passphrase: string): Promise<void> {
+    this.clearPendingJoinDecision();
     this.state.confirmDisconnectVaultId = null;
     this.state.confirmForgetVaultId = null;
     this.state.vaultStatusText = t("settings.vault.createVault.statusCreating", {
@@ -230,7 +330,7 @@ export class SettingsSession {
     });
     try {
       this.controller.setE2eePassphrase(passphrase, vaultId);
-      const response = await this.controller.createVault(vaultId);
+      const response = await this.controller.createVault(vaultId, passphrase);
       await this.controller.bindVault(response.vault.vault_id);
       await this.controller.rememberCurrentE2eePassphrase();
       this.state.remoteVaults = await this.controller.getRemoteVaults();
@@ -253,6 +353,8 @@ export class SettingsSession {
   }
 
   private async authorizeToken(): Promise<void> {
+    this.clearPendingJoinDecision();
+    this.resetInitialServerRefreshState();
     this.host.settings.authToken = (this.state.authTokenDraft ?? "").trim();
     this.state.remoteVaults = null;
     this.state.remoteVaultsError = null;
@@ -268,11 +370,17 @@ export class SettingsSession {
     this.state.connectionStatusText = t("settings.connection.serverUrl.statusChecking");
     try {
       const message = await this.controller.checkConnection();
+      const vaults = await this.controller.getRemoteVaults();
       this.state.editingAuthToken = false;
       this.state.authTokenDraft = this.host.settings.authToken;
       this.state.connectionStatusText = message;
+      this.state.remoteVaults = vaults;
+      this.state.remoteVaultsError = null;
     } catch (error) {
-      this.state.connectionStatusText = formatDeviceError(error);
+      const errorMessage = formatDeviceError(error);
+      this.state.connectionStatusText = errorMessage;
+      this.state.remoteVaults = null;
+      this.state.remoteVaultsError = errorMessage;
     }
 
     this.sync();
@@ -297,6 +405,8 @@ export class SettingsSession {
   private createActions(): SettingsActions {
     return {
       onServerUrlChange: async (value) => {
+        this.clearPendingJoinDecision();
+        this.resetInitialServerRefreshState();
         this.host.settings.serverUrl = value.trim();
         this.state.remoteVaults = null;
         this.state.remoteVaultsError = null;
@@ -337,6 +447,8 @@ export class SettingsSession {
         this.sync();
       },
       onSignOut: async () => {
+        this.clearPendingJoinDecision();
+        this.resetInitialServerRefreshState();
         this.state.editingAuthToken = false;
         this.state.authTokenDraft = "";
         this.host.settings.authToken = "";
@@ -412,6 +524,8 @@ export class SettingsSession {
 
         this.state.confirmDisconnectVaultId = null;
         this.state.confirmForgetVaultId = null;
+        this.clearPendingJoinDecision();
+        this.state.initialDevicesLoadStartedForVaultId = null;
         this.state.vaultStatusText = t("settings.vault.state.disconnecting", {
           vaultId: currentVaultId,
         });
@@ -438,6 +552,8 @@ export class SettingsSession {
         }
 
         this.state.confirmForgetVaultId = null;
+        this.clearPendingJoinDecision();
+        this.state.initialDevicesLoadStartedForVaultId = null;
         this.state.vaultStatusText = t("settings.vault.state.removing", {
           vaultId: currentVaultId,
         });
@@ -472,16 +588,125 @@ export class SettingsSession {
         if (!vaultId) {
           return;
         }
-        this.state.confirmDisconnectVaultId = null;
-        this.state.confirmForgetVaultId = null;
-        this.state.vaultStatusText = this.host.settings.vaultId
-          ? t("settings.vault.state.reconnecting", {
-              vaultId,
-            })
-          : t("settings.vault.state.joining", {
+
+        const wasConnected = Boolean(this.host.settings.vaultId);
+        new JoinVaultModal(
+          this.app,
+          vaultId,
+          async ({ passphrase }) => {
+            this.state.confirmDisconnectVaultId = null;
+            this.state.confirmForgetVaultId = null;
+            this.state.vaultStatusText = t("settings.vault.state.validatingE2ee", {
               vaultId,
             });
-        await this.controller.bindVault(vaultId);
+            this.sync();
+
+            try {
+              const localFileCount = this.getSyncableLocalFiles(vaultId).length;
+              const serverVault = this.state.remoteVaults?.find((item) => item.vault_id === vaultId) ?? null;
+              const serverFingerprint = serverVault?.e2ee_fingerprint?.trim() ?? "";
+              if (serverFingerprint) {
+                const localFingerprint = await buildPassphraseFingerprint(vaultId, passphrase);
+                if (localFingerprint !== serverFingerprint) {
+                  throw createSyncError("fingerprint_mismatch", t("sync.errors.fingerprintMismatch"));
+                }
+              }
+              await this.controller.validateVaultJoinPassphrase(vaultId, passphrase);
+              const remoteHasContent = await this.controller.hasRemoteVaultContent(vaultId);
+              this.controller.setE2eePassphrase(passphrase, vaultId);
+              this.state.vaultStatusText = wasConnected
+                ? t("settings.vault.state.reconnecting", {
+                    vaultId,
+                  })
+                : t("settings.vault.state.joining", {
+                    vaultId,
+                  });
+              const needsJoinDecision = localFileCount > 0 && remoteHasContent;
+              await this.controller.bindVault(vaultId, needsJoinDecision
+                ? { startAutoSync: false, markDirty: false }
+                : undefined);
+              this.state.initialDevicesLoadStartedForVaultId = null;
+              await this.controller.rememberCurrentE2eePassphrase();
+              if (needsJoinDecision) {
+                this.state.pendingJoinDecision = {
+                  vaultId,
+                  localFileCount,
+                };
+                this.state.vaultStatusText = t("settings.vault.joinDecision.required", {
+                  vaultId,
+                  count: localFileCount,
+                });
+              } else {
+                this.clearPendingJoinDecision();
+                this.state.vaultStatusText = wasConnected
+                  ? t("settings.vault.state.reconnected", {
+                      vaultId,
+                    })
+                  : t("settings.vault.state.joined", {
+                      vaultId,
+                    });
+              }
+              this.sync();
+              return null;
+            } catch (error) {
+              this.clearPendingJoinDecision();
+              this.controller.setE2eePassphrase("", vaultId);
+              const errorMessage = formatDeviceError(error);
+              this.state.vaultStatusText = errorMessage;
+              this.sync();
+              return errorMessage;
+            }
+          },
+          () => {
+            this.sync();
+          },
+        ).open();
+      },
+      onAdoptServerVault: async () => {
+        const pendingJoinDecision = this.state.pendingJoinDecision;
+        if (!pendingJoinDecision) {
+          return;
+        }
+
+        this.state.vaultStatusText = t("settings.vault.joinDecision.overwriting", {
+          vaultId: pendingJoinDecision.vaultId,
+        });
+        this.sync();
+
+        try {
+          await this.discardSyncableLocalFiles();
+          await this.controller.runManualSync();
+          this.controller.restartAutoSync();
+          this.clearPendingJoinDecision();
+          this.state.vaultStatusText = t("settings.vault.joinDecision.overwriteComplete", {
+            vaultId: pendingJoinDecision.vaultId,
+          });
+        } catch (error) {
+          this.state.vaultStatusText = formatDeviceError(error);
+        }
+        this.sync();
+      },
+      onSyncJoinedVault: async () => {
+        const pendingJoinDecision = this.state.pendingJoinDecision;
+        if (!pendingJoinDecision) {
+          return;
+        }
+
+        this.state.vaultStatusText = t("settings.vault.joinDecision.syncing", {
+          vaultId: pendingJoinDecision.vaultId,
+        });
+        this.sync();
+
+        try {
+          await this.controller.runManualSync();
+          this.controller.restartAutoSync();
+          this.clearPendingJoinDecision();
+          this.state.vaultStatusText = t("settings.vault.joinDecision.syncComplete", {
+            vaultId: pendingJoinDecision.vaultId,
+          });
+        } catch (error) {
+          this.state.vaultStatusText = formatDeviceError(error);
+        }
         this.sync();
       },
       onIncludePatternsChange: async (value) => {

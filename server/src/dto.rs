@@ -100,6 +100,8 @@ pub struct DevicesResponse {
 #[derive(Debug, Deserialize)]
 pub struct CreateVaultRequest {
     pub vault_id: String,
+    #[serde(default)]
+    pub e2ee_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -117,6 +119,7 @@ pub struct VaultItem {
     pub created_at: String,
     pub updated_at: String,
     pub device_count: i64,
+    pub e2ee_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

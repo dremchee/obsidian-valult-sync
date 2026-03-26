@@ -12,9 +12,7 @@
     model: SettingsVaultViewModel
     actions: SettingsVaultActions
     availableJoinVaults: VaultItem[]
-    currentVaultOnServer: boolean
     serverRegistryStatus: string
-    vaultRegistryDescription: string
   }>()
 
   const remoteJoinVaultId = shallowRef('')
@@ -54,7 +52,44 @@
         </div>
       </div>
 
-      <div class="setting-item obsidian-sync-with-top-border">
+      <div
+        v-if="props.model.pendingJoinDecision"
+        class="setting-item obsidian-sync-with-top-border"
+      >
+        <div class="setting-item-info">
+          <div class="setting-item-name">
+            {{ t('settings.vault.joinDecision.label') }}
+          </div>
+          <div class="setting-item-description">
+            {{
+              t('settings.vault.joinDecision.description', {
+                vaultId: props.model.pendingJoinVaultId,
+                count: props.model.pendingJoinLocalFileCount
+              })
+            }}
+          </div>
+        </div>
+        <div class="setting-item-control obsidian-sync-button-row">
+          <button
+            type="button"
+            class="mod-warning"
+            @click="props.actions.onAdoptServerVault"
+          >
+            {{ t('settings.vault.joinDecision.adoptServer') }}
+          </button>
+          <button
+            type="button"
+            @click="props.actions.onSyncJoinedVault"
+          >
+            {{ t('settings.vault.joinDecision.syncWithConflicts') }}
+          </button>
+        </div>
+      </div>
+
+      <div
+        v-if="props.model.currentVaultId"
+        class="setting-item obsidian-sync-with-top-border"
+      >
         <div class="setting-item-info">
           <div class="setting-item-name">
             {{ t('settings.vault.currentVault.label') }}
@@ -97,39 +132,10 @@
         </div>
       </div>
 
-      <div class="setting-item obsidian-sync-with-top-border">
-        <div class="setting-item-info">
-          <div class="setting-item-name">
-            {{ t('settings.vault.serverVaults.label') }}
-          </div>
-          <div class="setting-item-description">
-            {{ props.vaultRegistryDescription }}
-          </div>
-        </div>
-        <div class="setting-item-control obsidian-sync-button-row">
-          <button
-            type="button"
-            :disabled="props.model.loadingRemoteVaults"
-            @click="props.actions.onLoadVaults"
-          >
-            {{ t('settings.vault.serverVaults.loadVaults') }}
-          </button>
-          <button
-            type="button"
-            class="mod-cta"
-            :disabled="
-              !props.model.currentVaultId ||
-              !props.model.remoteVaults ||
-              props.currentVaultOnServer
-            "
-            @click="props.actions.onCreateCurrentVault"
-          >
-            {{ t('settings.vault.serverVaults.createCurrent') }}
-          </button>
-        </div>
-      </div>
-
-      <div class="setting-item obsidian-sync-with-top-border">
+      <div
+        v-if="!props.model.currentVaultId"
+        class="setting-item obsidian-sync-with-top-border"
+      >
         <div class="setting-item-info">
           <div class="setting-item-name">
             {{ t('settings.vault.createVault.label') }}
@@ -153,29 +159,13 @@
         </div>
       </div>
 
-      <div class="setting-item obsidian-sync-with-top-border">
+      <div
+        v-if="!props.model.currentVaultId && props.availableJoinVaults.length > 0"
+        class="setting-item obsidian-sync-with-top-border"
+      >
         <div class="setting-item-info">
           <div class="setting-item-name">
-            {{
-              props.model.currentVaultId
-                ? t('settings.vault.joinVault.reconnectLabel')
-                : t('settings.vault.joinVault.joinLabel')
-            }}
-          </div>
-          <div class="setting-item-description">
-            <template v-if="props.model.remoteVaults">
-              {{
-                props.model.currentVaultId
-                  ? t('settings.vault.joinVault.reconnectDescription')
-                  : t('settings.vault.joinVault.joinDescription')
-              }}
-            </template>
-            <template v-else-if="props.model.loadingRemoteVaults">{{
-              t('settings.vault.serverVaults.statusLoading')
-            }}</template>
-            <template v-else>{{
-              t('settings.vault.serverVaults.loadPrompt')
-            }}</template>
+            {{ t('settings.vault.joinVault.joinLabel') }}
           </div>
         </div>
         <div class="setting-item-control">

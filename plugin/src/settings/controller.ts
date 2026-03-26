@@ -1,13 +1,16 @@
 import { SyncApi } from "../api";
+import { buildPassphraseFingerprint } from "../e2ee/crypto";
 import { E2eeState } from "../e2ee/state";
 import { t } from "../i18n";
 import { PluginStateStore } from "../state/store";
+import { decodeSyncPayload } from "../sync/payload-codec";
 import { SyncCoordinator } from "../sync/coordinator";
 import { createSyncError } from "../sync/errors";
 import type {
   CreateVaultResponse,
   DeviceItem,
   FileHistoryResponse,
+  FileResponse,
   MutationResponse,
   RestoreFileRequest,
   SyncSettings,
@@ -15,6 +18,20 @@ import type {
   VaultItem,
   VaultScopeConfig,
 } from "../types";
+
+type SettingsApi = Pick<
+  SyncApi,
+  | "health"
+  | "upload"
+  | "delete"
+  | "getFile"
+  | "getChanges"
+  | "getHistory"
+  | "getDevices"
+  | "getVaults"
+  | "createVault"
+  | "restoreFile"
+>;
 
 export class SettingsController {
   constructor(
@@ -26,13 +43,25 @@ export class SettingsController {
     private readonly stateStore: PluginStateStore,
     private readonly e2eeState: E2eeState,
     private readonly coordinator: SyncCoordinator,
+    private readonly apiFactory: (serverUrl: string, authToken: string) => SettingsApi = (
+      serverUrl,
+      authToken,
+    ) => new SyncApi(serverUrl, authToken),
   ) {}
 
-  async bindVault(vaultId: string): Promise<void> {
+  async bindVault(
+    vaultId: string,
+    options?: {
+      startAutoSync?: boolean;
+      markDirty?: boolean;
+    },
+  ): Promise<void> {
     const nextVaultId = vaultId.trim();
     if (!nextVaultId) {
       return;
     }
+    const startAutoSync = options?.startAutoSync ?? true;
+    const markDirty = options?.markDirty ?? true;
 
     const settings = this.getSettings();
     const previousVaultId = settings.vaultId;
@@ -44,9 +73,15 @@ export class SettingsController {
     settings.vaultId = nextVaultId;
     this.setState(this.stateStore.resetState(nextVaultId));
     this.stateStore.applyScope(settings);
-    this.coordinator.markDirty();
+    if (markDirty) {
+      this.coordinator.markDirty();
+    }
     await this.persistData();
-    this.coordinator.restartAutoSync();
+    if (startAutoSync) {
+      this.coordinator.restartAutoSync();
+    } else {
+      this.coordinator.pauseAutoSync();
+    }
   }
 
   async forgetLocalState(): Promise<void> {
@@ -125,9 +160,43 @@ export class SettingsController {
     return this.api().restoreFile(payload);
   }
 
-  async createVault(vaultId: string): Promise<CreateVaultResponse> {
-    const response = await this.api().createVault(vaultId);
+  async createVault(vaultId: string, passphrase: string): Promise<CreateVaultResponse> {
+    const normalizedVaultId = vaultId.trim();
+    const normalizedPassphrase = passphrase.trim();
+    const e2eeFingerprint = normalizedPassphrase
+      ? await buildPassphraseFingerprint(normalizedVaultId, normalizedPassphrase)
+      : null;
+    const response = await this.api().createVault(normalizedVaultId, e2eeFingerprint);
     return response;
+  }
+
+  async hasRemoteVaultContent(vaultId: string): Promise<boolean> {
+    const sampleFile = await this.getLatestLiveRemoteFile(vaultId.trim());
+    return sampleFile !== null;
+  }
+
+  async validateVaultJoinPassphrase(vaultId: string, passphrase: string): Promise<void> {
+    const normalizedVaultId = vaultId.trim();
+    const normalizedPassphrase = passphrase.trim();
+    if (!normalizedVaultId) {
+      return;
+    }
+
+    if (!normalizedPassphrase) {
+      throw createSyncError("missing_passphrase", t("settings.e2ee.validation.passphraseRequired"));
+    }
+
+    const sampleFile = await this.getLatestEncryptedRemoteFile(normalizedVaultId);
+    if (!sampleFile) {
+      return;
+    }
+
+    await decodeSyncPayload(
+      sampleFile.content_b64 ?? "",
+      sampleFile.content_format,
+      normalizedPassphrase,
+      async () => {},
+    );
   }
 
   runManualSync(): Promise<void> {
@@ -148,7 +217,7 @@ export class SettingsController {
     }
   }
 
-  private api(): SyncApi {
+  private api(): SettingsApi {
     const settings = this.getSettings();
     if (!settings.authToken.trim()) {
       throw createSyncError(
@@ -156,10 +225,56 @@ export class SettingsController {
         t("sync.errors.invalidSettingsAuthToken"),
       );
     }
-    return new SyncApi(settings.serverUrl.replace(/\/+$/, ""), settings.authToken);
+    return this.apiFactory(settings.serverUrl.replace(/\/+$/, ""), settings.authToken);
   }
 
-  private baseApi(): SyncApi {
-    return new SyncApi(this.getSettings().serverUrl.replace(/\/+$/, ""), "");
+  private baseApi(): SettingsApi {
+    return this.apiFactory(this.getSettings().serverUrl.replace(/\/+$/, ""), "");
+  }
+
+  private async getLatestLiveRemoteFile(vaultId: string): Promise<FileResponse | null> {
+    const changes = await this.api().getChanges(vaultId, 0);
+    const deletedPaths = new Set<string>();
+
+    for (const change of [...changes.changes].reverse()) {
+      if (change.deleted) {
+        deletedPaths.add(change.path);
+        continue;
+      }
+
+      if (deletedPaths.has(change.path)) {
+        continue;
+      }
+
+      const file = await this.api().getFile(vaultId, change.path);
+      if (!file.deleted && file.content_b64) {
+        return file;
+      }
+    }
+
+    return null;
+  }
+
+  private async getLatestEncryptedRemoteFile(vaultId: string): Promise<FileResponse | null> {
+    const changes = await this.api().getChanges(vaultId, 0);
+    const deletedPaths = new Set<string>();
+
+    for (const change of [...changes.changes].reverse()) {
+      if (change.deleted) {
+        deletedPaths.add(change.path);
+        continue;
+      }
+
+      if (deletedPaths.has(change.path)) {
+        continue;
+      }
+
+      const file = await this.api().getFile(vaultId, change.path);
+      if (!file.deleted && file.content_b64 && file.content_format === "e2ee-envelope-v1") {
+        return file;
+      }
+    }
+
+    return null;
   }
 }

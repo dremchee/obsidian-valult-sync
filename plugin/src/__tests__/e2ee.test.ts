@@ -8,6 +8,7 @@ import {
   parseEnvelope,
   serializeEnvelope,
 } from "../e2ee/crypto";
+import { E2eeState } from "../e2ee/state";
 
 describe("E2EE helpers", () => {
   it("round-trips encrypted content", async () => {
@@ -57,5 +58,20 @@ describe("E2EE helpers", () => {
 
     expect(first).toBe(second);
     expect(first).not.toBe(third);
+  });
+
+  it("locks the session passphrase per vault until the vault is forgotten", () => {
+    const state = new E2eeState();
+
+    state.setPassphrase("vault-a", "correct horse battery staple");
+    expect(state.getPassphrase("vault-a")).toBe("correct horse battery staple");
+
+    expect(() => {
+      state.setPassphrase("vault-a", "different passphrase");
+    }).toThrow("E2EE passphrase is already set for this vault");
+
+    state.setPassphrase("vault-a", "");
+    state.setPassphrase("vault-a", "different passphrase");
+    expect(state.getPassphrase("vault-a")).toBe("different passphrase");
   });
 });

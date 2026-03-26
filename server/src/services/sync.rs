@@ -551,10 +551,10 @@ pub async fn get_devices(state: &AppState, vault_id: String) -> Result<DevicesRe
 pub async fn get_vaults(state: &AppState) -> Result<VaultsResponse, AppError> {
     let rows = sqlx::query(
         r#"
-        SELECT vaults.vault_id, vaults.created_at, vaults.updated_at, COUNT(devices.device_id) AS device_count
+        SELECT vaults.vault_id, vaults.created_at, vaults.updated_at, vaults.e2ee_fingerprint, COUNT(devices.device_id) AS device_count
         FROM vaults
         LEFT JOIN devices ON devices.vault_id = vaults.vault_id
-        GROUP BY vaults.vault_id, vaults.created_at, vaults.updated_at
+        GROUP BY vaults.vault_id, vaults.created_at, vaults.updated_at, vaults.e2ee_fingerprint
         ORDER BY vaults.updated_at DESC, vaults.vault_id ASC
         "#,
     )
@@ -568,6 +568,7 @@ pub async fn get_vaults(state: &AppState) -> Result<VaultsResponse, AppError> {
             vault_id: row.get("vault_id"),
             created_at: row.get("created_at"),
             updated_at: row.get("updated_at"),
+            e2ee_fingerprint: row.get("e2ee_fingerprint"),
             device_count: row.get("device_count"),
         })
         .map(vault_record_to_dto)
@@ -581,23 +582,31 @@ pub async fn create_vault(
     request: CreateVaultRequest,
 ) -> Result<CreateVaultResponse, AppError> {
     let vault_id = storage::validate_vault_id(&request.vault_id)?;
+    let e2ee_fingerprint = request
+        .e2ee_fingerprint
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(|value| value.to_string());
     let now = Utc::now().to_rfc3339();
+    let existing = get_vault_record(state.pool(), &vault_id).await?;
 
-    let inserted = sqlx::query(
+    sqlx::query(
         r#"
-        INSERT INTO vaults (vault_id, created_at, updated_at)
-        VALUES (?1, ?2, ?3)
-        ON CONFLICT(vault_id) DO NOTHING
+        INSERT INTO vaults (vault_id, created_at, updated_at, e2ee_fingerprint)
+        VALUES (?1, ?2, ?3, ?4)
+        ON CONFLICT(vault_id) DO UPDATE SET
+          updated_at = excluded.updated_at,
+          e2ee_fingerprint = COALESCE(vaults.e2ee_fingerprint, excluded.e2ee_fingerprint)
         "#,
     )
     .bind(&vault_id)
     .bind(&now)
     .bind(&now)
+    .bind(&e2ee_fingerprint)
     .execute(state.pool())
     .await
-    .map_err(AppError::internal)?
-    .rows_affected()
-        > 0;
+    .map_err(AppError::internal)?;
 
     let vault = get_vault_record(state.pool(), &vault_id)
         .await?
@@ -605,7 +614,7 @@ pub async fn create_vault(
 
     Ok(CreateVaultResponse {
         ok: true,
-        created: inserted,
+        created: existing.is_none(),
         vault: vault_record_to_dto(vault),
     })
 }
@@ -697,11 +706,11 @@ async fn touch_vault(pool: &SqlitePool, vault_id: &str, now: &str) -> Result<(),
 async fn get_vault_record(pool: &SqlitePool, vault_id: &str) -> Result<Option<VaultRecord>, AppError> {
     let row = sqlx::query(
         r#"
-        SELECT vaults.vault_id, vaults.created_at, vaults.updated_at, COUNT(devices.device_id) AS device_count
+        SELECT vaults.vault_id, vaults.created_at, vaults.updated_at, vaults.e2ee_fingerprint, COUNT(devices.device_id) AS device_count
         FROM vaults
         LEFT JOIN devices ON devices.vault_id = vaults.vault_id
         WHERE vaults.vault_id = ?1
-        GROUP BY vaults.vault_id, vaults.created_at, vaults.updated_at
+        GROUP BY vaults.vault_id, vaults.created_at, vaults.updated_at, vaults.e2ee_fingerprint
         "#,
     )
     .bind(vault_id)
@@ -713,6 +722,7 @@ async fn get_vault_record(pool: &SqlitePool, vault_id: &str) -> Result<Option<Va
         vault_id: row.get("vault_id"),
         created_at: row.get("created_at"),
         updated_at: row.get("updated_at"),
+        e2ee_fingerprint: row.get("e2ee_fingerprint"),
         device_count: row.get("device_count"),
     }))
 }
@@ -723,5 +733,6 @@ fn vault_record_to_dto(record: VaultRecord) -> VaultItem {
         created_at: record.created_at,
         updated_at: record.updated_at,
         device_count: record.device_count,
+        e2ee_fingerprint: record.e2ee_fingerprint,
     }
 }

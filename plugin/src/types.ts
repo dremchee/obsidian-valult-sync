@@ -108,6 +108,7 @@ export interface VaultItem {
   created_at: string;
   updated_at: string;
   device_count: number;
+  e2ee_fingerprint: string | null;
 }
 
 export interface VaultsResponse {

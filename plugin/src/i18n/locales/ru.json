@@ -117,6 +117,17 @@
         "joinAction": "Подключить",
         "noLoadedVaults": "Нет загруженных vault"
       },
+      "joinDecision": {
+        "label": "Стратегия начальной загрузки",
+        "description": "Вы только что подключили {{vaultId}}. В текущей директории найдено {{count}} локальных syncable файлов, а server vault не пустой. Выберите: принять server vault как источник истины и перезаписать локальные файлы, либо попробовать обычную синхронизацию, где возможны конфликты.",
+        "required": "Подключение к {{vaultId}} завершено, но перед первой синхронизацией нужно выбрать стратегию для {{count}} локальных файлов.",
+        "adoptServer": "Загрузить vault с сервера",
+        "syncWithConflicts": "Синхронизировать vault",
+        "overwriting": "Загрузка {{vaultId}} с сервера с перезаписью локальных файлов...",
+        "overwriteComplete": "Локальные syncable файлы заменены содержимым {{vaultId}} с сервера.",
+        "syncing": "Запуск обычной синхронизации для {{vaultId}}...",
+        "syncComplete": "Обычная синхронизация для {{vaultId}} завершена."
+      },
       "state": {
         "statusLoading": "Загрузка...",
         "statusNotLoaded": "Не загружено",
@@ -126,8 +137,11 @@
         "forgetPending": "Нажмите \"Подтвердить сброс\", чтобы удалить локальное состояние для {{vaultId}}.",
         "removing": "Удаление локального состояния для {{vaultId}}...",
         "removed": "Локальное состояние для {{vaultId}} удалено.",
+        "validatingE2ee": "Проверка E2EE для {{vaultId}}...",
         "reconnecting": "Переподключение этой папки к {{vaultId}}...",
-        "joining": "Подключение к {{vaultId}}..."
+        "reconnected": "Эта папка переподключена к {{vaultId}} и E2EE готов.",
+        "joining": "Подключение к {{vaultId}}...",
+        "joined": "Эта папка подключена к {{vaultId}} и E2EE готов."
       },
       "registryState": {
         "notConnected": "Не подключено",
@@ -163,6 +177,7 @@
         "pendingFingerprint": "Fingerprint ещё не сохранён. Он будет записан после первой зашифрованной синхронизации.",
         "notConfigured": "E2EE для этого vault ещё не настроен.",
         "passphraseRequired": "Для этого vault требуется E2EE passphrase",
+        "passphraseLocked": "E2EE passphrase для этого vault уже задан. Сначала отключите vault или удалите локальное состояние, если хотите сменить его.",
         "fingerprintMismatch": "E2EE passphrase не совпадает с сохранённым fingerprint для этого vault",
         "matchesFingerprint": "Passphrase совпадает с fingerprint {{fingerprint}}."
       }
@@ -192,6 +207,18 @@
         "enterVaultName": "Введите имя vault.",
         "enterPassphrase": "Введите E2EE passphrase для создания этого vault.",
         "passphraseMismatch": "Passphrase не совпадают."
+      }
+    },
+    "joinVault": {
+      "title": "Подключить vault",
+      "intro": "Введите E2EE passphrase для vault, к которому вы подключаетесь. Если в vault уже есть зашифрованный контент, passphrase будет проверен; иначе подключение продолжится без проверки.",
+      "vaultName": "Vault",
+      "vaultNameDescription": "Целевой vault на сервере.",
+      "passphrase": "E2EE passphrase",
+      "passphrasePlaceholder": "correct horse battery staple",
+      "passphraseDescription": "Обязателен для подключения к vault с зашифрованным контентом.",
+      "errors": {
+        "enterPassphrase": "Введите E2EE passphrase для подключения к этому vault."
       }
     },
     "fileHistory": {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { ApiError } from "../api";
 import { SettingsSession, type SettingsSessionHost } from "../settings/session";
 import type { SyncSettings, SyncState, VaultItem } from "../types";
 
@@ -32,7 +33,7 @@ describe("SettingsSession", () => {
     expect(session.model.connection.unlocked).toBe(false);
     expect(session.model.connection.authTokenDraft).toBe("");
     expect(session.model.connection.authGateMessage.length).toBeGreaterThan(0);
-    expect(session.model.connection.showDeviceId).toBe(false);
+    expect(session.model.connection.deviceId).toBe("device-local");
   });
 
   it("loads remote vaults reactively when credentials are present", async () => {
@@ -47,6 +48,7 @@ describe("SettingsSession", () => {
         created_at: "2024-01-01T00:00:00Z",
         updated_at: "2024-01-01T00:00:00Z",
         device_count: 1,
+        e2ee_fingerprint: null,
       },
     ];
     const controller = createControllerStub({
@@ -61,7 +63,37 @@ describe("SettingsSession", () => {
     expect(session.model.vault.remoteVaults).toEqual(vaults);
     expect(session.model.vault.loadingRemoteVaults).toBe(false);
     expect(session.model.vault.vaultStatusText).toContain("1");
-    expect(session.model.connection.showDeviceId).toBe(false);
+    expect(session.model.connection.deviceId).toBe("device-local");
+  });
+
+  it("loads server state on open when connected to the server", async () => {
+    const host = createHost({
+      settings: {
+        authToken: "secret-token",
+        vaultId: "vault-a",
+      },
+    });
+    const controller = createControllerStub({
+      checkConnection: vi.fn().mockResolvedValue("ready"),
+      getRemoteVaults: vi.fn().mockResolvedValue([]),
+      getRegisteredDevices: vi.fn().mockResolvedValue([
+        {
+          device_id: "device-a",
+          first_seen_at: "2024-01-01T00:00:00Z",
+          last_seen_at: "2024-01-01T00:00:00Z",
+        },
+      ]),
+    });
+    const session = new SettingsSession({} as never, host, controller);
+
+    session.sync();
+    await flushPromises();
+
+    expect(controller.checkConnection).toHaveBeenCalledTimes(1);
+    expect(controller.getRemoteVaults).toHaveBeenCalledTimes(1);
+    expect(controller.getRegisteredDevices).toHaveBeenCalledWith("vault-a");
+    expect(session.model.connection.connectionStatusText).toBe("ready");
+    expect(session.model.overview.quickActionsStatusText).toContain("1");
   });
 
   it("shows device id when sync state contains an error", () => {
@@ -77,7 +109,7 @@ describe("SettingsSession", () => {
 
     session.sync();
 
-    expect(session.model.connection.showDeviceId).toBe(true);
+    expect(session.model.connection.deviceId).toBe("device-local");
   });
 
   it("shows device id when loading remote vaults fails", async () => {
@@ -95,7 +127,7 @@ describe("SettingsSession", () => {
     await flushPromises();
 
     expect(session.model.vault.remoteVaultsError).toContain("network failed");
-    expect(session.model.connection.showDeviceId).toBe(true);
+    expect(session.model.connection.deviceId).toBe("device-local");
   });
 
   it("signs out through actions and updates the reactive model without remount assumptions", async () => {
@@ -116,6 +148,42 @@ describe("SettingsSession", () => {
     expect(session.model.connection.connectionStatusText.length).toBeGreaterThan(0);
     expect(host.persistData).toHaveBeenCalledTimes(1);
     expect(controller.restartAutoSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("authorizes token by loading protected server vaults", async () => {
+    const host = createHost();
+    const controller = createControllerStub({
+      checkConnection: vi.fn().mockResolvedValue("ready"),
+      getRemoteVaults: vi.fn().mockResolvedValue([]),
+    });
+    const session = new SettingsSession({} as never, host, controller);
+
+    session.sync();
+    session.actions.onAuthTokenDraftChange("secret-token");
+    await session.actions.onAuthorize();
+    await flushPromises();
+
+    expect(host.settings.authToken).toBe("secret-token");
+    expect(controller.getRemoteVaults).toHaveBeenCalled();
+    expect(session.model.connection.unlocked).toBe(true);
+    expect(session.model.connection.editingAuthToken).toBe(false);
+  });
+
+  it("keeps the auth editor open when the token is rejected by the server", async () => {
+    const host = createHost();
+    const controller = createControllerStub({
+      checkConnection: vi.fn().mockResolvedValue("ready"),
+      getRemoteVaults: vi.fn().mockRejectedValue(new ApiError("unauthorized", 401, "unauthorized")),
+    });
+    const session = new SettingsSession({} as never, host, controller);
+
+    session.sync();
+    session.actions.onAuthTokenDraftChange("bad-token");
+    await session.actions.onAuthorize();
+    await flushPromises();
+
+    expect(session.model.connection.unlocked).toBe(false);
+    expect(session.model.connection.authGateMessage).toContain("token");
   });
 });
 
@@ -142,6 +210,8 @@ function createControllerStub(overrides?: Partial<Record<keyof ControllerStub, u
     createVault: vi.fn(),
     bindVault: vi.fn(),
     rememberCurrentE2eePassphrase: vi.fn(),
+    validateVaultJoinPassphrase: vi.fn().mockResolvedValue(undefined),
+    hasRemoteVaultContent: vi.fn().mockResolvedValue(false),
     getRemoteVaults: vi.fn().mockResolvedValue([]),
     checkConnection: vi.fn().mockResolvedValue("ready"),
     restartAutoSync: vi.fn(),
@@ -162,6 +232,8 @@ type ControllerStub = {
   createVault: ReturnType<typeof vi.fn>;
   bindVault: ReturnType<typeof vi.fn>;
   rememberCurrentE2eePassphrase: ReturnType<typeof vi.fn>;
+  validateVaultJoinPassphrase: ReturnType<typeof vi.fn>;
+  hasRemoteVaultContent: ReturnType<typeof vi.fn>;
   getRemoteVaults: ReturnType<typeof vi.fn>;
   checkConnection: ReturnType<typeof vi.fn>;
   restartAutoSync: ReturnType<typeof vi.fn>;

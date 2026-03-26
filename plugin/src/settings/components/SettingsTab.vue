@@ -19,21 +19,9 @@
     )
   )
 
-  const currentVaultOnServer = computed(
-    () =>
-      props.model.vault.remoteVaults?.some(
-        (vault) => vault.vault_id === props.model.vault.currentVaultId
-      ) ?? false
-  )
-
   const serverRegistryStatus = computed(() => {
     if (!props.model.vault.currentVaultId) {
       return t('settings.vault.registryState.notConnected')
-    }
-    if (props.model.vault.remoteVaults) {
-      return currentVaultOnServer.value
-        ? t('settings.vault.registryState.loaded')
-        : t('settings.vault.registryState.notLoadedHere')
     }
     if (props.model.vault.loadingRemoteVaults) {
       return t('settings.vault.registryState.loading')
@@ -43,30 +31,6 @@
       : t('settings.vault.registryState.notLoaded')
   })
 
-  const vaultRegistryDescription = computed(() => {
-    if (props.model.vault.loadingRemoteVaults) {
-      return t('settings.vault.serverVaults.statusLoading')
-    }
-    if (props.model.vault.remoteVaultsError) {
-      return t('settings.vault.serverVaults.unavailable', {
-        message: props.model.vault.remoteVaultsError
-      })
-    }
-    if (props.model.vault.remoteVaults) {
-      if (props.model.vault.remoteVaults.length === 0) {
-        return t('settings.vault.serverVaults.empty')
-      }
-      if (props.model.vault.currentVaultId && !currentVaultOnServer.value) {
-        return t('settings.vault.serverVaults.currentNotLoaded', {
-          count: props.model.vault.remoteVaults.length
-        })
-      }
-      return t('settings.vault.serverVaults.loaded', {
-        count: props.model.vault.remoteVaults.length
-      })
-    }
-    return t('settings.vault.serverVaults.loadPrompt')
-  })
 </script>
 
 <template>
@@ -77,10 +41,8 @@
     <SettingsVaultSection
       :actions="props.actions"
       :available-join-vaults="availableJoinVaults"
-      :current-vault-on-server="currentVaultOnServer"
       :model="props.model.vault"
       :server-registry-status="serverRegistryStatus"
-      :vault-registry-description="vaultRegistryDescription"
     />
     <SettingsScopeSection :actions="props.actions" :model="props.model.scope" />
   </template>

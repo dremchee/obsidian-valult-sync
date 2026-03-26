@@ -79,9 +79,6 @@ export class SyncEngine {
       await this.saveState(state);
     } catch (error) {
       console.error("obsidian-sync: sync failed", error);
-      new Notice(t("notices.syncFailed", {
-        message: formatError(error),
-      }), 6000);
       throw error;
     } finally {
       this.running = false;
@@ -220,7 +217,7 @@ export class SyncEngine {
   ): Promise<void> {
     const existing = this.vaultIO.getAbstractFileByPath(local.path);
     if (existing instanceof TFile) {
-      await this.writeConflictCopy(existing, local.data);
+      await this.saveConflictCopyIfNeeded(existing, local.data, false);
     }
 
     await this.downloadAndApplyRemote(api, state, local.path, undefined, true);
@@ -235,7 +232,7 @@ export class SyncEngine {
   ): Promise<void> {
     const remote = await this.retry(
       () => api.getFile(this.getSettings().vaultId, path),
-      `download ${path}`,
+        `download ${path}`,
     );
 
     if (remote.deleted) {
@@ -260,8 +257,7 @@ export class SyncEngine {
       const currentData = await this.vaultIO.readBinary(existing);
       const currentHash = await sha256Hex(currentData);
       if (shouldCreateConflictCopy(conflictCopyAlreadySaved, localState, currentHash)) {
-        await this.writeConflictCopy(existing, currentData);
-        this.notifyConflictCopy(remote.path, sourceDeviceId);
+        await this.saveConflictCopyIfNeeded(existing, currentData, true, sourceDeviceId);
       }
       await this.vaultIO.writeBinary(existing, data);
     } else {
@@ -292,8 +288,7 @@ export class SyncEngine {
       const currentData = await this.vaultIO.readBinary(existing);
       const currentHash = await sha256Hex(currentData);
       if (shouldCreateConflictCopy(conflictCopyAlreadySaved, localState, currentHash)) {
-        await this.writeConflictCopy(existing, currentData);
-        this.notifyConflictCopy(path, sourceDeviceId);
+        await this.saveConflictCopyIfNeeded(existing, currentData, true, sourceDeviceId);
       }
       await this.vaultIO.trashFile(existing);
     }
@@ -305,6 +300,23 @@ export class SyncEngine {
     const conflictPath = buildConflictPath(file.path);
     await this.vaultIO.ensureParentFolder(conflictPath);
     await this.vaultIO.createBinary(conflictPath, data);
+  }
+
+  private async saveConflictCopyIfNeeded(
+    file: TFile,
+    data: Uint8Array,
+    notify: boolean,
+    sourceDeviceId?: string,
+  ): Promise<void> {
+    const conflictPath = buildConflictPath(file.path);
+    if (this.vaultIO.getAbstractFileByPath(conflictPath)) {
+      return;
+    }
+
+    await this.writeConflictCopy(file, data);
+    if (notify) {
+      this.notifyConflictCopy(file.path, sourceDeviceId);
+    }
   }
 
   private notifyConflictCopy(path: string, sourceDeviceId?: string): void {
@@ -341,6 +353,10 @@ export class SyncEngine {
   }
 
   private shouldSyncPath(path: string): boolean {
+    if (isGeneratedConflictPath(path)) {
+      return false;
+    }
+
     const settings = this.getSettings();
     return shouldSyncPath(path, settings.includePatterns, settings.ignorePatterns);
   }
@@ -363,4 +379,8 @@ function formatError(error: unknown): string {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
+}
+
+function isGeneratedConflictPath(path: string): boolean {
+  return / \(conflict\)(\.[^/]+)?$/.test(path);
 }
