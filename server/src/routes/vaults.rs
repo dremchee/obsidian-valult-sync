@@ -1,4 +1,7 @@
-use axum::{routing::{get, post}, Json, Router};
+use axum::{
+    Json, Router,
+    routing::{get, post},
+};
 
 use crate::{
     dto::{CreateVaultRequest, CreateVaultResponse, VaultsResponse},

@@ -1,9 +1,9 @@
 use axum::{
+    Json,
     extract::State,
-    http::{header::AUTHORIZATION, Request, StatusCode},
+    http::{Request, StatusCode, header::AUTHORIZATION},
     middleware::Next,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Serialize;
 
@@ -48,5 +48,8 @@ pub async fn require_auth(
 }
 
 fn parse_bearer_token(value: &str) -> Option<&str> {
-    value.strip_prefix("Bearer ").map(str::trim).filter(|value| !value.is_empty())
+    value
+        .strip_prefix("Bearer ")
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
 }

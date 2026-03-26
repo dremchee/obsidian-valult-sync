@@ -1,4 +1,4 @@
-use base64::{engine::general_purpose::STANDARD, Engine};
+use base64::{Engine, engine::general_purpose::STANDARD};
 use chrono::Utc;
 use sha2::{Digest, Sha256};
 use sqlx::{Row, SqlitePool};
@@ -7,8 +7,8 @@ use crate::{
     dto::{
         ChangeItem, ChangesResponse, ContentFormat, CreateVaultRequest, CreateVaultResponse,
         DeleteRequest, DeviceItem, DevicesResponse, FileHistoryResponse, FileResponse,
-        FileVersionItem, MutationResponse, RestoreFileRequest, UploadRequest, VaultItem,
-        VaultsResponse,
+        FileVersionItem, MutationResponse, RestoreFileRequest, SnapshotFileItem, UploadRequest,
+        VaultItem, VaultSnapshotResponse, VaultsResponse,
     },
     error::AppError,
     models::{ChangeRecord, DeviceRecord, FileRecord, FileVersionRecord, VaultRecord},
@@ -16,7 +16,10 @@ use crate::{
     storage,
 };
 
-pub async fn upload(state: &AppState, request: UploadRequest) -> Result<MutationResponse, AppError> {
+pub async fn upload(
+    state: &AppState,
+    request: UploadRequest,
+) -> Result<MutationResponse, AppError> {
     let data = STANDARD
         .decode(request.content_b64.as_bytes())
         .map_err(|_| AppError::InvalidBase64)?;
@@ -116,7 +119,10 @@ pub async fn upload(state: &AppState, request: UploadRequest) -> Result<Mutation
     })
 }
 
-pub async fn delete(state: &AppState, request: DeleteRequest) -> Result<MutationResponse, AppError> {
+pub async fn delete(
+    state: &AppState,
+    request: DeleteRequest,
+) -> Result<MutationResponse, AppError> {
     let vault_id = storage::validate_vault_id(&request.vault_id)?;
     let device_id = storage::validate_device_id(&request.device_id)?;
     let safe_path = storage::validate_relative_path(&request.path)?;
@@ -236,7 +242,8 @@ pub async fn get_file_history(
             version: record.version,
             hash: record.hash,
             payload_hash: record.payload_hash,
-            content_format: content_format_from_db(&record.content_format).unwrap_or(ContentFormat::Plain),
+            content_format: content_format_from_db(&record.content_format)
+                .unwrap_or(ContentFormat::Plain),
             deleted: record.deleted,
             created_at: record.created_at,
         })
@@ -276,9 +283,10 @@ pub async fn restore_file(
         });
     }
 
-    let record = get_file_version_record(state.pool(), &vault_id, &safe_path, request.target_version)
-        .await?
-        .ok_or(AppError::NotFound)?;
+    let record =
+        get_file_version_record(state.pool(), &vault_id, &safe_path, request.target_version)
+            .await?
+            .ok_or(AppError::NotFound)?;
 
     let new_version = current.version + 1;
 
@@ -287,9 +295,10 @@ pub async fn restore_file(
             .await
             .map_err(AppError::internal)?;
     } else {
-        let data = storage::read_file_version(state.storage_root(), &vault_id, &safe_path, record.version)
-            .await
-            .map_err(AppError::internal)?;
+        let data =
+            storage::read_file_version(state.storage_root(), &vault_id, &safe_path, record.version)
+                .await
+                .map_err(AppError::internal)?;
         storage::write_file(state.storage_root(), &vault_id, &safe_path, &data)
             .await
             .map_err(AppError::internal)?;
@@ -371,7 +380,11 @@ pub async fn restore_file(
     })
 }
 
-pub async fn get_file(state: &AppState, vault_id: String, path: String) -> Result<FileResponse, AppError> {
+pub async fn get_file(
+    state: &AppState,
+    vault_id: String,
+    path: String,
+) -> Result<FileResponse, AppError> {
     let vault_id = storage::validate_vault_id(&vault_id)?;
     let safe_path = storage::validate_relative_path(&path)?;
     let record = get_file_record(state.pool(), &vault_id, &safe_path)
@@ -403,7 +416,11 @@ pub async fn get_file(state: &AppState, vault_id: String, path: String) -> Resul
     })
 }
 
-pub async fn get_changes(state: &AppState, vault_id: String, since: i64) -> Result<ChangesResponse, AppError> {
+pub async fn get_changes(
+    state: &AppState,
+    vault_id: String,
+    since: i64,
+) -> Result<ChangesResponse, AppError> {
     let vault_id = storage::validate_vault_id(&vault_id)?;
     let rows = sqlx::query(
         "SELECT seq, vault_id, device_id, path, version, deleted FROM changes WHERE vault_id = ?1 AND seq > ?2 ORDER BY seq ASC",
@@ -435,7 +452,10 @@ pub async fn get_changes(state: &AppState, vault_id: String, since: i64) -> Resu
 
     let latest_seq = get_latest_seq(state, vault_id).await?;
 
-    Ok(ChangesResponse { changes, latest_seq })
+    Ok(ChangesResponse {
+        changes,
+        latest_seq,
+    })
 }
 
 pub async fn get_latest_seq(state: &AppState, vault_id: String) -> Result<i64, AppError> {
@@ -577,6 +597,47 @@ pub async fn get_vaults(state: &AppState) -> Result<VaultsResponse, AppError> {
     Ok(VaultsResponse { vaults })
 }
 
+pub async fn get_vault_snapshot(
+    state: &AppState,
+    vault_id: String,
+) -> Result<VaultSnapshotResponse, AppError> {
+    let vault_id = storage::validate_vault_id(&vault_id)?;
+    let rows = sqlx::query(
+        r#"
+        SELECT path, hash, version, deleted, content_format
+        FROM files
+        WHERE vault_id = ?1
+        ORDER BY path ASC
+        "#,
+    )
+    .bind(&vault_id)
+    .fetch_all(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+
+    let files = rows
+        .into_iter()
+        .map(|row| SnapshotFileItem {
+            path: row.get("path"),
+            hash: row.get("hash"),
+            version: row.get("version"),
+            deleted: row.get::<i64, _>("deleted") != 0,
+            content_format: content_format_from_db(&row.get::<String, _>("content_format"))
+                .unwrap_or(ContentFormat::Plain),
+        })
+        .collect::<Vec<_>>();
+
+    let latest_seq = sqlx::query_scalar::<_, i64>(
+        "SELECT COALESCE(MAX(seq), 0) FROM changes WHERE vault_id = ?1",
+    )
+    .bind(&vault_id)
+    .fetch_one(state.pool())
+    .await
+    .map_err(AppError::internal)?;
+
+    Ok(VaultSnapshotResponse { latest_seq, files })
+}
+
 pub async fn create_vault(
     state: &AppState,
     request: CreateVaultRequest,
@@ -619,7 +680,11 @@ pub async fn create_vault(
     })
 }
 
-async fn get_file_record(pool: &SqlitePool, vault_id: &str, path: &str) -> Result<Option<FileRecord>, AppError> {
+async fn get_file_record(
+    pool: &SqlitePool,
+    vault_id: &str,
+    path: &str,
+) -> Result<Option<FileRecord>, AppError> {
     let row = sqlx::query(
         "SELECT vault_id, path, hash, payload_hash, content_format, version, deleted FROM files WHERE vault_id = ?1 AND path = ?2",
     )
@@ -657,7 +722,9 @@ fn content_format_from_db(value: &str) -> Result<ContentFormat, AppError> {
     match value {
         "plain" => Ok(ContentFormat::Plain),
         "e2ee-envelope-v1" => Ok(ContentFormat::E2eeEnvelopeV1),
-        _ => Err(AppError::InvalidPayload("content_format is invalid".to_string())),
+        _ => Err(AppError::InvalidPayload(
+            "content_format is invalid".to_string(),
+        )),
     }
 }
 
@@ -703,7 +770,10 @@ async fn touch_vault(pool: &SqlitePool, vault_id: &str, now: &str) -> Result<(),
     Ok(())
 }
 
-async fn get_vault_record(pool: &SqlitePool, vault_id: &str) -> Result<Option<VaultRecord>, AppError> {
+async fn get_vault_record(
+    pool: &SqlitePool,
+    vault_id: &str,
+) -> Result<Option<VaultRecord>, AppError> {
     let row = sqlx::query(
         r#"
         SELECT vaults.vault_id, vaults.created_at, vaults.updated_at, vaults.e2ee_fingerprint, COUNT(devices.device_id) AS device_count

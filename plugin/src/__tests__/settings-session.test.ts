@@ -212,6 +212,7 @@ function createControllerStub(overrides?: Partial<Record<keyof ControllerStub, u
     rememberCurrentE2eePassphrase: vi.fn(),
     validateVaultJoinPassphrase: vi.fn().mockResolvedValue(undefined),
     hasRemoteVaultContent: vi.fn().mockResolvedValue(false),
+    bootstrapJoinedVaultState: vi.fn().mockResolvedValue(undefined),
     getRemoteVaults: vi.fn().mockResolvedValue([]),
     checkConnection: vi.fn().mockResolvedValue("ready"),
     restartAutoSync: vi.fn(),
@@ -234,6 +235,7 @@ type ControllerStub = {
   rememberCurrentE2eePassphrase: ReturnType<typeof vi.fn>;
   validateVaultJoinPassphrase: ReturnType<typeof vi.fn>;
   hasRemoteVaultContent: ReturnType<typeof vi.fn>;
+  bootstrapJoinedVaultState: ReturnType<typeof vi.fn>;
   getRemoteVaults: ReturnType<typeof vi.fn>;
   checkConnection: ReturnType<typeof vi.fn>;
   restartAutoSync: ReturnType<typeof vi.fn>;

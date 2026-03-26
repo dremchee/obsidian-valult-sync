@@ -5,7 +5,7 @@ import { encryptBytes, serializeEnvelope } from "../e2ee/crypto";
 import { SettingsController } from "../settings/controller";
 import { PluginStateStore } from "../state/store";
 import { bytesToBase64 } from "../sync/payload-codec";
-import type { FileResponse, SyncSettings, SyncState } from "../types";
+import type { FileResponse, SyncSettings, SyncState, VaultSnapshotResponse } from "../types";
 
 const DEFAULT_SETTINGS: SyncSettings = {
   serverUrl: "http://127.0.0.1:3000",
@@ -243,6 +243,107 @@ describe("SettingsController", () => {
       code: "missing_passphrase",
     });
   });
+
+  it("bootstraps joined vault state with hash-matched local files", async () => {
+    let settings = { ...DEFAULT_SETTINGS, vaultId: "vault-a" };
+    let state = { ...DEFAULT_STATE, vaultId: "vault-a" };
+    const persistData = vi.fn().mockResolvedValue(undefined);
+    const getSnapshot = vi.fn().mockResolvedValue({
+      latest_seq: 5,
+      files: [
+        {
+          path: "notes/matched.md",
+          hash: "hash-a",
+          version: 3,
+          deleted: false,
+          content_format: "plain",
+        },
+        {
+          path: "notes/changed.md",
+          hash: "remote-hash",
+          version: 4,
+          deleted: false,
+          content_format: "plain",
+        },
+        {
+          path: "notes/deleted.md",
+          hash: "",
+          version: 2,
+          deleted: true,
+          content_format: "plain",
+        },
+      ],
+    } satisfies VaultSnapshotResponse);
+
+    const controller = new SettingsController(
+      () => settings,
+      (nextSettings) => {
+        settings = nextSettings;
+      },
+      () => state,
+      (nextState) => {
+        state = nextState;
+      },
+      persistData,
+      new PluginStateStore(),
+      new E2eeState(),
+      {
+        markDirty: vi.fn(),
+        restartAutoSync: vi.fn(),
+        pauseAutoSync: vi.fn(),
+        runManualSync: vi.fn(),
+        hasPendingWork: vi.fn().mockReturnValue(false),
+      } as never,
+      () => ({
+        health: vi.fn(),
+        upload: vi.fn(),
+        delete: vi.fn(),
+        getFile: vi.fn(),
+        getChanges: vi.fn(),
+        getHistory: vi.fn(),
+        getDevices: vi.fn(),
+        getVaults: vi.fn(),
+        getSnapshot,
+        createVault: vi.fn(),
+        restoreFile: vi.fn(),
+      }),
+    );
+
+    await controller.bootstrapJoinedVaultState("vault-a", [
+      {
+        path: "notes/matched.md",
+        hash: "hash-a",
+        mtime: 100,
+      },
+      {
+        path: "notes/changed.md",
+        hash: "local-hash",
+        mtime: 200,
+      },
+      {
+        path: "notes/local-only.md",
+        hash: "local-only-hash",
+        mtime: 300,
+      },
+    ]);
+
+    expect(getSnapshot).toHaveBeenCalledWith("vault-a");
+    expect(state).toEqual({
+      vaultId: "vault-a",
+      files: {
+        "notes/matched.md": {
+          hash: "hash-a",
+          version: 3,
+          mtime: 100,
+          deleted: false,
+        },
+      },
+      lastSeq: 0,
+      lastSyncAt: null,
+      lastSyncError: null,
+    });
+    expect(persistData).toHaveBeenCalledTimes(1);
+  });
 });
 
 function createController(
@@ -255,6 +356,7 @@ function createController(
     getHistory: ReturnType<typeof vi.fn>;
     getDevices: ReturnType<typeof vi.fn>;
     getVaults: ReturnType<typeof vi.fn>;
+    getSnapshot?: ReturnType<typeof vi.fn>;
     createVault: ReturnType<typeof vi.fn>;
     restoreFile: ReturnType<typeof vi.fn>;
   },
@@ -277,10 +379,14 @@ function createController(
     {
       markDirty: vi.fn(),
       restartAutoSync: vi.fn(),
+      pauseAutoSync: vi.fn(),
       runManualSync: vi.fn(),
       hasPendingWork: vi.fn().mockReturnValue(false),
     } as never,
-    apiFactory,
+    (serverUrl, authToken) => ({
+      getSnapshot: vi.fn(),
+      ...apiFactory(serverUrl, authToken),
+    }),
   );
 }
 

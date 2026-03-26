@@ -65,15 +65,25 @@ pub fn validate_device_id(device_id: &str) -> Result<String, AppError> {
     }
 }
 
-pub async fn write_file(storage_root: &Path, vault_id: &str, relative_path: &str, data: &[u8]) -> Result<()> {
+pub async fn write_file(
+    storage_root: &Path,
+    vault_id: &str,
+    relative_path: &str,
+    data: &[u8],
+) -> Result<()> {
     let target = resolve_path(storage_root, vault_id, relative_path)?;
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).await.context("failed to create storage directory")?;
+        fs::create_dir_all(parent)
+            .await
+            .context("failed to create storage directory")?;
     }
 
     let temp_name = format!(
         ".{}.tmp-{}",
-        target.file_name().and_then(|name| name.to_str()).unwrap_or("sync"),
+        target
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("sync"),
         unique_suffix()
     );
     let temp_path = target.with_file_name(temp_name);
@@ -88,7 +98,11 @@ pub async fn write_file(storage_root: &Path, vault_id: &str, relative_path: &str
     Ok(())
 }
 
-pub async fn read_file(storage_root: &Path, vault_id: &str, relative_path: &str) -> Result<Vec<u8>> {
+pub async fn read_file(
+    storage_root: &Path,
+    vault_id: &str,
+    relative_path: &str,
+) -> Result<Vec<u8>> {
     let path = resolve_path(storage_root, vault_id, relative_path)?;
     fs::read(path).await.context("failed to read file")
 }
@@ -111,12 +125,17 @@ pub async fn write_file_version(
 ) -> Result<()> {
     let target = resolve_version_path(storage_root, vault_id, relative_path, version)?;
     if let Some(parent) = target.parent() {
-        fs::create_dir_all(parent).await.context("failed to create history directory")?;
+        fs::create_dir_all(parent)
+            .await
+            .context("failed to create history directory")?;
     }
 
     let temp_name = format!(
         ".{}.tmp-{}",
-        target.file_name().and_then(|name| name.to_str()).unwrap_or("history"),
+        target
+            .file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("history"),
         unique_suffix()
     );
     let temp_path = target.with_file_name(temp_name);
@@ -157,7 +176,9 @@ fn resolve_version_path(
 ) -> Result<PathBuf> {
     let normalized_relative_path = validate_relative_path(relative_path)?;
     let history_root = storage_root.join(vault_id).join(".history");
-    let path = history_root.join(normalized_relative_path).join(format!("{version}.bin"));
+    let path = history_root
+        .join(normalized_relative_path)
+        .join(format!("{version}.bin"));
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).context("failed to create history parent directory")?;
     }

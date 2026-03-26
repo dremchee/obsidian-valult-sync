@@ -11,11 +11,13 @@ import type {
   DeviceItem,
   FileHistoryResponse,
   FileResponse,
+  LocalFileSnapshot,
   MutationResponse,
   RestoreFileRequest,
   SyncSettings,
   SyncState,
   VaultItem,
+  VaultSnapshotResponse,
   VaultScopeConfig,
 } from "../types";
 
@@ -29,6 +31,7 @@ type SettingsApi = Pick<
   | "getHistory"
   | "getDevices"
   | "getVaults"
+  | "getSnapshot"
   | "createVault"
   | "restoreFile"
 >;
@@ -150,6 +153,41 @@ export class SettingsController {
   async getRemoteVaults(): Promise<VaultItem[]> {
     const response = await this.api().getVaults();
     return response.vaults;
+  }
+
+  getVaultSnapshot(vaultId: string): Promise<VaultSnapshotResponse> {
+    return this.api().getSnapshot(vaultId);
+  }
+
+  async bootstrapJoinedVaultState(
+    vaultId: string,
+    localFiles: Array<Pick<LocalFileSnapshot, "path" | "hash" | "mtime">>,
+  ): Promise<void> {
+    const normalizedVaultId = vaultId.trim();
+    if (!normalizedVaultId) {
+      return;
+    }
+
+    const snapshot = await this.getVaultSnapshot(normalizedVaultId);
+    const nextState = this.stateStore.resetState(normalizedVaultId);
+    const remoteFilesByPath = new Map(snapshot.files.map((file) => [file.path, file]));
+
+    for (const localFile of localFiles) {
+      const remoteFile = remoteFilesByPath.get(localFile.path);
+      if (!remoteFile || remoteFile.deleted || remoteFile.hash !== localFile.hash) {
+        continue;
+      }
+
+      nextState.files[localFile.path] = {
+        hash: localFile.hash,
+        version: remoteFile.version,
+        mtime: localFile.mtime,
+        deleted: false,
+      };
+    }
+
+    this.setState(nextState);
+    await this.persistData();
   }
 
   getFileHistory(path: string, vaultId = this.getSettings().vaultId): Promise<FileHistoryResponse> {

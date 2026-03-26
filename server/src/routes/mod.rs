@@ -6,5 +6,6 @@ pub mod file;
 pub mod health;
 pub mod history;
 pub mod restore;
+pub mod snapshot;
 pub mod upload;
 pub mod vaults;

@@ -115,6 +115,19 @@ export interface VaultsResponse {
   vaults: VaultItem[];
 }
 
+export interface SnapshotFileItem {
+  path: string;
+  hash: string;
+  version: number;
+  deleted: boolean;
+  content_format: ContentFormat;
+}
+
+export interface VaultSnapshotResponse {
+  latest_seq: number;
+  files: SnapshotFileItem[];
+}
+
 export interface FileVersionItem {
   version: number;
   hash: string;

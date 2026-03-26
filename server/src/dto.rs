@@ -128,6 +128,21 @@ pub struct VaultsResponse {
 }
 
 #[derive(Debug, Serialize)]
+pub struct SnapshotFileItem {
+    pub path: String,
+    pub hash: String,
+    pub version: i64,
+    pub deleted: bool,
+    pub content_format: ContentFormat,
+}
+
+#[derive(Debug, Serialize)]
+pub struct VaultSnapshotResponse {
+    pub latest_seq: i64,
+    pub files: Vec<SnapshotFileItem>,
+}
+
+#[derive(Debug, Serialize)]
 pub struct CreateVaultResponse {
     pub ok: bool,
     pub created: bool,

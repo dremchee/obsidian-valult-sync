@@ -3,11 +3,13 @@ import { computed, reactive } from "vue";
 
 import { t } from "../i18n";
 import { buildPassphraseFingerprint } from "../e2ee/crypto";
+import { ObsidianVaultIO } from "../sync/vault-io";
 import { normalizePatternList, shouldSyncPath } from "../sync/scope";
 import { createSyncError, formatSyncErrorState } from "../sync/errors";
 import type {
   CreateVaultResponse,
   DeviceItem,
+  LocalFileSnapshot,
   SyncSettings,
   SyncState,
   VaultItem,
@@ -56,6 +58,10 @@ export interface SettingsSessionController {
   rememberCurrentE2eePassphrase(): Promise<void>;
   validateVaultJoinPassphrase(vaultId: string, passphrase: string): Promise<void>;
   hasRemoteVaultContent(vaultId: string): Promise<boolean>;
+  bootstrapJoinedVaultState(
+    vaultId: string,
+    localFiles: Array<Pick<LocalFileSnapshot, "path" | "hash" | "mtime">>,
+  ): Promise<void>;
   getRemoteVaults(): Promise<VaultItem[]>;
   checkConnection(): Promise<string>;
   restartAutoSync(): void;
@@ -72,6 +78,7 @@ export interface SettingsSessionController {
 export class SettingsSession {
   readonly model = reactive({} as SettingsViewModel);
   readonly actions: SettingsActions;
+  private readonly vaultIO: ObsidianVaultIO;
 
   private readonly state = reactive<SettingsSessionState>({
     authTokenDraft: null,
@@ -129,6 +136,7 @@ export class SettingsSession {
     private readonly host: SettingsSessionHost,
     private readonly controller: SettingsSessionController,
   ) {
+    this.vaultIO = new ObsidianVaultIO(app);
     this.actions = this.createActions();
     this.sync();
   }
@@ -304,6 +312,23 @@ export class SettingsSession {
         ignorePatterns,
       ),
     );
+  }
+
+  private async getSyncableLocalFileSnapshots(
+    targetVaultId = this.host.settings.vaultId,
+  ): Promise<Array<Pick<LocalFileSnapshot, "path" | "hash" | "mtime">>> {
+    const shouldResetScope = Boolean(this.host.settings.vaultId && this.host.settings.vaultId !== targetVaultId);
+    const includePatterns = shouldResetScope ? [] : this.host.settings.includePatterns;
+    const ignorePatterns = shouldResetScope ? [] : this.host.settings.ignorePatterns;
+    const snapshots = await this.vaultIO.scanVaultFiles((path) =>
+      shouldSyncPath(path, includePatterns, ignorePatterns),
+    );
+
+    return Array.from(snapshots.values()).map((snapshot) => ({
+      path: snapshot.path,
+      hash: snapshot.hash,
+      mtime: snapshot.mtime,
+    }));
   }
 
   private async discardSyncableLocalFiles(): Promise<void> {
@@ -706,6 +731,8 @@ export class SettingsSession {
         this.sync();
 
         try {
+          const localFiles = await this.getSyncableLocalFileSnapshots(pendingJoinDecision.vaultId);
+          await this.controller.bootstrapJoinedVaultState(pendingJoinDecision.vaultId, localFiles);
           await this.controller.runManualSync();
           this.controller.restartAutoSync();
           this.clearPendingJoinDecision();

@@ -6,7 +6,7 @@ use axum::{
 };
 use http_body_util::BodyExt;
 use obsidian_sync_server::{app, db, state::AppState};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use tempfile::TempDir;
 use tower::util::ServiceExt;
 
@@ -15,7 +15,12 @@ async fn health_returns_ok() {
     let (_tmp_dir, app) = test_app().await;
 
     let response = app
-        .oneshot(Request::builder().uri("/health").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/health")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -101,10 +106,18 @@ async fn create_vault_then_list_vaults() {
     assert_eq!(created["created"], json!(true));
     assert_eq!(created["vault"]["vault_id"], json!("product_docs"));
     assert_eq!(created["vault"]["device_count"], json!(0));
-    assert_eq!(created["vault"]["e2ee_fingerprint"], json!("fingerprint-123"));
+    assert_eq!(
+        created["vault"]["e2ee_fingerprint"],
+        json!("fingerprint-123")
+    );
 
     let vaults_response = app
-        .oneshot(Request::builder().uri("/vaults").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/vaults")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -115,13 +128,109 @@ async fn create_vault_then_list_vaults() {
 }
 
 #[tokio::test]
+async fn snapshot_returns_current_vault_state() {
+    let (_tmp_dir, app) = test_app().await;
+
+    upload_test_file(&app).await;
+
+    let delete_response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/delete")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "vault_id": "vault-a",
+                        "device_id": "device_a",
+                        "path": "notes/test.md",
+                        "base_version": 1
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(delete_response.status(), StatusCode::OK);
+
+    let second_upload = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/upload")
+                .header("content-type", "application/json")
+                .body(Body::from(
+                    json!({
+                        "vault_id": "vault-a",
+                        "device_id": "device_b",
+                        "path": "notes/live.md",
+                        "content_b64": "d29ybGQK",
+                        "hash": "e258d248fda94c63753607f7c4494ee0fcbe92f1a76bfdac795c9d84101eb317",
+                        "payload_hash": "e258d248fda94c63753607f7c4494ee0fcbe92f1a76bfdac795c9d84101eb317",
+                        "content_format": "plain",
+                        "base_version": 0
+                    })
+                    .to_string(),
+                ))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(second_upload.status(), StatusCode::OK);
+
+    let snapshot_response = app
+        .oneshot(
+            Request::builder()
+                .uri("/snapshot?vault_id=vault-a")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(snapshot_response.status(), StatusCode::OK);
+    assert_eq!(
+        read_json(snapshot_response).await,
+        json!({
+            "latest_seq": 3,
+            "files": [
+                {
+                    "path": "notes/live.md",
+                    "hash": "e258d248fda94c63753607f7c4494ee0fcbe92f1a76bfdac795c9d84101eb317",
+                    "version": 1,
+                    "deleted": false,
+                    "content_format": "plain"
+                },
+                {
+                    "path": "notes/test.md",
+                    "hash": "",
+                    "version": 2,
+                    "deleted": true,
+                    "content_format": "plain"
+                }
+            ]
+        })
+    );
+}
+
+#[tokio::test]
 async fn upload_auto_registers_vault_in_registry() {
     let (_tmp_dir, app) = test_app().await;
 
     upload_test_file(&app).await;
 
     let vaults_response = app
-        .oneshot(Request::builder().uri("/vaults").body(Body::empty()).unwrap())
+        .oneshot(
+            Request::builder()
+                .uri("/vaults")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
 
@@ -166,7 +275,10 @@ async fn upload_file_then_fetch_file_and_changes() {
         .unwrap();
 
     assert_eq!(upload_response.status(), StatusCode::OK);
-    assert_eq!(read_json(upload_response).await, json!({ "ok": true, "version": 1 }));
+    assert_eq!(
+        read_json(upload_response).await,
+        json!({ "ok": true, "version": 1 })
+    );
 
     let file_response = app
         .clone()
@@ -324,7 +436,10 @@ async fn upload_e2ee_payload_then_fetch_file_metadata() {
         .unwrap();
 
     assert_eq!(upload_response.status(), StatusCode::OK);
-    assert_eq!(read_json(upload_response).await, json!({ "ok": true, "version": 1 }));
+    assert_eq!(
+        read_json(upload_response).await,
+        json!({ "ok": true, "version": 1 })
+    );
 
     let file_response = app
         .clone()
@@ -379,7 +494,10 @@ async fn delete_creates_tombstone_and_change_event() {
         .unwrap();
 
     assert_eq!(delete_response.status(), StatusCode::OK);
-    assert_eq!(read_json(delete_response).await, json!({ "ok": true, "version": 2 }));
+    assert_eq!(
+        read_json(delete_response).await,
+        json!({ "ok": true, "version": 2 })
+    );
 
     let file_response = app
         .clone()
@@ -455,7 +573,10 @@ async fn history_lists_versions_and_restore_recreates_old_content() {
     )
     .await;
     assert_eq!(first_upload.status(), StatusCode::OK);
-    assert_eq!(read_json(first_upload).await, json!({ "ok": true, "version": 1 }));
+    assert_eq!(
+        read_json(first_upload).await,
+        json!({ "ok": true, "version": 1 })
+    );
 
     let second_upload = upload_file(
         &app,
@@ -468,7 +589,10 @@ async fn history_lists_versions_and_restore_recreates_old_content() {
     )
     .await;
     assert_eq!(second_upload.status(), StatusCode::OK);
-    assert_eq!(read_json(second_upload).await, json!({ "ok": true, "version": 2 }));
+    assert_eq!(
+        read_json(second_upload).await,
+        json!({ "ok": true, "version": 2 })
+    );
 
     let history_response = get_history(&app, "vault-a", "notes/history.md").await;
     assert_eq!(history_response.status(), StatusCode::OK);
@@ -477,19 +601,29 @@ async fn history_lists_versions_and_restore_recreates_old_content() {
     let versions = history_json["versions"].as_array().unwrap();
     assert_eq!(versions.len(), 2);
     assert_eq!(versions[0]["version"], json!(2));
-    assert_eq!(versions[0]["hash"], json!("480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4"));
+    assert_eq!(
+        versions[0]["hash"],
+        json!("480c2336b410f1ad5f8bf1b28944490255804b65350c527787e74ebdd511e3a4")
+    );
     assert_eq!(versions[0]["content_format"], json!("plain"));
     assert_eq!(versions[0]["deleted"], json!(false));
     assert!(versions[0]["created_at"].as_str().unwrap().contains('T'));
     assert_eq!(versions[1]["version"], json!(1));
-    assert_eq!(versions[1]["hash"], json!("b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41"));
+    assert_eq!(
+        versions[1]["hash"],
+        json!("b640e840b19d378660b32fb51ae18d67dccb4a8596a29e7bd72c1b2ae5928f41")
+    );
     assert_eq!(versions[1]["content_format"], json!("plain"));
     assert_eq!(versions[1]["deleted"], json!(false));
     assert!(versions[1]["created_at"].as_str().unwrap().contains('T'));
 
-    let restore_response = restore_file(&app, "vault-a", "device-a", "notes/history.md", 1, 2).await;
+    let restore_response =
+        restore_file(&app, "vault-a", "device-a", "notes/history.md", 1, 2).await;
     assert_eq!(restore_response.status(), StatusCode::OK);
-    assert_eq!(read_json(restore_response).await, json!({ "ok": true, "version": 3 }));
+    assert_eq!(
+        read_json(restore_response).await,
+        json!({ "ok": true, "version": 3 })
+    );
 
     let file_response = get_file(&app, "vault-a", "notes/history.md").await;
     assert_eq!(file_response.status(), StatusCode::OK);
@@ -680,7 +814,10 @@ async fn sync_flow_across_two_devices_surfaces_conflict_and_tombstone() {
     )
     .await;
     assert_eq!(first_upload.status(), StatusCode::OK);
-    assert_eq!(read_json(first_upload).await, json!({ "ok": true, "version": 1 }));
+    assert_eq!(
+        read_json(first_upload).await,
+        json!({ "ok": true, "version": 1 })
+    );
 
     let device_b_changes = get_changes(&app, "vault-a", 0).await;
     assert_eq!(device_b_changes.status(), StatusCode::OK);
@@ -736,7 +873,10 @@ async fn sync_flow_across_two_devices_surfaces_conflict_and_tombstone() {
 
     let delete_response = delete_file(&app, "vault-a", "device-a", "notes/shared.md", 1).await;
     assert_eq!(delete_response.status(), StatusCode::OK);
-    assert_eq!(read_json(delete_response).await, json!({ "ok": true, "version": 2 }));
+    assert_eq!(
+        read_json(delete_response).await,
+        json!({ "ok": true, "version": 2 })
+    );
 
     let tombstone_changes = get_changes(&app, "vault-a", 1).await;
     assert_eq!(tombstone_changes.status(), StatusCode::OK);
@@ -776,8 +916,16 @@ async fn sync_flow_across_two_devices_surfaces_conflict_and_tombstone() {
     assert_eq!(devices_json["devices"].as_array().unwrap().len(), 2);
     assert_eq!(devices_json["devices"][0]["device_id"], json!("device-a"));
     assert_eq!(devices_json["devices"][1]["device_id"], json!("device-b"));
-    assert!(devices_json["devices"][0]["first_seen_at"].as_str().is_some());
-    assert!(devices_json["devices"][0]["last_seen_at"].as_str().is_some());
+    assert!(
+        devices_json["devices"][0]["first_seen_at"]
+            .as_str()
+            .is_some()
+    );
+    assert!(
+        devices_json["devices"][0]["last_seen_at"]
+            .as_str()
+            .is_some()
+    );
 }
 
 async fn read_json(response: axum::response::Response) -> Value {

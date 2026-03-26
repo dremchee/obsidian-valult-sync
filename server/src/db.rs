@@ -1,7 +1,7 @@
 use std::path::Path;
 
 use anyhow::{Context, Result};
-use sqlx::{sqlite::SqliteConnectOptions, Pool, Sqlite, SqlitePool};
+use sqlx::{Pool, Sqlite, SqlitePool, sqlite::SqliteConnectOptions};
 
 static MIGRATOR: sqlx::migrate::Migrator = sqlx::migrate!("./migrations");
 

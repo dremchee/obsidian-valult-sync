@@ -2,10 +2,10 @@ use std::{convert::Infallible, time::Duration};
 
 use async_stream::stream;
 use axum::{
+    Router,
     extract::{Query, State},
     response::sse::{Event, KeepAlive, Sse},
     routing::get,
-    Router,
 };
 use serde::Deserialize;
 
@@ -54,13 +54,11 @@ async fn stream_events(
         }
     };
 
-    Ok(
-        Sse::new(events).keep_alive(
-            KeepAlive::new()
-                .interval(Duration::from_secs(15))
-                .text("keepalive"),
-        ),
-    )
+    Ok(Sse::new(events).keep_alive(
+        KeepAlive::new()
+            .interval(Duration::from_secs(15))
+            .text("keepalive"),
+    ))
 }
 
 fn event_for_latest_seq(latest_seq: i64) -> Event {

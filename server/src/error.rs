@@ -1,7 +1,7 @@
 use axum::{
+    Json,
     http::StatusCode,
     response::{IntoResponse, Response},
-    Json,
 };
 use serde::Serialize;
 use thiserror::Error;
@@ -60,9 +60,7 @@ impl AppError {
             | Self::InvalidDeviceId
             | Self::InvalidPayload(_)
             | Self::InvalidBase64
-            | Self::HashMismatch => {
-                StatusCode::BAD_REQUEST
-            }
+            | Self::HashMismatch => StatusCode::BAD_REQUEST,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }

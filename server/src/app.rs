@@ -1,7 +1,10 @@
 use axum::{
-    http::{header::{AUTHORIZATION, CONTENT_TYPE}, Method},
-    middleware,
     Router,
+    http::{
+        Method,
+        header::{AUTHORIZATION, CONTENT_TYPE},
+    },
+    middleware,
 };
 use tower_http::{
     cors::{Any, CorsLayer},
@@ -24,6 +27,7 @@ pub fn build_router(state: AppState) -> Router {
         .merge(routes::events::router())
         .merge(routes::delete::router())
         .merge(routes::vaults::router())
+        .merge(routes::snapshot::router())
         .merge(routes::history::router())
         .merge(routes::restore::router())
         .route_layer(middleware::from_fn_with_state(

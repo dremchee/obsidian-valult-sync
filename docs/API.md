@@ -149,6 +149,40 @@ notes/daily/2026-03-10.md
 
 ---
 
+## GET /snapshot
+
+Вернуть актуальный snapshot состояния vault по последним версиям файлов.
+
+### Query params
+
+- `vault_id`
+
+### Response
+
+```json
+{
+  "latest_seq": 5,
+  "files": [
+    {
+      "path": "notes/test.md",
+      "hash": "f2d2b0e86e...",
+      "version": 4,
+      "deleted": false,
+      "content_format": "plain"
+    }
+  ]
+}
+```
+
+### Примечания
+
+- возвращаются текущие записи из `files`, а не вся история версий
+- `deleted: true` означает актуальный tombstone для path
+- `hash` это тот же логический hash содержимого, который клиент использует для upload
+- `latest_seq` можно использовать как watermark changelog, но клиент сам решает, как именно его применять
+
+---
+
 ## POST /vaults
 
 Создать vault или зарегистрировать его в серверном реестре.

@@ -9,6 +9,7 @@ import type {
   FileResponse,
   MutationResponse,
   RestoreFileRequest,
+  VaultSnapshotResponse,
   UploadRequest,
   VaultsResponse,
 } from "./types";
@@ -66,6 +67,11 @@ export class SyncApi {
 
   getVaults(): Promise<VaultsResponse> {
     return this.getJson("/vaults");
+  }
+
+  getSnapshot(vaultId: string): Promise<VaultSnapshotResponse> {
+    const encodedVaultId = encodeURIComponent(vaultId);
+    return this.getJson(`/snapshot?vault_id=${encodedVaultId}`);
   }
 
   createVault(vaultId: string, e2eeFingerprint: string | null): Promise<CreateVaultResponse> {

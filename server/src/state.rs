@@ -1,4 +1,8 @@
-use std::{collections::HashMap, path::PathBuf, sync::{Arc, Mutex}};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
 
 use sqlx::SqlitePool;
 use tokio::sync::broadcast;
@@ -48,7 +52,11 @@ impl AppState {
     }
 
     fn channel_for_vault(&self, vault_id: &str) -> broadcast::Sender<i64> {
-        let mut channels = self.inner.realtime_channels.lock().expect("realtime channel mutex poisoned");
+        let mut channels = self
+            .inner
+            .realtime_channels
+            .lock()
+            .expect("realtime channel mutex poisoned");
         channels
             .entry(vault_id.to_owned())
             .or_insert_with(|| {
