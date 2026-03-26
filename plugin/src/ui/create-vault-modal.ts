@@ -2,7 +2,11 @@ import { Modal } from "obsidian";
 
 import { t } from "../i18n";
 import CreateVaultModalView from "./components/CreateVaultModal.vue";
-import { destroyComponent, mountComponent, type MountedVueComponent } from "./vue";
+import {
+  destroyComponent,
+  mountReactiveComponent,
+  type ReactiveMountedVueComponent,
+} from "./vue";
 
 export type CreateVaultModalResult = {
   vaultId: string;
@@ -13,7 +17,11 @@ type SubmitCreateVault = (result: CreateVaultModalResult | null) => void;
 
 export class CreateVaultModal extends Modal {
   private submitted = false;
-  private component: MountedVueComponent | null = null;
+  private component: ReactiveMountedVueComponent<{
+    initialVaultId: string;
+    onSubmit: (result: CreateVaultModalResult) => void;
+    onCancel: () => void;
+  }> | null = null;
 
   constructor(
     app: Modal["app"],
@@ -26,7 +34,7 @@ export class CreateVaultModal extends Modal {
   onOpen(): void {
     this.titleEl.setText(t("modal.createVault.title"));
     this.contentEl.empty();
-    this.component = mountComponent(CreateVaultModalView, this.contentEl, {
+    this.component = mountReactiveComponent(CreateVaultModalView, this.contentEl, {
       initialVaultId: this.initialVaultId,
       onSubmit: (result: CreateVaultModalResult) => {
         this.submitted = true;
@@ -40,7 +48,7 @@ export class CreateVaultModal extends Modal {
   }
 
   async onClose(): Promise<void> {
-    await destroyComponent(this.component);
+    await destroyComponent(this.component?.app ?? null);
     this.component = null;
     this.contentEl.empty();
     if (!this.submitted) {

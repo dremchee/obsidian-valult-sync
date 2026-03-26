@@ -5,11 +5,8 @@ import { t } from "@/i18n";
 
 const props = defineProps<{
   initialVaultId: string;
-}>();
-
-const emit = defineEmits<{
-  submit: [result: { vaultId: string; passphrase: string }];
-  cancel: [];
+  onSubmit: (result: { vaultId: string; passphrase: string }) => void;
+  onCancel: () => void;
 }>();
 
 const vaultId = shallowRef(props.initialVaultId);
@@ -45,7 +42,7 @@ function submit(): void {
     return;
   }
 
-  emit("submit", {
+  props.onSubmit({
     vaultId: normalizedVaultId,
     passphrase: passphrase.value,
   });
@@ -108,7 +105,7 @@ function submit(): void {
   <div class="setting-item-description obsidian-sync-modal-error">{{ error }}</div>
 
   <div class="obsidian-sync-modal-actions">
-    <button type="button" @click="emit('cancel')">{{ t("settings.common.cancel") }}</button>
+    <button type="button" @click="props.onCancel()">{{ t("settings.common.cancel") }}</button>
     <button type="button" class="mod-cta" @click="submit">{{ t("modal.createVault.create") }}</button>
   </div>
 </template>

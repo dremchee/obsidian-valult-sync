@@ -2,7 +2,12 @@ import { Menu } from "obsidian";
 
 import { t } from "../i18n";
 import StatusBarView from "./components/StatusBar.vue";
-import { destroyComponent, mountComponent, type MountedVueComponent } from "./vue";
+import {
+  destroyComponent,
+  mountReactiveComponent,
+  type MountedVueComponent,
+  type ReactiveMountedVueComponent,
+} from "./vue";
 
 export type StatusBarState = "ok" | "pending" | "syncing" | "error" | "disabled";
 
@@ -15,8 +20,8 @@ export interface StatusBarSnapshot {
 }
 
 export class PluginStatusBar {
-  private intervalId: number | null = null;
-  private component: MountedVueComponent | null = null;
+  private intervalId: ReturnType<typeof globalThis.setInterval> | null = null;
+  private component: ReactiveMountedVueComponent<{ snapshot: StatusBarSnapshot }> | null = null;
 
   constructor(
     private readonly statusBarEl: HTMLElement,
@@ -27,19 +32,24 @@ export class PluginStatusBar {
   start(): void {
     this.statusBarEl.addClass("mod-clickable");
     this.statusBarEl.addEventListener("click", this.handleClick);
-    this.render();
-    this.intervalId = window.setInterval(() => {
-      this.render();
+    this.statusBarEl.style.display = "inline-flex";
+    this.statusBarEl.style.alignItems = "center";
+    this.statusBarEl.style.gap = "6px";
+    this.component = mountReactiveComponent(StatusBarView, this.statusBarEl, {
+      snapshot: this.getSnapshot(),
+    });
+    this.intervalId = globalThis.setInterval(() => {
+      this.syncSnapshot();
     }, 1000);
   }
 
   stop(): void {
     if (this.intervalId !== null) {
-      window.clearInterval(this.intervalId);
+      globalThis.clearInterval(this.intervalId);
       this.intervalId = null;
     }
     this.statusBarEl.removeEventListener("click", this.handleClick);
-    void destroyComponent(this.component);
+    void destroyComponent(this.component?.app ?? null);
     this.component = null;
   }
 
@@ -75,14 +85,12 @@ export class PluginStatusBar {
     menu.showAtMouseEvent(evt);
   };
 
-  private render(): void {
-    const snapshot = this.getSnapshot();
-    this.statusBarEl.empty();
-    this.statusBarEl.style.display = "inline-flex";
-    this.statusBarEl.style.alignItems = "center";
-    this.statusBarEl.style.gap = "6px";
-    void destroyComponent(this.component);
-    this.component = mountComponent(StatusBarView, this.statusBarEl, { snapshot });
+  private syncSnapshot(): void {
+    if (!this.component) {
+      return;
+    }
+
+    Object.assign(this.component.props.snapshot, this.getSnapshot());
   }
 }
 

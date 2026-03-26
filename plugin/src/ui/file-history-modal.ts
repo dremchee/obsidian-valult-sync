@@ -4,12 +4,19 @@ import { t } from "../i18n";
 import type { FileVersionItem } from "../types";
 import type { HistoryState } from "./file-history-types";
 import FileHistoryModalView from "./components/FileHistoryModal.vue";
-import { destroyComponent, mountComponent, type MountedVueComponent } from "./vue";
+import {
+  destroyComponent,
+  mountReactiveComponent,
+  type ReactiveMountedVueComponent,
+} from "./vue";
 
 export class FileHistoryModal extends Modal {
-  private component: MountedVueComponent | null = null;
-  private state: HistoryState = { kind: "loading" };
-  private restoringVersion: number | null = null;
+  private component: ReactiveMountedVueComponent<{
+    currentVersion: number;
+    state: HistoryState;
+    restoringVersion: number | null;
+    onRestore: (targetVersion: number) => Promise<void>;
+  }> | null = null;
 
   constructor(
     app: Modal["app"],
@@ -27,49 +34,54 @@ export class FileHistoryModal extends Modal {
       path: this.path,
     }));
     this.contentEl.empty();
-    this.renderView();
-    void this.render();
-  }
-
-  private async render(): Promise<void> {
-    this.state = { kind: "loading" };
-    this.renderView();
-
-    try {
-      const versions = await this.loadHistory();
-      this.state = { kind: "loaded", versions };
-    } catch (error) {
-      this.state = {
-        kind: "error",
-        message: error instanceof Error ? error.message : String(error),
-      };
-    }
-    this.renderView();
-  }
-
-  async onClose(): Promise<void> {
-    await destroyComponent(this.component);
-    this.component = null;
-    this.contentEl.empty();
-  }
-
-  private renderView(): void {
-    void destroyComponent(this.component);
-    this.component = mountComponent(FileHistoryModalView, this.contentEl, {
+    this.component = mountReactiveComponent(FileHistoryModalView, this.contentEl, {
       currentVersion: this.currentVersion,
-      state: this.state,
-      restoringVersion: this.restoringVersion,
+      state: { kind: "loading" },
+      restoringVersion: null,
       onRestore: async (targetVersion: number) => {
-        this.restoringVersion = targetVersion;
-        this.renderView();
+        if (!this.component) {
+          return;
+        }
+
+        this.component.props.restoringVersion = targetVersion;
         try {
           await this.restoreVersion(targetVersion);
           this.close();
         } finally {
-          this.restoringVersion = null;
-          this.renderView();
+          if (this.component) {
+            this.component.props.restoringVersion = null;
+          }
         }
       },
     });
+    void this.render();
+  }
+
+  private async render(): Promise<void> {
+    this.syncState({ kind: "loading" });
+
+    try {
+      const versions = await this.loadHistory();
+      this.syncState({ kind: "loaded", versions });
+    } catch (error) {
+      this.syncState({
+        kind: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+
+  async onClose(): Promise<void> {
+    await destroyComponent(this.component?.app ?? null);
+    this.component = null;
+    this.contentEl.empty();
+  }
+
+  private syncState(state: HistoryState): void {
+    if (!this.component) {
+      return;
+    }
+
+    this.component.props.state = state;
   }
 }

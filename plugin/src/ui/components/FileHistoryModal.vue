@@ -7,10 +7,7 @@ const props = defineProps<{
   currentVersion: number;
   state: HistoryState;
   restoringVersion: number | null;
-}>();
-
-const emit = defineEmits<{
-  restore: [version: number];
+  onRestore: (version: number) => Promise<void>;
 }>();
 
 function formatTimestamp(value: string): string {
@@ -60,7 +57,7 @@ function buildVersionDescription(version: FileVersionItem): string {
           v-else
           type="button"
           :disabled="props.restoringVersion === version.version"
-          @click="emit('restore', version.version)"
+          @click="props.onRestore(version.version)"
         >
           {{ props.restoringVersion === version.version
             ? t("modal.fileHistory.restoring")
