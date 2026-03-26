@@ -3,12 +3,15 @@ import { Notice, Plugin, TFile } from "obsidian";
 import { SyncApi } from "./api";
 import { E2eeState } from "./e2ee/state";
 import { registerPluginTranslations, t } from "./i18n";
-import { SettingsController } from "./settings/controller";
+import { registerPluginCommands, registerVaultDirtyTracking } from "./plugin-registration";
+import {
+  createPluginRuntime,
+  DEFAULT_SETTINGS,
+  DEFAULT_STATE,
+  type PluginRuntime,
+} from "./runtime";
 import { SyncSettingTab } from "./settings/tab";
 import { PluginStateStore } from "./state/store";
-import { SyncCoordinator } from "./sync/coordinator";
-import { SyncEngine } from "./sync/engine";
-import { FileHistoryModal } from "./ui/file-history-modal";
 import { PluginStatusBar } from "./ui/status-bar";
 import type {
   PluginDataShape,
@@ -16,32 +19,13 @@ import type {
   SyncState,
 } from "./types";
 
-const DEFAULT_SETTINGS: SyncSettings = {
-  serverUrl: "http://127.0.0.1:3000",
-  vaultId: "",
-  includePatterns: [],
-  ignorePatterns: [],
-  deviceId: "",
-  authToken: "",
-  pollIntervalSecs: 2,
-  autoSync: true,
-};
-
-const DEFAULT_STATE: SyncState = {
-  vaultId: "",
-  files: {},
-  lastSeq: 0,
-  lastSyncAt: null,
-  lastSyncError: null,
-};
-
 export default class ObsidianSyncPlugin extends Plugin {
   settings: SyncSettings = structuredClone(DEFAULT_SETTINGS);
   state: SyncState = structuredClone(DEFAULT_STATE);
 
-  private engine!: SyncEngine;
-  private coordinator!: SyncCoordinator;
-  private settingsController!: SettingsController;
+  private engine!: PluginRuntime["engine"];
+  private coordinator!: PluginRuntime["coordinator"];
+  private settingsController!: PluginRuntime["settingsController"];
   private statusBar!: PluginStatusBar;
   private readonly e2eeState = new E2eeState();
   private readonly stateStore = new PluginStateStore();
@@ -50,41 +34,27 @@ export default class ObsidianSyncPlugin extends Plugin {
     registerPluginTranslations();
     await this.loadPluginData();
 
-    this.engine = new SyncEngine(
-      this.app,
-      () => this.settings,
-      () => this.getE2eePassphrase(),
-      async () => this.rememberCurrentE2eePassphrase(),
-      () => this.state,
-      async (state) => {
-        this.state = state;
-        await this.persistData();
-      },
-    );
-    this.coordinator = new SyncCoordinator(
-      () => this.settings,
-      () => this.state,
-      async (state) => {
-        this.state = state;
-        await this.persistData();
-      },
-      async () => this.engine.syncOnce(),
-    );
-    this.coordinator.markDirty();
-    this.settingsController = new SettingsController(
-      () => this.settings,
-      (settings) => {
+    const runtime = createPluginRuntime({
+      app: this.app,
+      getSettings: () => this.settings,
+      setSettings: (settings) => {
         this.settings = settings;
       },
-      () => this.state,
-      (state) => {
+      getState: () => this.state,
+      setState: async (state) => {
         this.state = state;
+        await this.persistData();
       },
-      async () => this.persistData(),
-      this.stateStore,
-      this.e2eeState,
-      this.coordinator,
-    );
+      persistData: async () => this.persistData(),
+      getE2eePassphrase: () => this.getE2eePassphrase(),
+      rememberCurrentE2eePassphrase: async () => this.rememberCurrentE2eePassphrase(),
+      e2eeState: this.e2eeState,
+      stateStore: this.stateStore,
+    });
+    this.engine = runtime.engine;
+    this.coordinator = runtime.coordinator;
+    this.coordinator.markDirty();
+    this.settingsController = runtime.settingsController;
 
     this.addSettingTab(new SyncSettingTab(this.app, this, this.settingsController));
     this.statusBar = new PluginStatusBar(
@@ -94,95 +64,21 @@ export default class ObsidianSyncPlugin extends Plugin {
     );
     this.statusBar.start();
 
-    this.addCommand({
-      id: "sync-now",
-      name: t("commands.syncNow"),
-      callback: async () => {
-        await this.coordinator.runManualSync();
+    registerPluginCommands({
+      app: this.app,
+      plugin: this,
+      getSettings: () => this.settings,
+      getState: () => this.state,
+      coordinator: this.coordinator,
+      settingsController: this.settingsController,
+      restoreActiveFileToPreviousServerVersion: async (activeFile, currentVersion) => {
+        await this.restoreActiveFileToPreviousServerVersion(activeFile, currentVersion);
+      },
+      restoreActiveFileToServerVersion: async (activeFile, currentVersion, targetVersion) => {
+        await this.restoreActiveFileToServerVersion(activeFile, currentVersion, targetVersion);
       },
     });
-
-    this.addCommand({
-      id: "show-active-file-server-history",
-      name: t("commands.showFileHistory"),
-      checkCallback: (checking) => {
-        const activeFile = this.app.workspace.getActiveFile();
-        const trackedState = activeFile ? this.state.files[activeFile.path] : undefined;
-        const available =
-          activeFile instanceof TFile &&
-          !trackedState?.deleted &&
-          typeof trackedState?.version === "number";
-        if (checking) {
-          return available;
-        }
-
-        if (!available || !activeFile || !trackedState) {
-          new Notice(t("notices.activeFileNotTracked"), 4000);
-          return false;
-        }
-
-        new FileHistoryModal(
-          this.app,
-          activeFile.path,
-          trackedState.version,
-          async () => (await this.settingsController.getFileHistory(activeFile.path)).versions,
-          async (targetVersion) => {
-            await this.restoreActiveFileToServerVersion(
-              activeFile,
-              trackedState.version,
-              targetVersion,
-            );
-          },
-        ).open();
-        return true;
-      },
-    });
-
-    this.addCommand({
-      id: "restore-active-file-to-previous-server-version",
-      name: t("commands.restorePreviousVersion"),
-      checkCallback: (checking) => {
-        const activeFile = this.app.workspace.getActiveFile();
-        const trackedState = activeFile ? this.state.files[activeFile.path] : undefined;
-        const available =
-          activeFile instanceof TFile &&
-          !trackedState?.deleted &&
-          typeof trackedState?.version === "number" &&
-          trackedState.version > 1;
-        if (checking) {
-          return available;
-        }
-
-        if (!available || !activeFile) {
-          new Notice(t("notices.noPreviousSyncedVersion"), 4000);
-          return false;
-        }
-
-        void this.restoreActiveFileToPreviousServerVersion(activeFile, trackedState.version);
-        return true;
-      },
-    });
-
-    this.registerEvent(
-      this.app.vault.on("create", () => {
-        this.coordinator.markDirty();
-      }),
-    );
-    this.registerEvent(
-      this.app.vault.on("modify", () => {
-        this.coordinator.markDirty();
-      }),
-    );
-    this.registerEvent(
-      this.app.vault.on("delete", () => {
-        this.coordinator.markDirty();
-      }),
-    );
-    this.registerEvent(
-      this.app.vault.on("rename", () => {
-        this.coordinator.markDirty();
-      }),
-    );
+    registerVaultDirtyTracking(this, this.app, this.coordinator);
 
     this.coordinator.restartAutoSync();
     void this.coordinator.runBackgroundSync();
