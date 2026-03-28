@@ -1,21 +1,17 @@
-import {
-  Notice,
-  type App,
-} from "obsidian";
+import { Notice, TFile, type App } from "obsidian";
 
 import { SyncApi } from "../api";
 import { t } from "../i18n";
-import { createSyncError, toSyncErrorState } from "./errors";
-import { LocalMutationExecutor } from "./local-mutation-executor";
-import {
-  decodeSyncPayload,
-  encodeSyncPayload,
-} from "./payload-codec";
-import { RemoteChangeApplier } from "./remote-applier";
-import { withRetry } from "./retry";
+import { createSyncError } from "./errors";
+import { decodeSyncPayload, encodeSyncPayload, sha256Hex, base64ToBytes, bytesToBase64 } from "./payload-codec";
 import { shouldSyncPath } from "./scope";
-import { SyncRuntime } from "./sync-runtime";
 import { ObsidianVaultIO } from "./vault-io";
+import {
+  createDocFromMarkdown,
+  exportSnapshotB64,
+  importSnapshotB64,
+  readMarkdownFromDoc,
+} from "./loro-markdown";
 import type {
   LocalFileSnapshot,
   SyncSettings,
@@ -24,19 +20,13 @@ import type {
 
 export class SyncEngine {
   private running = false;
-  private startupDeletionGuardActive = true;
   private readonly maxNetworkAttempts = 4;
   private readonly retryBaseDelayMs = 500;
   private readonly vaultIO: ObsidianVaultIO;
-  private readonly localExecutor: LocalMutationExecutor;
-  private readonly remoteApplier: RemoteChangeApplier;
-  private readonly runtime: SyncRuntime;
 
   constructor(
     app: App,
     private readonly getSettings: () => SyncSettings,
-    private readonly getE2eePassphrase: () => string,
-    private readonly rememberValidatedE2eePassphrase: () => Promise<void>,
     private readonly getState: () => SyncState,
     private readonly saveState: (state: SyncState) => Promise<void>,
     private readonly apiFactory: (serverUrl: string, authToken: string) => SyncApi = (
@@ -46,36 +36,6 @@ export class SyncEngine {
     private readonly sleepFn: (ms: number) => Promise<void> = sleep,
   ) {
     this.vaultIO = new ObsidianVaultIO(app);
-    this.localExecutor = new LocalMutationExecutor({
-      buildUploadPayload: (local) => this.buildUploadPayload(local),
-      onDeleteConflict: (api, state, path) => this.remoteApplier.syncRemotePath(
-        api,
-        state,
-        this.getSettings().vaultId,
-        path,
-      ),
-      onUploadConflict: (api, state, localFile) => this.remoteApplier.resolveConflict(
-        api,
-        state,
-        this.getSettings().vaultId,
-        localFile,
-      ),
-      retry: <T>(operation: () => Promise<T>, label: string) => this.retry(operation, label),
-    });
-    this.remoteApplier = new RemoteChangeApplier({
-      vaultIO: this.vaultIO,
-      decodeRemoteContent: (payloadBase64, contentFormat) => this.decodeRemoteContent(payloadBase64, contentFormat),
-      notifyConflictCopy: (path, sourceDeviceId) => this.notifyConflictCopy(path, sourceDeviceId),
-      retry: <T>(operation: () => Promise<T>, label: string) => this.retry(operation, label),
-    });
-    this.runtime = new SyncRuntime({
-      executeHealthCheck: (api) => this.retry(() => api.health(), "health check"),
-      localExecutor: this.localExecutor,
-      remoteApplier: this.remoteApplier,
-      saveState: this.saveState,
-      scanVault: () => this.scanVault(),
-      shouldSyncPath: (path) => this.shouldSyncPath(path),
-    });
   }
 
   async syncOnce(): Promise<void> {
@@ -94,13 +54,12 @@ export class SyncEngine {
       );
       state.vaultId = settings.vaultId;
 
-      const result = await this.runtime.run({
-        api,
-        settings,
-        state,
-        startupDeletionGuardActive: this.startupDeletionGuardActive,
-      });
-      this.startupDeletionGuardActive = result.startupDeletionGuardActive;
+      const localFiles = await this.vaultIO.scanVaultFiles((path) => this.shouldSyncPath(path));
+      await this.pushLocalDocuments(api, state, settings, localFiles);
+      await this.pullRemoteDocuments(api, state, settings);
+
+      state.lastSyncAt = Date.now();
+      await this.saveState(state);
     } catch (error) {
       console.error("obsidian-sync: sync failed", error);
       throw error;
@@ -109,8 +68,199 @@ export class SyncEngine {
     }
   }
 
-  private async scanVault(): Promise<Map<string, LocalFileSnapshot>> {
-    return this.vaultIO.scanVaultFiles((path) => this.shouldSyncPath(path));
+  private async pushLocalDocuments(
+    api: SyncApi,
+    state: SyncState,
+    settings: SyncSettings,
+    localFiles: Map<string, LocalFileSnapshot>,
+  ): Promise<void> {
+    const localPaths = new Set(localFiles.keys());
+
+    for (const localFile of localFiles.values()) {
+      const remoteState = state.documents[localFile.path];
+      const markdown = new TextDecoder().decode(localFile.data);
+      const doc = createDocFromMarkdown(markdown, remoteState?.snapshotB64);
+      const snapshotB64 = exportSnapshotB64(doc);
+      const snapshotBytes = base64ToBytes(snapshotB64);
+      const contentHash = await sha256Hex(snapshotBytes);
+
+      if (remoteState?.snapshotB64 === snapshotB64 && !remoteState.deleted) {
+        continue;
+      }
+
+      const payload = await encodeSyncPayload(
+        snapshotBytes,
+        contentHash,
+        "",
+        async () => {},
+      );
+
+      const response = await this.retry(
+        () => api.pushDocument({
+          vault_id: settings.vaultId,
+          device_id: settings.deviceId,
+          path: localFile.path,
+          content_b64: payload.contentBase64,
+          hash: payload.hash,
+          deleted: false,
+        }),
+        `push document ${localFile.path}`,
+      );
+
+      if (response.ok && typeof response.version === "number") {
+        state.documents[localFile.path] = {
+          snapshotB64,
+          contentHash,
+          version: response.version,
+          mtime: localFile.mtime,
+          deleted: false,
+        };
+      }
+    }
+
+    for (const [path, documentState] of Object.entries(state.documents)) {
+      if (localPaths.has(path) || documentState.deleted) {
+        continue;
+      }
+
+      const tombstoneDoc = createDocFromMarkdown("", documentState.snapshotB64);
+      const snapshotB64 = exportSnapshotB64(tombstoneDoc);
+      const snapshotBytes = base64ToBytes(snapshotB64);
+      const contentHash = await sha256Hex(snapshotBytes);
+
+      const payload = await encodeSyncPayload(
+        snapshotBytes,
+        contentHash,
+        "",
+        async () => {},
+      );
+
+      const response = await this.retry(
+        () => api.pushDocument({
+          vault_id: settings.vaultId,
+          device_id: settings.deviceId,
+          path,
+          content_b64: payload.contentBase64,
+          hash: payload.hash,
+          deleted: true,
+        }),
+        `delete document ${path}`,
+      );
+
+      if (response.ok && typeof response.version === "number") {
+        state.documents[path] = {
+          snapshotB64,
+          contentHash,
+          version: response.version,
+          mtime: Date.now(),
+          deleted: true,
+        };
+      }
+    }
+  }
+
+  private async pullRemoteDocuments(
+    api: SyncApi,
+    state: SyncState,
+    settings: SyncSettings,
+  ): Promise<void> {
+    const changes = await this.retry(
+      () => api.getDocumentChanges(settings.vaultId, state.lastSeq),
+      "fetch document changes",
+    );
+
+    for (const change of changes.changes) {
+      if (change.device_id === settings.deviceId) {
+        continue;
+      }
+
+      const remote = await this.retry(
+        () => api.getDocumentSnapshot(settings.vaultId, change.path),
+        `download document ${change.path}`,
+      );
+
+      if (remote.deleted) {
+        await this.applyRemoteDelete(change.path, remote.version, state);
+        continue;
+      }
+
+      const payloadBytes = await this.decodeRemotePayload(
+        remote.content_b64,
+        "plain",
+      );
+      const snapshotB64 = bytesToBase64(payloadBytes);
+      const doc = importSnapshotB64(snapshotB64);
+      const markdown = readMarkdownFromDoc(doc);
+      const existing = this.readExistingFile(change.path);
+
+      await this.writeMarkdown(change.path, markdown, existing);
+
+      state.documents[change.path] = {
+        snapshotB64,
+        contentHash: remote.hash,
+        version: remote.version,
+        mtime: Date.now(),
+        deleted: false,
+      };
+    }
+
+    state.lastSeq = changes.latest_seq;
+  }
+
+  private async decodeRemotePayload(
+    contentB64: string,
+    contentFormat: string,
+  ): Promise<Uint8Array> {
+    return decodeSyncPayload(
+      contentB64,
+      contentFormat,
+      "",
+      async () => {},
+    );
+  }
+
+  private async applyRemoteDelete(
+    path: string,
+    version: number,
+    state: SyncState,
+  ): Promise<void> {
+    const existing = this.readExistingFile(path);
+    if (existing) {
+      await this.vaultIO.trashFile(existing);
+    }
+
+    state.documents[path] = {
+      snapshotB64: "",
+      contentHash: "",
+      version,
+      mtime: Date.now(),
+      deleted: true,
+    };
+  }
+
+  private async writeMarkdown(
+    path: string,
+    markdown: string,
+    existing: TFile | null,
+  ): Promise<void> {
+    const bytes = new TextEncoder().encode(markdown);
+    if (existing) {
+      await this.vaultIO.writeBinary(existing, bytes);
+      return;
+    }
+
+    await this.vaultIO.ensureParentFolder(path);
+    await this.vaultIO.createBinary(path, bytes);
+  }
+
+  private readExistingFile(path: string) {
+    const file = this.vaultIO.getAbstractFileByPath(path);
+    return file instanceof TFile ? file : null;
+  }
+
+  private shouldSyncPath(path: string): boolean {
+    const settings = this.getSettings();
+    return shouldSyncPath(path, settings.includePatterns, settings.ignorePatterns);
   }
 
   private validateSettings(settings: SyncSettings): void {
@@ -131,48 +281,6 @@ export class SyncEngine {
     }
   }
 
-  private notifyConflictCopy(path: string, sourceDeviceId?: string): void {
-    const sourceSuffix = sourceDeviceId ? ` from ${sourceDeviceId}` : "";
-    new Notice(t("notices.conflictCopySaved", {
-      path,
-      sourceSuffix,
-    }));
-  }
-
-  private async buildUploadPayload(local: LocalFileSnapshot): Promise<{
-    contentBase64: string;
-    payloadHash: string;
-    contentFormat: "plain" | "e2ee-envelope-v1";
-  }> {
-    return encodeSyncPayload(
-      local.data,
-      local.hash,
-      this.getE2eePassphrase(),
-      async () => this.rememberValidatedE2eePassphrase(),
-    );
-  }
-
-  private async decodeRemoteContent(
-    payloadBase64: string,
-    contentFormat: "plain" | "e2ee-envelope-v1",
-  ): Promise<Uint8Array> {
-    return decodeSyncPayload(
-      payloadBase64,
-      contentFormat,
-      this.getE2eePassphrase(),
-      async () => this.rememberValidatedE2eePassphrase(),
-    );
-  }
-
-  private shouldSyncPath(path: string): boolean {
-    if (isGeneratedConflictPath(path)) {
-      return false;
-    }
-
-    const settings = this.getSettings();
-    return shouldSyncPath(path, settings.includePatterns, settings.ignorePatterns);
-  }
-
   private async retry<T>(operation: () => Promise<T>, label: string): Promise<T> {
     return withRetry(operation, label, {
       maxAttempts: this.maxNetworkAttempts,
@@ -185,14 +293,34 @@ export class SyncEngine {
   }
 }
 
-function formatError(error: unknown): string {
-  return toSyncErrorState(error).message;
-}
-
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => globalThis.setTimeout(resolve, ms));
 }
 
-function isGeneratedConflictPath(path: string): boolean {
-  return / \(conflict\)(\.[^/]+)?$/.test(path);
+function withRetry<T>(
+  operation: () => Promise<T>,
+  label: string,
+  options: {
+    maxAttempts: number;
+    baseDelayMs: number;
+    sleep: (ms: number) => Promise<void>;
+    onRetry?: (label: string, delayMs: number, error: unknown) => void;
+  },
+): Promise<T> {
+  const attempt = async (index: number): Promise<T> => {
+    try {
+      return await operation();
+    } catch (error) {
+      if (index >= options.maxAttempts - 1) {
+        throw error;
+      }
+
+      const delayMs = options.baseDelayMs * 2 ** index;
+      options.onRetry?.(label, delayMs, error);
+      await options.sleep(delayMs);
+      return attempt(index + 1);
+    }
+  };
+
+  return attempt(0);
 }

@@ -1,4 +1,4 @@
-import { App, PluginSettingTab } from "obsidian";
+import { PluginSettingTab, type App } from "obsidian";
 
 import { SettingsController } from "./controller";
 import { SettingsSession } from "./session";

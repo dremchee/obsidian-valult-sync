@@ -1,7 +1,5 @@
 import { Notice, Plugin, TFile } from "obsidian";
 
-import { SyncApi } from "./api";
-import { E2eeState } from "./e2ee/state";
 import { registerPluginTranslations, t } from "./i18n";
 import { registerPluginCommands, registerVaultDirtyTracking } from "./plugin-registration";
 import {
@@ -15,6 +13,7 @@ import { PluginStateStore } from "./state/store";
 import { PluginStatusBar } from "./ui/status-bar";
 import type {
   PluginDataShape,
+  RestoreDocumentRequest,
   SyncSettings,
   SyncState,
 } from "./types";
@@ -27,12 +26,12 @@ export default class ObsidianSyncPlugin extends Plugin {
   private coordinator!: PluginRuntime["coordinator"];
   private settingsController!: PluginRuntime["settingsController"];
   private statusBar!: PluginStatusBar;
-  private readonly e2eeState = new E2eeState();
   private readonly stateStore = new PluginStateStore();
 
   async onload(): Promise<void> {
     registerPluginTranslations();
     await this.loadPluginData();
+    this.initializePluginRuntimeGlobals();
 
     const runtime = createPluginRuntime({
       app: this.app,
@@ -46,9 +45,6 @@ export default class ObsidianSyncPlugin extends Plugin {
         await this.persistData();
       },
       persistData: async () => this.persistData(),
-      getE2eePassphrase: () => this.getE2eePassphrase(),
-      rememberCurrentE2eePassphrase: async () => this.rememberCurrentE2eePassphrase(),
-      e2eeState: this.e2eeState,
       stateStore: this.stateStore,
     });
     this.engine = runtime.engine;
@@ -96,19 +92,8 @@ export default class ObsidianSyncPlugin extends Plugin {
       settings: this.settings,
       state: this.stateStore.getState(),
       scope: this.stateStore.scope,
-      e2eeFingerprint: this.e2eeState.getFingerprint(this.settings.vaultId),
     };
     await this.saveData(data);
-  }
-
-  getE2eePassphrase(vaultId = this.settings.vaultId): string {
-    return this.e2eeState.getPassphrase(vaultId);
-  }
-
-  async rememberCurrentE2eePassphrase(): Promise<void> {
-    if (await this.e2eeState.rememberPassphrase(this.settings.vaultId)) {
-      await this.persistData();
-    }
   }
 
   private async loadPluginData(): Promise<void> {
@@ -120,17 +105,23 @@ export default class ObsidianSyncPlugin extends Plugin {
     if (!this.settings.deviceId) {
       this.settings.deviceId = this.generateDeviceId();
     }
-    this.e2eeState.replaceFingerprints(
-      raw?.e2eeFingerprint && this.settings.vaultId
-        ? { [this.settings.vaultId]: raw.e2eeFingerprint }
-        : {},
-    );
     this.state = this.stateStore.load(raw, this.settings.vaultId);
     this.stateStore.applyScope(this.settings);
   }
 
   private generateDeviceId(): string {
     return `device_${crypto.randomUUID().replace(/-/g, "_")}`;
+  }
+
+  private initializePluginRuntimeGlobals(): void {
+    const adapter = this.app.vault.adapter as { getBasePath?: () => string };
+    const basePath = typeof adapter.getBasePath === "function" ? adapter.getBasePath() : null;
+
+    globalThis.__obsidian_plugin_dir__ = this.manifest.dir && basePath
+      ? this.manifest.dir.startsWith("/")
+        ? this.manifest.dir
+        : `${basePath}/${this.manifest.dir}`
+      : undefined;
   }
 
   private getStatusBarSnapshot(): {
@@ -235,13 +226,13 @@ export default class ObsidianSyncPlugin extends Plugin {
     currentVersion: number,
     targetVersion: number,
   ): Promise<void> {
-    const response = await this.settingsController.restoreFile({
+    const request: RestoreDocumentRequest = {
       vault_id: this.settings.vaultId,
       device_id: this.settings.deviceId,
       path: activeFile.path,
       target_version: targetVersion,
-      base_version: currentVersion,
-    });
+    };
+    const response = await this.settingsController.restoreDocument(request);
 
     if (!response.ok) {
       new Notice(t("notices.restoreConflict"), 5000);

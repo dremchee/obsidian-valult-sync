@@ -1,17 +1,14 @@
 import { requestUrl } from "obsidian";
 
 import type {
-  ChangesResponse,
+  DocumentChangesResponse,
+  DocumentHistoryResponse,
+  DocumentSnapshotResponse,
   CreateVaultResponse,
-  DeleteRequest,
   DevicesResponse,
-  FileHistoryResponse,
-  FileResponse,
   MutationResponse,
-  RenameRequest,
-  RestoreFileRequest,
-  VaultSnapshotResponse,
-  UploadRequest,
+  RestoreDocumentRequest,
+  PushDocumentRequest,
   VaultsResponse,
 } from "./types";
 
@@ -36,33 +33,29 @@ export class SyncApi {
     await this.getJson("/health");
   }
 
-  upload(payload: UploadRequest): Promise<MutationResponse> {
-    return this.sendJson("/upload", payload);
+  pushDocument(payload: PushDocumentRequest): Promise<MutationResponse> {
+    return this.sendJson("/documents/push", payload);
   }
 
-  delete(payload: DeleteRequest): Promise<MutationResponse> {
-    return this.sendJson("/delete", payload);
-  }
-
-  rename(payload: RenameRequest): Promise<MutationResponse> {
-    return this.sendJson("/rename", payload);
-  }
-
-  getFile(vaultId: string, path: string): Promise<FileResponse> {
+  getDocumentSnapshot(vaultId: string, path: string): Promise<DocumentSnapshotResponse> {
     const encodedVaultId = encodeURIComponent(vaultId);
     const encodedPath = encodeURIComponent(path);
-    return this.getJson(`/file?vault_id=${encodedVaultId}&path=${encodedPath}`);
+    return this.getJson(`/documents/snapshot?vault_id=${encodedVaultId}&path=${encodedPath}`);
   }
 
-  getChanges(vaultId: string, since: number): Promise<ChangesResponse> {
+  getDocumentChanges(vaultId: string, since: number): Promise<DocumentChangesResponse> {
     const encodedVaultId = encodeURIComponent(vaultId);
-    return this.getJson(`/changes?vault_id=${encodedVaultId}&since=${since}`);
+    return this.getJson(`/documents/changes?vault_id=${encodedVaultId}&since=${since}`);
   }
 
-  getHistory(vaultId: string, path: string): Promise<FileHistoryResponse> {
+  getDocumentHistory(vaultId: string, path: string): Promise<DocumentHistoryResponse> {
     const encodedVaultId = encodeURIComponent(vaultId);
     const encodedPath = encodeURIComponent(path);
-    return this.getJson(`/history?vault_id=${encodedVaultId}&path=${encodedPath}`);
+    return this.getJson(`/documents/history?vault_id=${encodedVaultId}&path=${encodedPath}`);
+  }
+
+  restoreDocument(payload: RestoreDocumentRequest): Promise<MutationResponse> {
+    return this.sendJson("/documents/restore", payload);
   }
 
   getDevices(vaultId: string): Promise<DevicesResponse> {
@@ -74,20 +67,10 @@ export class SyncApi {
     return this.getJson("/vaults");
   }
 
-  getSnapshot(vaultId: string): Promise<VaultSnapshotResponse> {
-    const encodedVaultId = encodeURIComponent(vaultId);
-    return this.getJson(`/snapshot?vault_id=${encodedVaultId}`);
-  }
-
-  createVault(vaultId: string, e2eeFingerprint: string | null): Promise<CreateVaultResponse> {
+  createVault(vaultId: string): Promise<CreateVaultResponse> {
     return this.sendJson("/vaults", {
       vault_id: vaultId,
-      e2ee_fingerprint: e2eeFingerprint,
     });
-  }
-
-  restoreFile(payload: RestoreFileRequest): Promise<MutationResponse> {
-    return this.sendJson("/restore", payload);
   }
 
   private async getJson<T>(path: string): Promise<T> {

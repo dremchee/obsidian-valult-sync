@@ -1,7 +1,7 @@
 import { Modal } from "obsidian";
 
 import { t } from "../i18n";
-import type { FileVersionItem } from "../types";
+import type { DocumentVersionItem } from "../types";
 import type { HistoryState } from "./file-history-types";
 import FileHistoryModalView from "./components/FileHistoryModal.vue";
 import {
@@ -22,7 +22,7 @@ export class FileHistoryModal extends Modal {
     app: Modal["app"],
     private readonly path: string,
     private readonly currentVersion: number,
-    private readonly loadHistory: () => Promise<FileVersionItem[]>,
+    private readonly loadHistory: () => Promise<DocumentVersionItem[]>,
     private readonly restoreVersion: (targetVersion: number) => Promise<void>,
   ) {
     super(app);

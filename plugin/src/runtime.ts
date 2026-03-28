@@ -1,6 +1,5 @@
 import type { App } from "obsidian";
 
-import { E2eeState } from "./e2ee/state";
 import { SettingsController } from "./settings/controller";
 import { PluginStateStore } from "./state/store";
 import { SyncCoordinator } from "./sync/coordinator";
@@ -21,6 +20,7 @@ export const DEFAULT_SETTINGS: SyncSettings = {
 export const DEFAULT_STATE: SyncState = {
   vaultId: "",
   files: {},
+  documents: {},
   lastSeq: 0,
   lastSyncAt: null,
   lastSyncError: null,
@@ -39,16 +39,11 @@ export function createPluginRuntime(options: {
   getState: () => SyncState;
   setState: (state: SyncState) => Promise<void>;
   persistData: () => Promise<void>;
-  getE2eePassphrase: () => string;
-  rememberCurrentE2eePassphrase: () => Promise<void>;
-  e2eeState: E2eeState;
   stateStore: PluginStateStore;
 }): PluginRuntime {
   const engine = new SyncEngine(
     options.app,
     options.getSettings,
-    options.getE2eePassphrase,
-    options.rememberCurrentE2eePassphrase,
     options.getState,
     options.setState,
   );
@@ -69,7 +64,6 @@ export function createPluginRuntime(options: {
     },
     options.persistData,
     options.stateStore,
-    options.e2eeState,
     coordinator,
   );
 

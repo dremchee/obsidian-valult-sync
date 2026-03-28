@@ -36,7 +36,7 @@ export function registerPluginCommands(options: CommandRegistrationOptions): voi
     checkCallback: (checking) => {
       const state = options.getState();
       const activeFile = options.app.workspace.getActiveFile();
-      const trackedState = activeFile ? state.files[activeFile.path] : undefined;
+      const trackedState = activeFile ? state.documents[activeFile.path] : undefined;
       const available =
         activeFile instanceof TFile &&
         !trackedState?.deleted &&
@@ -73,7 +73,7 @@ export function registerPluginCommands(options: CommandRegistrationOptions): voi
     checkCallback: (checking) => {
       const state = options.getState();
       const activeFile = options.app.workspace.getActiveFile();
-      const trackedState = activeFile ? state.files[activeFile.path] : undefined;
+      const trackedState = activeFile ? state.documents[activeFile.path] : undefined;
       const available =
         activeFile instanceof TFile &&
         !trackedState?.deleted &&

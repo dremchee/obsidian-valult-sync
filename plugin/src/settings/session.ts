@@ -2,10 +2,9 @@ import { TFile, type App } from "obsidian";
 import { computed, reactive } from "vue";
 
 import { t } from "../i18n";
-import { buildPassphraseFingerprint } from "../e2ee/crypto";
 import { ObsidianVaultIO } from "../sync/vault-io";
 import { normalizePatternList, shouldSyncPath } from "../sync/scope";
-import { createSyncError, formatSyncErrorState } from "../sync/errors";
+import { formatSyncErrorState } from "../sync/errors";
 import type {
   CreateVaultResponse,
   DeviceItem,
@@ -46,7 +45,6 @@ export interface SettingsSessionHost {
 }
 
 export interface SettingsSessionController {
-  setE2eePassphrase(passphrase: string, vaultId?: string): void;
   createVault(vaultId: string, passphrase: string): Promise<CreateVaultResponse>;
   bindVault(
     vaultId: string,
@@ -55,8 +53,6 @@ export interface SettingsSessionController {
       markDirty?: boolean;
     },
   ): Promise<void>;
-  rememberCurrentE2eePassphrase(): Promise<void>;
-  validateVaultJoinPassphrase(vaultId: string, passphrase: string): Promise<void>;
   hasRemoteVaultContent(vaultId: string): Promise<boolean>;
   bootstrapJoinedVaultState(
     vaultId: string,
@@ -71,8 +67,6 @@ export interface SettingsSessionController {
   disconnectVault(): Promise<void>;
   forgetLocalState(): Promise<void>;
   updateCurrentVaultScope(scope: VaultScopeConfig): void;
-  getE2eeFingerprint(vaultId?: string): string | null;
-  getE2eePassphrase(vaultId?: string): string;
 }
 
 export class SettingsSession {
@@ -124,11 +118,11 @@ export class SettingsSession {
   }
 
   private readonly trackedFilesCount = computed(() =>
-    Object.values(this.host.state.files).filter((file) => !file.deleted).length,
+    Object.values(this.host.state.documents).filter((document) => !document.deleted).length,
   );
 
   private readonly deletedFilesCount = computed(() =>
-    Object.values(this.host.state.files).filter((file) => file.deleted).length,
+    Object.values(this.host.state.documents).filter((document) => document.deleted).length,
   );
 
   constructor(
@@ -270,8 +264,6 @@ export class SettingsSession {
         deletedFilesCount: this.deletedFilesCount.value,
         lastSyncAt: this.host.state.lastSyncAt,
         lastSyncErrorText: formatSyncErrorState(this.host.state.lastSyncError),
-        e2eeFingerprint: this.controller.getE2eeFingerprint(),
-        e2eePassphrase: this.controller.getE2eePassphrase(),
         quickActionsStatusText: this.state.quickActionsStatusText,
         serverUrl: this.host.settings.serverUrl,
       },
@@ -354,10 +346,8 @@ export class SettingsSession {
       vaultId,
     });
     try {
-      this.controller.setE2eePassphrase(passphrase, vaultId);
       const response = await this.controller.createVault(vaultId, passphrase);
       await this.controller.bindVault(response.vault.vault_id);
-      await this.controller.rememberCurrentE2eePassphrase();
       this.state.remoteVaults = await this.controller.getRemoteVaults();
       this.state.remoteVaultsError = null;
       this.state.vaultStatusText =
@@ -369,7 +359,6 @@ export class SettingsSession {
               vaultId: response.vault.vault_id,
             });
     } catch (error) {
-      this.controller.setE2eePassphrase("", vaultId);
       this.state.remoteVaults = null;
       this.state.remoteVaultsError = formatDeviceError(error);
       this.state.vaultStatusText = this.state.remoteVaultsError;
@@ -602,7 +591,7 @@ export class SettingsSession {
         }
         await this.createAndJoinVault(
           createVault.vaultId,
-          createVault.encryptionEnabled ? createVault.passphrase : "",
+          "",
         );
       },
       onCreateVault: async () => {
@@ -612,7 +601,7 @@ export class SettingsSession {
         }
         await this.createAndJoinVault(
           createVault.vaultId,
-          createVault.encryptionEnabled ? createVault.passphrase : "",
+          "",
         );
       },
       onJoinVault: async (vaultId) => {
@@ -621,32 +610,18 @@ export class SettingsSession {
         }
 
         const wasConnected = Boolean(this.host.settings.vaultId);
-        const serverVault = this.state.remoteVaults?.find((item) => item.vault_id === vaultId) ?? null;
-        const serverFingerprint = serverVault?.e2ee_fingerprint?.trim() ?? "";
-        const requiresPassphrase = Boolean(serverFingerprint);
         new JoinVaultModal(
           this.app,
           vaultId,
-          requiresPassphrase,
-          async ({ passphrase }) => {
+          async () => {
             this.state.confirmDisconnectVaultId = null;
             this.state.confirmForgetVaultId = null;
-            this.state.vaultStatusText = requiresPassphrase
-              ? t("settings.vault.state.validatingE2ee", { vaultId })
-              : t("settings.vault.state.joining", { vaultId });
+            this.state.vaultStatusText = t("settings.vault.state.joining", { vaultId });
             this.sync();
 
             try {
               const localFileCount = this.getSyncableLocalFiles(vaultId).length;
-              if (serverFingerprint) {
-                const localFingerprint = await buildPassphraseFingerprint(vaultId, passphrase);
-                if (localFingerprint !== serverFingerprint) {
-                  throw createSyncError("fingerprint_mismatch", t("sync.errors.fingerprintMismatch"));
-                }
-              }
-              await this.controller.validateVaultJoinPassphrase(vaultId, passphrase);
               const remoteHasContent = await this.controller.hasRemoteVaultContent(vaultId);
-              this.controller.setE2eePassphrase(passphrase, vaultId);
               this.state.vaultStatusText = wasConnected
                 ? t("settings.vault.state.reconnecting", {
                     vaultId,
@@ -659,7 +634,6 @@ export class SettingsSession {
                 ? { startAutoSync: false, markDirty: false }
                 : undefined);
               this.state.initialDevicesLoadStartedForVaultId = null;
-              await this.controller.rememberCurrentE2eePassphrase();
               if (needsJoinDecision) {
                 this.state.pendingJoinDecision = {
                   vaultId,
@@ -683,7 +657,6 @@ export class SettingsSession {
               return null;
             } catch (error) {
               this.clearPendingJoinDecision();
-              this.controller.setE2eePassphrase("", vaultId);
               const errorMessage = formatDeviceError(error);
               this.state.vaultStatusText = errorMessage;
               this.sync();
