@@ -1,48 +1,23 @@
 <script setup lang="ts">
-import { onMounted, shallowRef, useTemplateRef } from "vue";
-
 import { t } from "@/i18n";
 
 const props = defineProps<{
   vaultId: string;
-  requiresPassphrase: boolean;
   errorMessage: string;
   isSubmitting: boolean;
-  onSubmit: (result: { passphrase: string }) => Promise<void>;
+  onSubmit: (result: Record<string, never>) => Promise<void>;
   onCancel: () => void;
 }>();
 
-const passphrase = shallowRef("");
-const localError = shallowRef("");
-const passphraseInput = useTemplateRef<HTMLInputElement>("passphraseInput");
-
-onMounted(() => {
-  passphraseInput.value?.focus();
-});
-
-function clearError(): void {
-  localError.value = "";
-}
-
 async function submit(): Promise<void> {
-  const normalizedPassphrase = passphrase.value.trim();
-  if (props.requiresPassphrase && !normalizedPassphrase) {
-    localError.value = t("modal.joinVault.errors.enterPassphrase");
-    passphraseInput.value?.focus();
-    return;
-  }
-
-  localError.value = "";
-  await props.onSubmit({
-    passphrase: passphrase.value,
-  });
+  await props.onSubmit({});
 }
 </script>
 
 <template>
   <div class="obsidian-sync-modal-copy">
     <p class="setting-item-description">
-      {{ t(props.requiresPassphrase ? "modal.joinVault.introEncrypted" : "modal.joinVault.introPlain") }}
+      {{ t("modal.joinVault.introPlain") }}
     </p>
   </div>
 
@@ -58,25 +33,8 @@ async function submit(): Promise<void> {
     >
   </label>
 
-  <label v-if="props.requiresPassphrase" class="obsidian-sync-form-row">
-    <span class="obsidian-sync-form-label">{{ t("modal.joinVault.passphrase") }}</span>
-    <span class="setting-item-description">{{ t("modal.joinVault.passphraseDescription") }}</span>
-    <input
-      ref="passphraseInput"
-      v-model="passphrase"
-      autocomplete="current-password"
-      autocapitalize="off"
-      :placeholder="t('modal.joinVault.passphrasePlaceholder')"
-      spellcheck="false"
-      type="password"
-      :disabled="props.isSubmitting"
-      @input="clearError"
-      @keydown.enter.prevent="submit"
-    >
-  </label>
-
   <div class="setting-item-description obsidian-sync-modal-error">
-    {{ props.errorMessage || localError }}
+    {{ props.errorMessage }}
   </div>
 
   <div class="obsidian-sync-modal-actions">

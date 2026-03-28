@@ -2,7 +2,7 @@
 import { computed } from "vue";
 
 import { t } from "@/i18n";
-import { buildE2eeStatusText, formatLastSyncAt } from "../ui";
+import { formatLastSyncAt } from "../ui";
 import type {
   SettingsOverviewActions,
   SettingsOverviewViewModel,
@@ -12,34 +12,6 @@ const props = defineProps<{
   model: SettingsOverviewViewModel;
   actions: SettingsOverviewActions;
 }>();
-
-const e2eeBadgeClass = computed(() => {
-  if (props.model.e2eeFingerprint) {
-    return props.model.e2eePassphrase.trim()
-      ? "obsidian-sync-badge-ok"
-      : "obsidian-sync-badge-warn";
-  }
-
-  return props.model.e2eePassphrase.trim()
-    ? "obsidian-sync-badge-warn"
-    : "obsidian-sync-badge-muted";
-});
-
-const e2eeBadgeText = computed(() => {
-  if (props.model.e2eeFingerprint) {
-    return props.model.e2eePassphrase.trim()
-      ? t("settings.overview.e2eeLoaded")
-      : t("settings.overview.e2eeLocked");
-  }
-
-  return props.model.e2eePassphrase.trim()
-    ? t("settings.overview.e2eePending")
-    : t("settings.overview.e2eeOff");
-});
-
-const e2eeStatusText = computed(() =>
-  buildE2eeStatusText(props.model.e2eeFingerprint, props.model.e2eePassphrase),
-);
 
 const noRecentErrorsText = computed(() =>
   t("sync.errors.noRecentErrors"),
@@ -79,9 +51,6 @@ const hasSyncError = computed(() => props.model.lastSyncErrorText !== noRecentEr
                 ? t("settings.overview.needsAttention")
                 : t("settings.overview.healthy") }}
             </span>
-            <span class="obsidian-sync-badge" :class="e2eeBadgeClass">
-              {{ e2eeBadgeText }}
-            </span>
           </div>
         </div>
         <div class="obsidian-sync-key-value-row">
@@ -107,10 +76,6 @@ const hasSyncError = computed(() => props.model.lastSyncErrorText !== noRecentEr
         <div class="obsidian-sync-key-value-row">
           <span class="obsidian-sync-key-value-label">{{ t("settings.overview.lastIssue") }}</span>
           <span class="obsidian-sync-key-value-value">{{ props.model.lastSyncErrorText }}</span>
-        </div>
-        <div class="obsidian-sync-key-value-row">
-          <span class="obsidian-sync-key-value-label">{{ t("settings.overview.e2ee") }}</span>
-          <span class="obsidian-sync-key-value-value">{{ e2eeStatusText }}</span>
         </div>
       </div>
 

@@ -11,6 +11,7 @@ base64 = "0.22"
 chrono = "0.4"
 dotenvy = "0.15"
 futures-core = "0.3"
+loro = "1.10.8"
 serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio-rustls"] }

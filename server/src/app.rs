@@ -20,17 +20,10 @@ pub fn build_router(state: AppState) -> Router {
         .allow_headers([AUTHORIZATION, CONTENT_TYPE]);
 
     let protected = Router::new()
-        .merge(routes::upload::router())
-        .merge(routes::file::router())
-        .merge(routes::changes::router())
         .merge(routes::devices::router())
         .merge(routes::events::router())
-        .merge(routes::delete::router())
-        .merge(routes::rename::router())
         .merge(routes::vaults::router())
-        .merge(routes::snapshot::router())
-        .merge(routes::history::router())
-        .merge(routes::restore::router())
+        .merge(routes::documents::router())
         .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth::require_auth,

@@ -1,25 +1,4 @@
 #[derive(Debug, Clone)]
-pub struct FileRecord {
-    pub vault_id: String,
-    pub path: String,
-    pub hash: String,
-    pub payload_hash: String,
-    pub content_format: String,
-    pub version: i64,
-    pub deleted: bool,
-}
-
-#[derive(Debug, Clone)]
-pub struct ChangeRecord {
-    pub seq: i64,
-    pub vault_id: String,
-    pub device_id: String,
-    pub path: String,
-    pub version: i64,
-    pub deleted: bool,
-}
-
-#[derive(Debug, Clone)]
 pub struct DeviceRecord {
     pub device_id: String,
     pub first_seen_at: String,
@@ -32,17 +11,36 @@ pub struct VaultRecord {
     pub created_at: String,
     pub updated_at: String,
     pub device_count: i64,
-    pub e2ee_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Clone)]
-pub struct FileVersionRecord {
+pub struct DocumentRecord {
+    pub vault_id: String,
+    pub path: String,
+    pub content_b64: String,
+    pub hash: String,
+    pub version: i64,
+    pub deleted: bool,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DocumentVersionRecord {
     pub vault_id: String,
     pub path: String,
     pub version: i64,
+    pub content_b64: String,
     pub hash: String,
-    pub payload_hash: String,
-    pub content_format: String,
     pub deleted: bool,
     pub created_at: String,
+}
+
+#[derive(Debug, Clone)]
+pub struct DocumentChangeRecord {
+    pub seq: i64,
+    pub vault_id: String,
+    pub device_id: String,
+    pub path: String,
+    pub version: i64,
+    pub deleted: bool,
 }

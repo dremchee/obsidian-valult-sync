@@ -6,7 +6,7 @@ use axum::{
 use crate::{
     dto::{CreateVaultRequest, CreateVaultResponse, VaultsResponse},
     error::AppError,
-    services::sync,
+    services::registry,
     state::AppState,
 };
 
@@ -19,7 +19,7 @@ pub fn router() -> Router<AppState> {
 async fn get_vaults(
     axum::extract::State(state): axum::extract::State<AppState>,
 ) -> Result<Json<VaultsResponse>, AppError> {
-    let response = sync::get_vaults(&state).await?;
+    let response = registry::get_vaults(&state).await?;
     Ok(Json(response))
 }
 
@@ -27,6 +27,6 @@ async fn create_vault(
     axum::extract::State(state): axum::extract::State<AppState>,
     Json(request): Json<CreateVaultRequest>,
 ) -> Result<Json<CreateVaultResponse>, AppError> {
-    let response = sync::create_vault(&state, request).await?;
+    let response = registry::create_vault(&state, request).await?;
     Ok(Json(response))
 }

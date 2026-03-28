@@ -8,6 +8,7 @@ import type {
 const DEFAULT_STATE: SyncState = {
   vaultId: "",
   files: {},
+  documents: {},
   lastSeq: 0,
   lastSyncAt: null,
   lastSyncError: null,
@@ -87,6 +88,10 @@ export class PluginStateStore {
         files: {
           ...DEFAULT_STATE.files,
           ...persistedCurrentState.files,
+        },
+        documents: {
+          ...DEFAULT_STATE.documents,
+          ...persistedCurrentState.documents,
         },
       };
     }

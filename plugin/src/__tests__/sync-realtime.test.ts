@@ -41,6 +41,7 @@ describe("sync realtime", () => {
       () => ({
         vaultId: "default",
         files: {},
+        documents: {},
         lastSeq: 0,
         lastSyncAt: null,
         lastSyncError: null,
@@ -79,6 +80,7 @@ describe("sync realtime", () => {
       () => ({
         vaultId: "default",
         files: {},
+        documents: {},
         lastSeq: 0,
         lastSyncAt: null,
         lastSyncError: null,

@@ -65,14 +65,6 @@ export function formatSyncErrorState(state: SyncErrorState | null): string {
       });
     case "unauthorized":
       return t("sync.errors.unauthorized");
-    case "missing_passphrase":
-      return t("sync.errors.missingPassphrase");
-    case "fingerprint_mismatch":
-      return t("sync.errors.fingerprintMismatch");
-    case "decrypt_failed":
-      return t("sync.errors.decryptFailed");
-    case "invalid_e2ee_envelope":
-      return t("sync.errors.invalidEnvelope");
     case "invalid_settings":
       return state.message;
     case "unknown_error":

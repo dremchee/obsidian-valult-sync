@@ -1,40 +1,13 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
-pub enum ContentFormat {
-    #[serde(rename = "plain")]
-    Plain,
-    #[serde(rename = "e2ee-envelope-v1")]
-    E2eeEnvelopeV1,
-}
-
 #[derive(Debug, Deserialize)]
-pub struct UploadRequest {
+pub struct DocumentPushRequest {
     pub vault_id: String,
     pub device_id: String,
     pub path: String,
     pub content_b64: String,
     pub hash: String,
-    pub payload_hash: String,
-    pub content_format: ContentFormat,
-    pub base_version: i64,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct DeleteRequest {
-    pub vault_id: String,
-    pub device_id: String,
-    pub path: String,
-    pub base_version: i64,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct RenameRequest {
-    pub vault_id: String,
-    pub device_id: String,
-    pub from_path: String,
-    pub to_path: String,
-    pub base_version: i64,
+    pub deleted: bool,
 }
 
 #[derive(Debug, Serialize)]
@@ -49,13 +22,12 @@ pub struct MutationResponse {
 }
 
 #[derive(Debug, Serialize)]
-pub struct FileResponse {
+pub struct DocumentSnapshotResponse {
     pub path: String,
-    pub hash: String,
     pub version: i64,
     pub deleted: bool,
-    pub content_b64: Option<String>,
-    pub content_format: ContentFormat,
+    pub content_b64: String,
+    pub hash: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -79,19 +51,18 @@ pub struct RealtimeEvent {
 }
 
 #[derive(Debug, Serialize)]
-pub struct FileVersionItem {
+pub struct DocumentVersionItem {
     pub version: i64,
     pub hash: String,
-    pub payload_hash: String,
-    pub content_format: ContentFormat,
+    pub snapshot_b64: String,
     pub deleted: bool,
     pub created_at: String,
 }
 
 #[derive(Debug, Serialize)]
-pub struct FileHistoryResponse {
+pub struct DocumentHistoryResponse {
     pub path: String,
-    pub versions: Vec<FileVersionItem>,
+    pub versions: Vec<DocumentVersionItem>,
 }
 
 #[derive(Debug, Serialize)]
@@ -109,17 +80,14 @@ pub struct DevicesResponse {
 #[derive(Debug, Deserialize)]
 pub struct CreateVaultRequest {
     pub vault_id: String,
-    #[serde(default)]
-    pub e2ee_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-pub struct RestoreFileRequest {
+pub struct RestoreDocumentRequest {
     pub vault_id: String,
     pub device_id: String,
     pub path: String,
     pub target_version: i64,
-    pub base_version: i64,
 }
 
 #[derive(Debug, Serialize)]
@@ -128,27 +96,11 @@ pub struct VaultItem {
     pub created_at: String,
     pub updated_at: String,
     pub device_count: i64,
-    pub e2ee_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
 pub struct VaultsResponse {
     pub vaults: Vec<VaultItem>,
-}
-
-#[derive(Debug, Serialize)]
-pub struct SnapshotFileItem {
-    pub path: String,
-    pub hash: String,
-    pub version: i64,
-    pub deleted: bool,
-    pub content_format: ContentFormat,
-}
-
-#[derive(Debug, Serialize)]
-pub struct VaultSnapshotResponse {
-    pub latest_seq: i64,
-    pub files: Vec<SnapshotFileItem>,
 }
 
 #[derive(Debug, Serialize)]

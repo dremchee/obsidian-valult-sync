@@ -18,8 +18,6 @@ export interface SettingsOverviewViewModel {
   deletedFilesCount: number;
   lastSyncAt: number | null;
   lastSyncErrorText: string;
-  e2eeFingerprint: string | null;
-  e2eePassphrase: string;
   quickActionsStatusText: string;
   serverUrl: string;
 }

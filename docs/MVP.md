@@ -2,56 +2,29 @@
 
 ## Статус
 
-Базовый MVP изначально был посвящён whole-file sync между несколькими устройствами.
-На текущий момент этот репозиторий уже вышел за исходные рамки MVP.
+Изначальный whole-file MVP больше не описывает текущую систему.
 
-Поэтому этот документ фиксирует:
+После cutover актуальная базовая модель такая:
 
-- что было ядром MVP
-- что уже реализовано сверх него
-- что всё ещё остаётся вне scope текущей реализации
+- document-first sync на базе Loro payload
+- сервер хранит текущий snapshot документа, историю версий и change feed
+- клиент синхронизирует документы и только на границе с Obsidian пишет `.md`
+
+Этот документ фиксирует, что сейчас считается минимально рабочей версией системы.
 
 ---
 
-## Базовый MVP, который уже закрыт
+## Текущее ядро системы
 
-Система уже реализует исходное ядро:
+Система должна обеспечивать:
 
 - синхронизацию одного vault между несколькими устройствами
-- whole-file sync
-- конфликтную модель через `base_version`
-- conflict copies вместо merge
-- tombstones для удалений
+- стабильный реестр vault и устройств
+- document change feed и realtime wake-up через SSE
+- историю версий документа на сервере
+- restore документа на предыдущую версию
 - устойчивое локальное состояние клиента
-- SQLite metadata на сервере
-- Rust-сервер на `axum`
-
-Базовые сценарии работают:
-
-- новый файл
-- изменение файла
-- удаление файла
-- конфликт параллельных правок
-- догоняющая синхронизация после офлайна
-- восстановление состояния после рестарта клиента
-
----
-
-## Что добавлено сверх исходного MVP
-
-Поверх первоначального объёма в репозитории уже есть:
-
-- multi-vault registry на сервере
-- device registry
-- E2EE контента
-- SSE realtime-уведомления с polling fallback
-- история версий файла на сервере
-- restore файла на выбранную историческую версию
 - include/ignore scope на клиенте
-- более развитый settings UI для создания и подключения vault
-
-Это значит, что документы, описывающие проект как purely polling-only MVP без E2EE и history,
-уже не отражают реальное состояние кода.
 
 ---
 
@@ -63,60 +36,47 @@
 - сервер хранит отдельные пространства по `vault_id`
 - один и тот же путь может существовать независимо в разных vault
 
-### File model
+### Document model
 
-- файл идентифицируется парой `vault_id + path`
-- `rename` по-прежнему трактуется как `delete + create`
-- сервер является `source of truth` по версиям
+- документ идентифицируется парой `vault_id + path`
+- контент синхронизируется как Loro payload
+- сервер ведёт текущий head, историю и `document_changes`
+- `deleted: true` представляет tombstone
 
-### Conflict model
+### Client model
 
-Если запись пришла с устаревшим `base_version`:
-
-- сервер не принимает запись
-- клиент получает `conflict: true`
-- локальная версия сохраняется как conflict copy
-- затем клиент подтягивает серверную версию как основную
-
-### Delete model
-
-Удаление:
-
-- создаёт новую серверную версию
-- попадает в `changes`
-- сохраняется в истории как tombstone
-- доезжает до остальных клиентов как удаление
+- plugin строит локальное состояние по `documents`
+- удалённые изменения читаются через `changes + snapshot`
+- markdown на диске остаётся пользовательским представлением документа
 
 ---
 
 ## Что остаётся вне текущего scope
 
-- merge содержимого файлов
 - rename detection как отдельная сущность
 - server-side selective sync
-- шифрование путей и структуры vault
-- device approval / revoke flow
-- полноценный multi-user auth flow
-- chunked sync и дедупликация blobs
+- multi-user auth flow
+- chunked blob storage
+- server-side semantic merge beyond Loro payload import
 
 ---
 
-## Что считать текущим успехом
+## Что считать успехом
 
-Практически значимая версия системы сейчас считается рабочей, если:
+Практически значимая версия системы считается рабочей, если:
 
 - два и более клиента могут синхронизировать один vault через сервер
 - vault можно создать или обнаружить через серверный реестр
 - realtime-сигналы ускоряют доставку изменений, а polling остаётся fallback
-- encrypted content корректно загружается и скачивается между устройствами
-- история файла доступна из plugin UI
+- история документа доступна из plugin UI
 - restore создаёт новую актуальную серверную версию без потери истории
+- после рестарта клиента локальное document state не теряется
 
 ---
 
 ## Связанные документы
 
+- Архитектура: [ARCHITECTURE.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/ARCHITECTURE.md)
 - API: [API.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/API.md)
 - Plugin usage: [PLUGIN_USAGE.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/PLUGIN_USAGE.md)
-- E2EE: [E2EE.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/E2EE.md)
 - Регрессионный чеклист: [MVP_CHECKLIST.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/MVP_CHECKLIST.md)

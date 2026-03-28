@@ -28,7 +28,7 @@ async fn stream_events(
     let vault_id = storage::validate_vault_id(&query.vault_id)?;
     let since = query.since.unwrap_or(0);
     let mut receiver = state.subscribe_to_vault_events(&vault_id);
-    let latest_seq = services::sync::get_latest_seq(&state, vault_id.clone()).await?;
+    let latest_seq = services::doc_sync::get_latest_seq(&state, vault_id.clone()).await?;
     let stream_state = state.clone();
     let stream_vault_id = vault_id.clone();
 
@@ -41,7 +41,7 @@ async fn stream_events(
             match receiver.recv().await {
                 Ok(next_seq) => yield Ok(event_for_latest_seq(next_seq)),
                 Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {
-                    match services::sync::get_latest_seq(&stream_state, stream_vault_id.clone()).await {
+                    match services::doc_sync::get_latest_seq(&stream_state, stream_vault_id.clone()).await {
                         Ok(next_seq) => yield Ok(event_for_latest_seq(next_seq)),
                         Err(error) => {
                             tracing::warn!(vault_id = %stream_vault_id, error = %error, "failed to recover realtime stream after lag");

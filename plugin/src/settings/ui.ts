@@ -14,24 +14,6 @@ export function formatLastSyncAt(value: number | null): string {
   return parsed.toLocaleString();
 }
 
-export function buildE2eeStatusText(fingerprint: string | null, passphrase: string): string {
-  if (!fingerprint) {
-    return passphrase.trim()
-      ? t("settings.helpers.e2eeLoadedPendingFingerprint")
-      : t("settings.helpers.e2eeOff");
-  }
-
-  if (!passphrase.trim()) {
-    return t("settings.helpers.e2eeFingerprintMissingPassphrase", {
-      fingerprint: fingerprint.slice(0, 12),
-    });
-  }
-
-  return t("settings.helpers.e2eeFingerprintLoaded", {
-    fingerprint: fingerprint.slice(0, 12),
-  });
-}
-
 export function formatDeviceError(error: unknown): string {
   if (error instanceof ApiError) {
     if (error.status === 401) {

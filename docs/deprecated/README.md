@@ -10,8 +10,8 @@
 
 Для текущей документации используйте:
 
+- [ARCHITECTURE.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/ARCHITECTURE.md)
 - [API.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/API.md)
 - [PLUGIN_USAGE.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/PLUGIN_USAGE.md)
 - [PLUGIN_UX_FLOW.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/PLUGIN_UX_FLOW.md)
-- [E2EE.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/E2EE.md)
 - [MVP.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/MVP.md)

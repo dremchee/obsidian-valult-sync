@@ -1,57 +1,27 @@
-import { decryptEnvelope, encryptBytes, parseEnvelope, serializeEnvelope } from "../e2ee/crypto";
-import { t } from "../i18n";
-import { createSyncError } from "./errors";
-import type { ContentFormat } from "../types";
-
 export interface EncodedSyncPayload {
   contentBase64: string;
-  payloadHash: string;
-  contentFormat: ContentFormat;
+  hash: string;
 }
 
 export async function encodeSyncPayload(
   data: Uint8Array,
   localHash: string,
-  passphrase: string,
-  rememberValidatedPassphrase: () => Promise<void>,
+  _passphrase: string,
+  _rememberValidatedPassphrase: () => Promise<void>,
 ): Promise<EncodedSyncPayload> {
-  const normalizedPassphrase = passphrase.trim();
-  if (!normalizedPassphrase) {
-    return {
-      contentBase64: bytesToBase64(data),
-      payloadHash: localHash,
-      contentFormat: "plain",
-    };
-  }
-
-  await rememberValidatedPassphrase();
-  const envelope = await encryptBytes(data, normalizedPassphrase);
-  const serializedEnvelope = serializeEnvelope(envelope);
   return {
-    contentBase64: bytesToBase64(serializedEnvelope),
-    payloadHash: await sha256Hex(serializedEnvelope),
-    contentFormat: "e2ee-envelope-v1",
+    contentBase64: bytesToBase64(data),
+    hash: localHash,
   };
 }
 
 export async function decodeSyncPayload(
   payloadBase64: string,
-  contentFormat: ContentFormat,
-  passphrase: string,
-  rememberValidatedPassphrase: () => Promise<void>,
+  _contentFormat: string,
+  _passphrase: string,
+  _rememberValidatedPassphrase: () => Promise<void>,
 ): Promise<Uint8Array> {
-  const payload = base64ToBytes(payloadBase64);
-  if (contentFormat === "plain") {
-    return payload;
-  }
-
-  const normalizedPassphrase = passphrase.trim();
-  if (!normalizedPassphrase) {
-    throw createSyncError("missing_passphrase", t("sync.errors.decryptRequired"));
-  }
-
-  await rememberValidatedPassphrase();
-  return decryptEnvelope(parseEnvelope(payload), normalizedPassphrase);
+  return base64ToBytes(payloadBase64);
 }
 
 export async function sha256Hex(data: Uint8Array): Promise<string> {

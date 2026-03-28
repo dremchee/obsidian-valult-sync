@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { t } from "@/i18n";
-import type { FileVersionItem } from "@/types";
+import type { DocumentVersionItem } from "@/types";
 import type { HistoryState } from "../file-history-types";
 
 const props = defineProps<{
@@ -19,15 +19,16 @@ function formatTimestamp(value: string): string {
   return parsed.toLocaleString();
 }
 
-function buildVersionDescription(version: FileVersionItem): string {
+function buildVersionDescription(version: DocumentVersionItem): string {
   const parts = [
     version.created_at
       ? formatTimestamp(version.created_at)
       : t("modal.fileHistory.unknownTime"),
-    version.deleted
-      ? t("modal.fileHistory.tombstone")
-      : version.content_format,
   ];
+
+  if (version.deleted) {
+    parts.push(t("modal.fileHistory.tombstone"));
+  }
 
   if (version.version === props.currentVersion) {
     parts.unshift(t("modal.fileHistory.currentVersion"));

@@ -5,12 +5,20 @@
 `plugin/` это актуальный Obsidian plugin для синхронизации локальной папки с Rust-сервером
 из `server/`.
 
-На текущем этапе plugin умеет не только базовый sync, но и:
+Текущая версия работает в document-first модели:
+
+- один sync document на `vault_id + path`
+- контент хранится как Loro snapshot payload
+- сервер ведёт document history и change feed
+- plugin пишет обычные `.md` файлы на диск только на границе с Obsidian
+
+Архитектурная схема отдельно описана в [ARCHITECTURE.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/ARCHITECTURE.md).
+
+Дополнительно plugin поддерживает:
 
 - реестр vault на сервере
 - регистрацию устройств
 - include/ignore scope
-- E2EE контента
 - realtime SSE с polling fallback
 - просмотр server history для активного файла
 - restore активного файла на выбранную серверную версию
@@ -69,14 +77,6 @@ npm run dev
 
 ---
 
-## Включение plugin
-
-1. Открыть `Settings`
-2. Перейти в `Community plugins`
-3. Включить `Obsidian Sync Plugin`
-
----
-
 ## Базовая настройка
 
 ### 1. Connection
@@ -96,9 +96,6 @@ npm run dev
 - `Device ID = уникальный и стабильный идентификатор этой установки`
 
 `Device ID` генерируется автоматически, если его ещё нет в plugin data.
-
-Пока `Auth token` не введён или отвергнут сервером, остальные секции настроек остаются
-логически заблокированными.
 
 ### 2. Vault
 
@@ -138,23 +135,6 @@ Templates/
 *.canvas
 ```
 
-### 4. E2EE
-
-Plugin поддерживает content-only E2EE:
-
-- шифруется содержимое файла
-- `path`, `vault_id`, `device_id`, версии и tombstone-метаданные остаются видимыми серверу
-
-Текущая модель хранения секрета:
-
-- passphrase живёт только в памяти текущей сессии Obsidian
-- в persisted plugin data сохраняется только fingerprint
-- fingerprint используется для проверки, что пользователь ввёл тот же ключ
-
-Создание vault в текущем UI требует ввода E2EE passphrase.
-При присоединении к существующему vault plugin попросит passphrase и, если на сервере уже есть
-encrypted content, попробует её проверить.
-
 ---
 
 ## Как работает sync
@@ -163,16 +143,19 @@ Plugin:
 
 - сканирует локальный vault
 - применяет include/ignore scope
-- загружает новые и изменённые файлы
+- строит локальный Loro document для каждого syncable path
+- отправляет новые snapshots через `POST /documents/push`
 - отправляет удаления как tombstone
-- читает `GET /changes`
+- держит watermark `last_seq`
+- читает `GET /documents/changes`
 - держит SSE-подписку на `GET /events`
-- после SSE-сигнала дочитывает `GET /changes`
-- пропускает свои собственные change events по `device_id`
-- скачивает удалённые изменения
-- создаёт conflict copy, если локальное содержимое уже разошлось с сервером
+- после SSE-сигнала дочитывает `GET /documents/changes`
+- пропускает собственные change events по `device_id`
+- для удалённых изменений читает `GET /documents/snapshot`
+- импортирует удалённый snapshot и заново сериализует markdown в локальный файл
 
-Rename не моделируется отдельно и фактически трактуется как `delete + create`.
+Rename сейчас не моделируется как отдельная операция и по-прежнему выглядит как
+`delete + create`.
 
 ---
 
@@ -235,13 +218,11 @@ Status bar показывает:
 попросит выбрать стратегию первого sync:
 
 - скачать vault с сервера и перезаписать локальные syncable-файлы
-- выполнить обычный sync, где возможны conflict copies
+- выполнить обычный sync и дать document merge/history догнать состояние естественным путём
 
 ---
 
 ## Запуск сервера
-
-Есть два типовых варианта.
 
 Через `.env`:
 
@@ -255,31 +236,3 @@ cp server/.env.example server/.env
 ```bash
 AUTH_TOKEN=secret-token
 ```
-
-Или напрямую через env:
-
-```bash
-cd server
-AUTH_TOKEN=secret-token cargo run
-```
-
-По умолчанию сервер слушает `http://127.0.0.1:3000`.
-
----
-
-## Ограничения текущей реализации
-
-- E2EE скрывает только содержимое файла, но не структуру vault
-- merge содержимого отсутствует, вместо него используются conflict copies
-- отдельной модели rename нет
-- selective sync работает только через include/ignore patterns на клиенте
-- device revoke / approval ещё не реализованы
-
----
-
-## Связанные документы
-
-- API: [API.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/API.md)
-- E2EE: [E2EE.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/E2EE.md)
-- UX flow: [PLUGIN_UX_FLOW.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/PLUGIN_UX_FLOW.md)
-- Регрессионная проверка: [MVP_CHECKLIST.md](/Users/dremchee/Work/Projects/app/obsidian-vault-sync/docs/MVP_CHECKLIST.md)
