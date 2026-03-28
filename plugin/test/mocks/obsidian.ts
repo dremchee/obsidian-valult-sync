@@ -1,7 +1,11 @@
 export const notices: string[] = [];
 
 export class TFile {
-  constructor(public path: string) {}
+  path: string;
+
+  constructor(path: string) {
+    this.path = path;
+  }
 }
 
 export class Notice {

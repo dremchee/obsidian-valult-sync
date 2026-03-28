@@ -17,16 +17,25 @@ export default defineConfig({
     emptyOutDir: true,
     sourcemap: false,
     minify: true,
-    target: "es2022",
+    target: "esnext",
     lib: {
       entry: resolve(rootDir, "main.ts"),
       formats: ["cjs"],
       fileName: () => "main.js",
     },
-    rollupOptions: {
-      external: ["obsidian"],
+    rolldownOptions: {
+      external: [
+        "obsidian",
+        "crypto",
+        "fs",
+        "loro-crdt/nodejs",
+        "path",
+        "util",
+      ],
       output: {
-        exports: "default",
+        entryFileNames: "main.js",
+        chunkFileNames: "chunks/[name]-[hash].js",
+        assetFileNames: "assets/[name]-[hash][extname]",
       },
     },
   },
